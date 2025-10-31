@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "609597104515",
+    "project_id": "wiseyoung-5eeaa",
+    "storage_bucket": "wiseyoung-5eeaa.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:609597104515:android:80f3df2a4b46ae24afd6b6",
+        "android_client_info": {
+          "package_name": "com.wiseyoung.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDkqfzAe_zLr99BND-bdJq8fm9bV9CkqyA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
