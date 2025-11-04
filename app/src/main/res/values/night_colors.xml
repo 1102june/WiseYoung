@@ -1,0 +1,24 @@
+<resources>
+    <!-- ✅ 기본 색상 (Dark mode) -->
+    <color name="color_primary">#EAEAEA</color>
+    <color name="color_on_primary">#030213</color>
+
+    <color name="color_secondary">#3E3E4A</color>
+    <color name="color_on_secondary">#EAEAEA</color>
+
+    <color name="color_background">#232323</color>
+    <color name="color_on_background">#FFFFFF</color>
+
+    <color name="color_muted">#43434A</color>
+    <color name="color_on_muted">#BEBED1</color>
+
+    <color name="color_accent">#3A3A44</color>
+    <color name="color_on_accent">#FFFFFF</color>
+
+    <color name="color_destructive">#9E1F2B</color>
+    <color name="color_on_destructive">#FFFFFF</color>
+
+    <!-- ✅ 기타 UI 색상 -->
+    <color name="color_surface">#1C1C1C</color>
+    <color name="color_on_surface">#EAEAEA</color>
+</resources>

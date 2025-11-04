@@ -1,3 +1,9 @@
 <resources>
     <string name="app_name">WiseYoung</string>
+    <string name="wy_logo_desc">WY 로고 이미지</string>
+    <string name="welcome_title">슬기로운 청년생활에 오신 것을 환영합니다!</string>
+    <string name="welcome_subtitle">청년의 내일을 슬기롭게</string>
+    <string name="next_button_text">다음</string>
+    <string name="login">로그인</string>
+    <string name="register">회원가입</string>
 </resources>

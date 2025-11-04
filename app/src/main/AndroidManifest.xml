@@ -25,11 +25,16 @@
             </intent-filter>
         </activity>
 
-        <!-- MainActivity -->
+        <!-- WelcomeActivity -->
         <activity
             android:name=".WelcomeActivity"
             android:exported="true"
             android:theme="@style/Theme.WiseYoung" />
+
+        <!-- WelcomeActivity -->
+        <activity
+            android:name=".AuthActivity"
+            android:exported="false" />
     </application>
 
 </manifest>

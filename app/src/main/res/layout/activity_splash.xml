@@ -8,10 +8,10 @@
 
     <ImageView
         android:id="@+id/imgLogo"
-        android:src="@drawable/wy_logo"
-        android:layout_width="160dp"
-        android:layout_height="160dp"
-        android:contentDescription="WY 로고" />
+        android:layout_width="273dp"
+        android:layout_height="259dp"
+        android:contentDescription="WY 로고"
+        android:src="@drawable/wy_logo" />
 
     <TextView
         android:text="슬기로운 청년생활"

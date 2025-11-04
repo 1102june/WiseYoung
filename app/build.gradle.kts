@@ -68,4 +68,14 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:33.5.1"))
     implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.firebase:firebase-auth-ktx")
+
+    //appcompat
+    implementation("androidx.appcompat:appcompat:1.7.0")
+
+    // Material3 인식
+    implementation("com.google.android.material:material:1.12.0")
+
+    // JetpackCompose
+    implementation("androidx.compose.material3:material3")
+
 }

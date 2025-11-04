@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/welcome_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center_horizontal"
+    android:background="@color/white"
+    android:paddingHorizontal="32dp"
+    android:paddingVertical="16dp"
+    tools:context=".WelcomeActivity">
+
+    <!-- 중간 영역 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center">
+
+        <!-- 로고 (원형) -->
+        <ImageView
+            android:id="@+id/logoImage"
+            android:layout_width="128dp"
+            android:layout_height="128dp"
+            android:src="@drawable/wy_logo2"
+            android:layout_gravity="center"
+            android:scaleType="centerCrop"
+            android:background="@drawable/logo_circle_bg"
+            android:contentDescription="@string/wy_logo_desc" />
+
+        <!-- 상단 여백 -->
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="24dp" />
+
+        <!-- 메인 문구 -->
+        <TextView
+            android:id="@+id/titleText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/welcome_title"
+            android:textColor="@color/black"
+            android:textSize="18sp"
+            android:gravity="center"
+            android:layout_gravity="center" />
+
+        <!-- 부제 -->
+        <TextView
+            android:id="@+id/subText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/welcome_subtitle"
+            android:textColor="#666666"
+            android:textSize="14sp"
+            android:layout_marginTop="8dp"
+            android:gravity="center" />
+    </LinearLayout>
+
+    <!-- 다음 버튼 -->
+    <Button
+        android:id="@+id/nextButton"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:text="@string/next_button_text"
+        android:textColor="@android:color/white"
+        android:backgroundTint="#9CA3AF" />
+
+</LinearLayout>
