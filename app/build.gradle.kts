@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "com.wiseyoung.app"
-    compileSdk = 34 // 안정 버전
+    namespace = "com.example.wiseyoung"
+    compileSdk = 35 // 안정 버전
 
     defaultConfig {
-        applicationId = "com.wiseyoung.app"
+        applicationId = "com.example.wiseyoung"
         minSdk = 24
         targetSdk = 34
         versionCode = 1
@@ -64,18 +64,48 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 
-    // ✅ Firebase SDK
-    implementation(platform("com.google.firebase:firebase-bom:33.5.1"))
-    implementation("com.google.firebase:firebase-analytics")
-    implementation("com.google.firebase:firebase-auth-ktx")
+    dependencies {
+        // Jetpack Compose
+        implementation(libs.androidx.core.ktx)
+        implementation(libs.androidx.lifecycle.runtime.ktx)
+        implementation(libs.androidx.activity.compose)
+        implementation(platform(libs.androidx.compose.bom))
+        implementation(libs.androidx.material3)
 
-    //appcompat
-    implementation("androidx.appcompat:appcompat:1.7.0")
+        // Firebase SDK (firebase-bom 사용)
+        implementation (platform("com.google.firebase:firebase-bom:33.5.1"))
 
-    // Material3 인식
-    implementation("com.google.android.material:material:1.12.0")
+        // Firebase Auth (firebase-auth만 사용)
+        implementation("com.google.firebase:firebase-auth")
 
-    // JetpackCompose
-    implementation("androidx.compose.material3:material3")
+        // Firebase Firestore
+        implementation("com.google.firebase:firebase-firestore")
 
+        // Firebase Analytics
+        implementation("com.google.firebase:firebase-analytics")
+
+        // Google Sign-In
+        implementation("com.google.android.gms:play-services-auth:20.0.1")
+
+        // Firebase Realtime Database
+        implementation("com.google.firebase:firebase-database:20.0.3")
+
+        // AppCompat
+        implementation("androidx.appcompat:appcompat:1.7.1")
+
+        // ActivityResultContracts 의존성
+        implementation("androidx.activity:activity-ktx:1.11.0")
+
+        // JetpackCompose
+        implementation("androidx.compose.material3:material3")
+
+        // 기타 의존성들
+        testImplementation(libs.junit)
+        androidTestImplementation(libs.androidx.junit)
+        androidTestImplementation(libs.androidx.espresso.core)
+        androidTestImplementation(platform(libs.androidx.compose.bom))
+        androidTestImplementation(libs.androidx.ui.test.junit4)
+        debugImplementation(libs.androidx.ui.tooling)
+        debugImplementation(libs.androidx.ui.test.manifest)
+    }
 }

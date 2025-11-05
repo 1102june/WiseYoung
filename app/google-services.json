@@ -12,7 +12,20 @@
           "package_name": "com.wiseyoung.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "609597104515-qcvkoqiu6c35i3mghcaq82s6112q7rpa.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.wiseyoung.app",
+            "certificate_hash": "0f8f982b1eb4c103d38777ced81ad50f8f2c91eb"
+          }
+        },
+        {
+          "client_id": "609597104515-hhhv4g5tckho264n2jv2mpnqtie0qf48.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDkqfzAe_zLr99BND-bdJq8fm9bV9CkqyA"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "609597104515-hhhv4g5tckho264n2jv2mpnqtie0qf48.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
