@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "609597104515",
+    "project_id": "wiseyoung-5eeaa",
+    "storage_bucket": "wiseyoung-5eeaa.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:609597104515:android:80f3df2a4b46ae24afd6b6",
+        "android_client_info": {
+          "package_name": "com.wiseyoung.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "609597104515-qcvkoqiu6c35i3mghcaq82s6112q7rpa.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.wiseyoung.app",
+            "certificate_hash": "0f8f982b1eb4c103d38777ced81ad50f8f2c91eb"
+          }
+        },
+        {
+          "client_id": "609597104515-hhhv4g5tckho264n2jv2mpnqtie0qf48.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDkqfzAe_zLr99BND-bdJq8fm9bV9CkqyA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "609597104515-hhhv4g5tckho264n2jv2mpnqtie0qf48.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
