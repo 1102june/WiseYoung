@@ -66,7 +66,7 @@ class LoginActivity : ComponentActivity() {
     // 구글 로그인 처리 함수
     fun googleSignIn() {
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-            .requestIdToken("YOUR_WEB_CLIENT_ID")  // Firebase 콘솔에서 받은 Web Client ID
+            .requestIdToken("609597104515-hhhv4g5tckho264n2jv2mpnqtie0qf48.apps.googleusercontent.com")  // Firebase 콘솔에서 받은 Web Client ID
             .requestEmail()
             .build()
 
