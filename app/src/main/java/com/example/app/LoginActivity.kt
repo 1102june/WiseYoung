@@ -1,10 +1,11 @@
-package com.example.wiseyoung
+package com.wiseyoung.app
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
@@ -14,15 +15,32 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import com.example.wiseyoung.R
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.IconButton
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
+import com.example.app.ui.theme.WiseYoungTheme
+
+class LoginActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent {
+            WiseYoungTheme {
+                LoginScreen(
+                    onBack = { finish() },
+                    onRegister = {
+                        val intent = Intent(this, RegisterActivity::class.java)
+                        startActivity(intent)
+                    },
+                    onLogin = { email, password -> /* Spring 서버로 로그인 요청 */ }
+                )
+            }
+        }
+    }
+}
 
 @Composable
-fun PasswordResetStep1(onBack: () -> Unit, onNext: () -> Unit) {
+fun LoginScreen(onBack: () -> Unit, onRegister: () -> Unit, onLogin: (String, String) -> Unit) {
     var email by remember { mutableStateOf("") }
-    var code by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
 
     Column(
         modifier = Modifier
@@ -30,7 +48,6 @@ fun PasswordResetStep1(onBack: () -> Unit, onNext: () -> Unit) {
             .padding(horizontal = 24.dp, vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // 🔙 상단 뒤로가기
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
@@ -42,7 +59,6 @@ fun PasswordResetStep1(onBack: () -> Unit, onNext: () -> Unit) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 🟠 로고
         Image(
             painter = painterResource(id = R.drawable.wy_logo),
             contentDescription = "WY Logo",
@@ -52,15 +68,10 @@ fun PasswordResetStep1(onBack: () -> Unit, onNext: () -> Unit) {
         )
 
         Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            "비밀번호 찾기",
-            style = MaterialTheme.typography.h6,
-            color = Color.Gray
-        )
+        Text("이메일 주소로 로그인 하실 수 있습니다", color = Color.Gray)
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // ✉ 이메일
         OutlinedTextField(
             value = email,
             onValueChange = { email = it },
@@ -70,38 +81,30 @@ fun PasswordResetStep1(onBack: () -> Unit, onNext: () -> Unit) {
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // 인증번호 발송 버튼
-        Button(
-            onClick = { /* 인증번호 발송 로직 */ },
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6)),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp)
-        ) {
-            Text("인증번호 발송", color = Color.White)
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // 인증번호 입력 필드
         OutlinedTextField(
-            value = code,
-            onValueChange = { code = it },
-            label = { Text("인증번호를 입력하세요") },
+            value = password,
+            onValueChange = { password = it },
+            label = { Text("비밀번호를 입력해주세요") },
+            visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier.fillMaxWidth()
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 다음 버튼
         Button(
-            onClick = onNext,
+            onClick = { onLogin(email, password) },
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6)),
             modifier = Modifier
                 .fillMaxWidth()
                 .height(48.dp)
         ) {
-            Text("다음", color = Color.White)
+            Text("로그인", color = Color.White)
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        TextButton(onClick = onRegister) {
+            Text("아직 회원이 아니신가요? 회원가입", color = Color(0xFF8B5CF6))
         }
     }
 }

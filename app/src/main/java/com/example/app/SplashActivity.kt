@@ -1,4 +1,4 @@
-package com.example.wiseyoung
+package com.wiseyoung.app
 
 import android.content.Intent
 import android.os.Bundle
@@ -17,8 +17,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
-import com.example.wiseyoung.WelcomeActivity
-import com.example.wiseyoung.R
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 

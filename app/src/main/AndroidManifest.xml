@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    package="com.example.wiseyoung"> <!-- 수정된 부분 -->
+    package="com.wiseyoung.app"> <!-- 수정된 부분 -->
 
     <application
         android:allowBackup="true"
@@ -16,7 +16,7 @@
 
         <!-- SplashActivity -->
         <activity
-            android:name=".SplashActivity"
+            android:name="com.wiseyoung.app.SplashActivity"
             android:exported="true"
             android:theme="@style/Theme.WiseYoung.NoActionBar">
             <intent-filter>
@@ -27,23 +27,23 @@
 
         <!-- WelcomeActivity -->
         <activity
-            android:name=".WelcomeActivity"
+            android:name="com.wiseyoung.app.WelcomeActivity"
             android:exported="true"
             android:theme="@style/Theme.WiseYoung" />
 
         <!-- AuthActivity (로그인 / 회원가입 화면) -->
         <activity
-            android:name=".AuthActivity"
+            android:name="com.wiseyoung.app.AuthActivity"
             android:exported="false" />
 
         <!-- LoginActivity (로그인 화면) -->
         <activity
-            android:name=".LoginActivity"
+            android:name="com.wiseyoung.app.LoginActivity"
             android:exported="false" />
 
         <!-- RegisterActivity (회원가입 화면) -->
         <activity
-            android:name=".RegisterActivity"
+            android:name="com.wiseyoung.app.RegisterActivity"
             android:exported="false" />
     </application>
 

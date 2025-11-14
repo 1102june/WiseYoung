@@ -1,15 +1,10 @@
 <resources>
     <!-- 기본 색상 -->
-    <color name="white">#030213</color>
-    <color name="black">#FFFFFF</color>
-
     <color name="color_primary">#9CA3AF</color>
     <color name="color_on_primary">#FFFFFF</color>
 
-    <color name="color_secondary">#F2F2F7</color>
-    <color name="color_on_secondary">#030213</color>
+    <color name="color_secondary">#F2F2F7</color>>
 
-    <color name="color_background">#FFFFFF</color>
     <color name="color_on_background">#232323</color>
 
     <color name="color_muted">#ECECF0</color>
@@ -19,9 +14,6 @@
     <color name="color_on_accent">#030213</color>
 
     <color name="color_destructive">#D4183D</color>
-    <color name="color_on_destructive">#FFFFFF</color>
 
-
-    <color name="color_surface">#FFFFFF</color>
     <color name="color_on_surface">#1A1A1A</color>
 </resources>

@@ -1,11 +1,9 @@
-package com.example.wiseyoung
+package com.wiseyoung.app
 
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Button
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat.startActivity
-import com.example.wiseyoung.R
 
 
 class WelcomeActivity : AppCompatActivity() {

@@ -1,4 +1,4 @@
-package com.example.wiseyoung
+package com.wiseyoung.app
 
 import android.content.Intent
 import android.os.Bundle
@@ -11,7 +11,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.example.wiseyoung.ui.theme.WiseYoungTheme
+import com.wiseyoung.app.LoginActivity
+import com.wiseyoung.app.RegisterActivity
+import com.example.app.ui.theme.WiseYoungTheme
 
 class AuthActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,7 +44,6 @@ fun AuthScreen(onLogin: () -> Unit, onRegister: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // 로그인 버튼
         Button(
             onClick = onLogin,
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6)),
@@ -53,7 +54,6 @@ fun AuthScreen(onLogin: () -> Unit, onRegister: () -> Unit) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 회원가입 버튼
         Button(
             onClick = onRegister,
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6)),

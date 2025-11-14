@@ -8,10 +8,10 @@
             <InsightsFilterSettings>
               <option name="connection">
                 <ConnectionSetting>
-                  <option name="appId" value="PLACEHOLDER" />
-                  <option name="mobileSdkAppId" value="" />
-                  <option name="projectId" value="" />
-                  <option name="projectNumber" value="" />
+                  <option name="appId" value="com.wiseyoung.app" />
+                  <option name="mobileSdkAppId" value="1:609597104515:android:80f3df2a4b46ae24afd6b6" />
+                  <option name="projectId" value="wiseyoung-5eeaa" />
+                  <option name="projectNumber" value="609597104515" />
                 </ConnectionSetting>
               </option>
               <option name="signal" value="SIGNAL_UNSPECIFIED" />
