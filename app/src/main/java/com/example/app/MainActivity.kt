@@ -1,7 +1,6 @@
-package com.example.wiseyoung
+package com.wiseyoung.app
 
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -12,14 +11,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
-import com.example.wiseyoung.ui.theme.WiseYoungTheme
-import com.google.firebase.FirebaseApp
+import com.example.app.ui.theme.WiseYoungTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val app = FirebaseApp.initializeApp(this)
-        Log.d("FirebaseCheck", "Firebase 초기화 성공 여부: ${app != null}") //Firebase 연동 성공여부 코드
         enableEdgeToEdge()
         setContent {
             WiseYoungTheme {

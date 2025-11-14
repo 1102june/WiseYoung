@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.wiseyoung"
-    compileSdk = 35 // 안정 버전
+    namespace = "com.wiseyoung.app"
+    compileSdk = 36 // 안정 버전
 
     defaultConfig {
-        applicationId = "com.example.wiseyoung"
+        applicationId = "com.wiseyoung.app"
         minSdk = 24
         targetSdk = 34
         versionCode = 1
@@ -73,7 +73,7 @@ dependencies {
         implementation(libs.androidx.material3)
 
         // Firebase SDK (firebase-bom 사용)
-        implementation (platform("com.google.firebase:firebase-bom:33.5.1"))
+        implementation (platform("com.google.firebase:firebase-bom:34.5.0"))
 
         // Firebase Auth (firebase-auth만 사용)
         implementation("com.google.firebase:firebase-auth")
@@ -85,10 +85,10 @@ dependencies {
         implementation("com.google.firebase:firebase-analytics")
 
         // Google Sign-In
-        implementation("com.google.android.gms:play-services-auth:20.0.1")
+        implementation("com.google.android.gms:play-services-auth:21.4.0")
 
         // Firebase Realtime Database
-        implementation("com.google.firebase:firebase-database:20.0.3")
+        implementation("com.google.firebase:firebase-database:22.0.1")
 
         // AppCompat
         implementation("androidx.appcompat:appcompat:1.7.1")
