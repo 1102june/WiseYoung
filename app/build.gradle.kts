@@ -99,6 +99,8 @@ dependencies {
         // JetpackCompose
         implementation("androidx.compose.material3:material3")
 
+        implementation("com.squareup.okhttp3:okhttp:4.9.3")
+
         // 기타 의존성들
         testImplementation(libs.junit)
         androidTestImplementation(libs.androidx.junit)
