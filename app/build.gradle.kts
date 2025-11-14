@@ -96,8 +96,10 @@ dependencies {
         // ActivityResultContracts 의존성
         implementation("androidx.activity:activity-ktx:1.11.0")
 
-        // JetpackCompose
-        implementation("androidx.compose.material3:material3")
+        implementation ("androidx.compose.ui:ui:1.2.0")  // 최신 버전으로 업그레이드
+        implementation ("androidx.compose.material3:material3:1.0.0")
+        implementation ("androidx.compose.ui:ui-tooling-preview:1.2.0")
+        implementation ("androidx.compose.runtime:runtime:1.2.0")
 
         implementation("com.squareup.okhttp3:okhttp:4.9.3")
 

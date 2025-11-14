@@ -2,6 +2,7 @@ package com.wiseyoung.app
 
 import android.content.Intent
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
@@ -16,10 +17,18 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.sp
 import com.example.app.ui.theme.WiseYoungTheme
+import com.google.firebase.auth.FirebaseAuth
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody
+import okhttp3.Response
 
 class LoginActivity : ComponentActivity() {
+    private val auth = FirebaseAuth.getInstance()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -30,24 +39,88 @@ class LoginActivity : ComponentActivity() {
                         val intent = Intent(this, RegisterActivity::class.java)
                         startActivity(intent)
                     },
-                    onLogin = { email, password -> /* Spring 서버로 로그인 요청 */ }
+                    onPasswordReset = {
+                        // 비밀번호 찾기 처리
+                    },
+                    onComplete = { email, password ->
+                        loginUser(email, password)
+                    },
+                    onGoogleLogin = {
+                        // 구글 로그인 처리
+                    },
+                    onGoogleKeyLogin = {
+                        // 구글 키 로그인 처리
+                    }
                 )
+            }
+        }
+    }
+
+    // FirebaseAuth로 로그인
+    private fun loginUser(email: String, password: String) {
+        auth.signInWithEmailAndPassword(email, password)
+            .addOnSuccessListener { result ->
+                val user = result.user
+                user?.getIdToken(true)?.addOnCompleteListener { task ->
+                    if (task.isSuccessful) {
+                        val idToken = task.result?.token
+                        // 서버에 ID Token 전송
+                        idToken?.let {
+                            sendIdTokenToServer(it)
+                        }
+                    } else {
+                        Toast.makeText(this, "로그인 실패: ${task.exception?.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .addOnFailureListener {
+                Toast.makeText(this, "로그인 실패: ${it.message}", Toast.LENGTH_SHORT).show()
+            }
+    }
+
+    // Spring Boot 서버로 ID Token 전송
+    private fun sendIdTokenToServer(idToken: String) {
+        val client = OkHttpClient()
+        val json = """{"idToken": "$idToken"}"""
+        val body = RequestBody.create("application/json".toMediaType(), json)
+
+        val request = Request.Builder()
+            .url("http://your_server_url/auth/login")  // Spring Boot 서버 URL
+            .post(body)
+            .build()
+
+        client.newCall(request).execute().use { response ->
+            if (response.isSuccessful) {
+                // 로그인 성공 후 처리
+                Toast.makeText(this, "로그인 성공", Toast.LENGTH_SHORT).show()
+                // MainActivity로 이동하거나 다른 작업 수행
+            } else {
+                Toast.makeText(this, "서버 오류: ${response.message}", Toast.LENGTH_SHORT).show()
             }
         }
     }
 }
 
 @Composable
-fun LoginScreen(onBack: () -> Unit, onRegister: () -> Unit, onLogin: (String, String) -> Unit) {
+fun LoginScreen(
+    onBack: () -> Unit,
+    onRegister: () -> Unit,
+    onPasswordReset: () -> Unit,
+    onComplete: (String, String) -> Unit,
+    onGoogleLogin: () -> Unit,
+    onGoogleKeyLogin: () -> Unit
+) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 24.dp, vertical = 16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Top
     ) {
+        // Header - Back button
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
@@ -57,54 +130,84 @@ fun LoginScreen(onBack: () -> Unit, onRegister: () -> Unit, onLogin: (String, St
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
+        // Logo
+        Spacer(modifier = Modifier.height(32.dp))
         Image(
             painter = painterResource(id = R.drawable.wy_logo),
             contentDescription = "WY Logo",
-            modifier = Modifier
-                .size(100.dp)
-                .padding(vertical = 12.dp)
+            modifier = Modifier.size(100.dp)
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
-        Text("이메일 주소로 로그인 하실 수 있습니다", color = Color.Gray)
+        // Email and Password Input
+        Spacer(modifier = Modifier.height(32.dp))
 
-        Spacer(modifier = Modifier.height(24.dp))
-
+        // Email Input
         OutlinedTextField(
             value = email,
             onValueChange = { email = it },
             label = { Text("이메일 주소를 입력해주세요") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
+        // Password Input
         OutlinedTextField(
             value = password,
             onValueChange = { password = it },
             label = { Text("비밀번호를 입력해주세요") },
             visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Password Reset Link
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            TextButton(onClick = onPasswordReset) {
+                Text("비밀번호 찾기", style = TextStyle(fontSize = 14.sp, color = Color.Gray)) // 스타일 직접 지정
+            }
+        }
+
+        // Login Button
+        Spacer(modifier = Modifier.height(24.dp))
         Button(
-            onClick = { onLogin(email, password) },
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6)),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp)
+            onClick = { onComplete(email, password) },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
         ) {
             Text("로그인", color = Color.White)
         }
 
+        // Social Login - Google Login Button
         Spacer(modifier = Modifier.height(24.dp))
+        Button(
+            onClick = onGoogleLogin,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.outlinedButtonColors()
+        ) {
+            Text("Google Login")
+        }
 
+        // Google Key Login Button
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(
+            onClick = onGoogleKeyLogin,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.outlinedButtonColors()
+        ) {
+            Text("Google Key Login")
+        }
+
+        // Register Button
+        Spacer(modifier = Modifier.height(32.dp))
         TextButton(onClick = onRegister) {
-            Text("아직 회원이 아니신가요? 회원가입", color = Color(0xFF8B5CF6))
+            Text("아직 회원이 아니신가요? 회원가입", style = TextStyle(fontSize = 14.sp, color = Color(0xFF8B5CF6))) // 스타일 직접 지정
         }
     }
 }
