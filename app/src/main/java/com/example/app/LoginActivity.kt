@@ -17,7 +17,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.sp
+
+
 import com.example.app.ui.theme.WiseYoungTheme
 import com.google.firebase.auth.FirebaseAuth
 import okhttp3.OkHttpClient
@@ -100,7 +101,6 @@ class LoginActivity : ComponentActivity() {
         }
     }
 }
-
 @Composable
 fun LoginScreen(
     onBack: () -> Unit,
@@ -120,7 +120,6 @@ fun LoginScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Top
     ) {
-        // Header - Back button
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
@@ -130,7 +129,6 @@ fun LoginScreen(
             }
         }
 
-        // Logo
         Spacer(modifier = Modifier.height(32.dp))
         Image(
             painter = painterResource(id = R.drawable.wy_logo),
@@ -138,10 +136,8 @@ fun LoginScreen(
             modifier = Modifier.size(100.dp)
         )
 
-        // Email and Password Input
         Spacer(modifier = Modifier.height(32.dp))
 
-        // Email Input
         OutlinedTextField(
             value = email,
             onValueChange = { email = it },
@@ -152,7 +148,6 @@ fun LoginScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Password Input
         OutlinedTextField(
             value = password,
             onValueChange = { password = it },
@@ -164,17 +159,15 @@ fun LoginScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Password Reset Link
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             TextButton(onClick = onPasswordReset) {
-                Text("비밀번호 찾기", style = TextStyle(fontSize = 14.sp, color = Color.Gray)) // 스타일 직접 지정
+                Text("비밀번호 찾기", style = MaterialTheme.typography.bodyMedium)
             }
         }
 
-        // Login Button
         Spacer(modifier = Modifier.height(24.dp))
         Button(
             onClick = { onComplete(email, password) },
@@ -184,7 +177,6 @@ fun LoginScreen(
             Text("로그인", color = Color.White)
         }
 
-        // Social Login - Google Login Button
         Spacer(modifier = Modifier.height(24.dp))
         Button(
             onClick = onGoogleLogin,
@@ -194,7 +186,6 @@ fun LoginScreen(
             Text("Google Login")
         }
 
-        // Google Key Login Button
         Spacer(modifier = Modifier.height(16.dp))
         Button(
             onClick = onGoogleKeyLogin,
@@ -204,10 +195,9 @@ fun LoginScreen(
             Text("Google Key Login")
         }
 
-        // Register Button
         Spacer(modifier = Modifier.height(32.dp))
         TextButton(onClick = onRegister) {
-            Text("아직 회원이 아니신가요? 회원가입", style = TextStyle(fontSize = 14.sp, color = Color(0xFF8B5CF6))) // 스타일 직접 지정
+            Text("아직 회원이 아니신가요? 회원가입", style = MaterialTheme.typography.bodyMedium)
         }
     }
 }

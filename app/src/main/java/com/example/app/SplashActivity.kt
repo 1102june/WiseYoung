@@ -4,35 +4,41 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class SplashActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    SplashScreen()
+                    SplashScreen(
+                        onStart = {
+                            startActivity(Intent(this, WelcomeActivity::class.java))
+                            finish()
+                        }
+                    )
                 }
             }
         }
 
-        // 2초 후 MainActivity로 이동
+        // 자동 이동 (선택)
         lifecycleScope.launch {
             delay(2000)
             startActivity(Intent(this@SplashActivity, WelcomeActivity::class.java))
@@ -42,37 +48,28 @@ class SplashActivity : ComponentActivity() {
 }
 
 @Composable
-fun SplashScreen() {
+fun SplashScreen(onStart: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
-        // 로고
-        Image(
-            painter = painterResource(id = R.drawable.wy_logo),
-            contentDescription = "WiseYoung Logo",
-            modifier = Modifier.size(150.dp)
+        Text(
+            text = "Welcome to WiseYoung!",
+            textAlign = TextAlign.Center,
+            style = MaterialTheme.typography.titleMedium
         )
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // 타이틀
-        Text(
-            text = "슬기로운 청년생활",
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onBackground,
-            textAlign = TextAlign.Center
-        )
-
-        // 서브 텍스트
-        Text(
-            text = "Find your way with Wise & Young",
-            fontSize = 14.sp,
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
-        )
+        Button(
+            onClick = onStart,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
+        ) {
+            Text("시작하기", color = Color.White)
+        }
     }
 }
