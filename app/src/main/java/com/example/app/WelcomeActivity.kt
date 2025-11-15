@@ -4,7 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.widget.Button
 import androidx.appcompat.app.AppCompatActivity
-
+import androidx.core.content.ContextCompat.startActivity
 
 class WelcomeActivity : AppCompatActivity() {
 
@@ -15,7 +15,6 @@ class WelcomeActivity : AppCompatActivity() {
         val nextButton: Button = findViewById(R.id.nextButton)
 
         nextButton.setOnClickListener {
-            // TODO: LoginActivity로 이동 (다음 온보딩 단계)
             val intent = Intent(this, AuthActivity::class.java)
             startActivity(intent)
             finish()
