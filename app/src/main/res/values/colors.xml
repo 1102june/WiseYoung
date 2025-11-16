@@ -3,10 +3,10 @@
     <color name="color_primary">#9CA3AF</color>
     <color name="color_on_primary">#FFFFFF</color>
 
-    <color name="color_secondary">#F2F2F7</color>>
+    <color name="color_secondary">#F2F2F7</color>
+    <color name="color_on_secondary">#030213</color>
 
     <color name="color_on_background">#232323</color>
-
     <color name="color_muted">#ECECF0</color>
     <color name="color_on_muted">#717182</color>
 
@@ -15,5 +15,35 @@
 
     <color name="color_destructive">#D4183D</color>
 
-    <color name="color_on_surface">#1A1A1A</color>
+    <color name="color_surface">#1A1A1A</color>
+    <color name="color_on_surface">#F5F5F5</color>
+
+    <!-- 어두운 모드 색상 -->
+    <color name="night_color_primary">#EAEAEA</color>
+    <color name="night_color_on_primary">#030213</color>
+
+    <color name="night_color_secondary">#3E3E4A</color>
+    <color name="night_color_on_secondary">#F2F2F7</color>
+
+    <color name="night_color_muted">#43434A</color>
+    <color name="night_color_on_muted">#BEBED1</color>
+
+    <color name="night_color_accent">#3A3A44</color>
+
+    <color name="night_color_destructive">#9E1F2B</color>
+
+    <color name="night_color_surface">#1C1C1C</color>
+    <color name="night_color_on_surface">#FFFFFF</color>
+
+    <color name="colorPrimary">#9CA3AF</color>
+    <color name="colorOnPrimary">#FFFFFF</color>
+    <color name="colorSecondary">#F2F2F7</color>
+    <color name="colorOnSecondary">#030213</color>
+    <color name="colorSurface">#1A1A1A</color>
+    <color name="colorOnSurface">#F5F5F5</color>
+    <color name="colorError">#D4183D</color>
+    <color name="colorOnError">#FFFFFF</color>
+    <color name="colorBackground">#FFFFFF</color>
+    <color name="colorOnBackground">#232323</color>
+
 </resources>

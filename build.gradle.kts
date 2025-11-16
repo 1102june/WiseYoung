@@ -7,12 +7,12 @@ plugins {
 
 buildscript {
     repositories {
-        google()
-        mavenCentral()
+        google()  // Google 저장소 추가
+        mavenCentral()  // Maven 저장소 추가
     }
     dependencies {
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.25")
-        classpath("com.google.gms:google-services:4.4.4")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.25")  // Kotlin 최신 버전
+        classpath("com.google.gms:google-services:4.4.4")  // Firebase 플러그인
     }
 }
 
