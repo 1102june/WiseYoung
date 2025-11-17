@@ -36,14 +36,20 @@
     <color name="night_color_on_surface">#FFFFFF</color>
 
     <color name="colorPrimary">#9CA3AF</color>
-    <color name="colorOnPrimary">#FFFFFF</color>
     <color name="colorSecondary">#F2F2F7</color>
     <color name="colorOnSecondary">#030213</color>
     <color name="colorSurface">#1A1A1A</color>
     <color name="colorOnSurface">#F5F5F5</color>
     <color name="colorError">#D4183D</color>
-    <color name="colorOnError">#FFFFFF</color>
-    <color name="colorBackground">#FFFFFF</color>
+    <color name="color_background">#FFFFFF</color>
     <color name="colorOnBackground">#232323</color>
+
+    <color name="night_color_background">#000000</color>
+
+
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+    <color name="gray">#888888</color>
+
 
 </resources>

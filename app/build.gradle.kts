@@ -27,6 +27,10 @@ android {
             )
         }
     }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
     kotlinOptions {
         jvmTarget = "17"
     }
@@ -49,8 +53,11 @@ android {
         implementation("androidx.compose.ui:ui-tooling-preview")
         implementation("androidx.compose.foundation:foundation")
         implementation("androidx.compose.material3:material3")
+        implementation("com.google.android.material:material:1.12.0")
         implementation("androidx.compose.ui:ui-graphics")
         implementation("androidx.compose.ui:ui-text")
+        implementation("androidx.compose.material:material-icons-core")
+        implementation("androidx.compose.material:material-icons-extended")
 
         // 🔹 AndroidX 기본 컴포넌트
         implementation(libs.androidx.core.ktx)
