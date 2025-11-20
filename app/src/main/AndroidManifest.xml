@@ -44,10 +44,26 @@
             android:name="com.wiseyoung.app.LoginActivity"
             android:exported="false" />
 
+        <!-- PasswordResetActivity (비밀번호 찾기 화면) -->
+        <activity
+            android:name="com.wiseyoung.app.PasswordResetActivity"
+            android:exported="false" />
+
         <!-- RegisterActivity (회원가입 화면) -->
         <activity
             android:name="com.wiseyoung.app.RegisterActivity"
             android:exported="false" />
+        <!-- MainActivity (로그인 이후 홈) -->
+        <activity
+            android:name="com.wiseyoung.app.MainActivity"
+            android:exported="false" />
+
+        <!-- ProfileSetupActivity (최초 Google 로그인 프로필) -->
+        <activity
+            android:name="com.wiseyoung.app.ProfileSetupActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WiseYoung.NoActionBar" />
+
 
     </application>
     <uses-permission android:name="android.permission.INTERNET"/>

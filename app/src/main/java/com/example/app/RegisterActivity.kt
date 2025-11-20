@@ -1,6 +1,7 @@
 package com.wiseyoung.app
 
 import android.os.Bundle
+import android.content.Intent
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -65,12 +66,18 @@ class RegisterActivity : ComponentActivity() {
                         sendSignupToServer(idToken, nickname)
                     }
 
-                finish()
+                launchProfileSetup()
             }
             .addOnFailureListener {
                 Toast.makeText(this, "회원가입 실패: ${it.message}", Toast.LENGTH_SHORT).show()
             }
     }
+    private fun launchProfileSetup() {
+        ProfilePreferences.setProfileCompleted(this, false)
+        startActivity(Intent(this, ProfileSetupActivity::class.java))
+        finish()
+    }
+
 
 
     /** 🔥 서버로 idToken + nickname 전송 → MariaDB 저장 */

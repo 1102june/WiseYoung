@@ -21,6 +21,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
+import com.wiseyoung.app.ProfileSetupActivity
 import com.example.app.ui.theme.WiseYoungTheme
 import com.google.firebase.auth.FirebaseAuth
 import okhttp3.*
@@ -40,12 +41,14 @@ class LoginActivity : ComponentActivity() {
                     onRegister = {
                         startActivity(Intent(this, RegisterActivity::class.java))
                     },
-                    onPasswordReset = { /* TODO */ },
+                    onPasswordReset = {
+                        startActivity(Intent(this, PasswordResetActivity::class.java))
+                    },
                     onComplete = { email, password ->
                         loginUser(email, password)
                     },
                     onGoogleLogin = {
-                        startActivity(Intent(this, AuthActivity::class.java))
+                        handleGoogleLogin()
                     },
                     onGoogleKeyLogin = {}
                 )
@@ -105,6 +108,14 @@ class LoginActivity : ComponentActivity() {
                     ).show()
                 }
             }
+        }
+    }
+    private fun handleGoogleLogin() {
+        if (!ProfilePreferences.hasCompletedProfile(this)) {
+            startActivity(Intent(this, ProfileSetupActivity::class.java))
+        } else {
+            Toast.makeText(this, "프로필이 이미 등록되어 있습니다.", Toast.LENGTH_SHORT).show()
+            startActivity(Intent(this, MainActivity::class.java))
         }
     }
 }
