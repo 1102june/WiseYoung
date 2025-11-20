@@ -6,19 +6,17 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -27,16 +25,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.app.ui.theme.WiseYoungTheme
 
-class WelcomeActivity : ComponentActivity() {
+class CompleteActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         setContent {
             WiseYoungTheme {
-                WelcomeScreen(
-                    onNext = {
-                        val intent = Intent(this, AuthActivity::class.java)
+                CompleteScreen(
+                    onStart = {
+                        val intent = Intent(this, MainActivity::class.java)
                         startActivity(intent)
                         overridePendingTransition(android.R.anim.slide_in_right, android.R.anim.slide_out_left)
                         finish()
@@ -48,28 +46,12 @@ class WelcomeActivity : ComponentActivity() {
 }
 
 @Composable
-fun WelcomeScreen(onNext: () -> Unit) {
-    var dragOffset by remember { mutableStateOf(0f) }
-    val coroutineScope = rememberCoroutineScope()
-    
+fun CompleteScreen(onStart: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
-            .padding(horizontal = 32.dp, vertical = 64.dp)
-            .pointerInput(Unit) {
-                detectHorizontalDragGestures(
-                    onDragEnd = {
-                        // 오른쪽으로 스와이프 (왼쪽에서 오른쪽으로 드래그)
-                        if (dragOffset < -100) {
-                            onNext()
-                        }
-                        dragOffset = 0f
-                    }
-                ) { change, dragAmount ->
-                    dragOffset += dragAmount
-                }
-            },
+            .padding(horizontal = 32.dp, vertical = 64.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween
     ) {
@@ -114,29 +96,31 @@ fun WelcomeScreen(onNext: () -> Unit) {
                 )
 
                 Text(
-                    text = "청년의 내일을 슬기롭게",
+                    text = "청년의 내일을 슬기롭게,\n지금 바로 다양한 혜택을 만나보세요",
                     color = Color(0xFF666666),
                     fontSize = 14.sp,
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Center,
+                    lineHeight = 20.sp
                 )
             }
         }
 
         // 하단 버튼
         Button(
-            onClick = onNext,
+            onClick = onStart,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(48.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF9CA3AF)
+                containerColor = Color(0xFF10B981)
             )
         ) {
             Text(
-                text = "다음",
+                text = "시작하기",
                 color = Color.White,
                 fontSize = 16.sp
             )
         }
     }
 }
+

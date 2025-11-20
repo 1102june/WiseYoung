@@ -6,7 +6,9 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,9 +18,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -50,10 +60,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
+import com.example.app.Config
 import com.example.app.ui.theme.WiseYoungTheme
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -64,13 +78,26 @@ import org.json.JSONObject
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import android.util.Log
+
 
 class ProfileSetupActivity : ComponentActivity() {
 
-    private val client by lazy { OkHttpClient() }
+    private val client by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .build()
+    }
+    private val auth = FirebaseAuth.getInstance()
+    private var isFromGoogleLogin = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Google 로그인에서 온 경우인지 확인
+        isFromGoogleLogin = intent.getBooleanExtra("from_google_login", false)
+        
         setContent {
             WiseYoungTheme {
                 var isSubmitting by remember { mutableStateOf(false) }
@@ -88,7 +115,13 @@ class ProfileSetupActivity : ComponentActivity() {
                     ProfileSetupScreen(
                         modifier = Modifier.padding(paddingValues),
                         isSubmitting = isSubmitting,
-                        onBack = { finish() },
+                        onBack = {
+                            if (isFromGoogleLogin) {
+                                // Google 로그인에서 온 경우 LoginActivity로 이동
+                                startActivity(Intent(this@ProfileSetupActivity, LoginActivity::class.java))
+                            }
+                            finish()
+                        },
                         onSubmit = { payload ->
                             if (isSubmitting) return@ProfileSetupScreen
                             isSubmitting = true
@@ -103,7 +136,9 @@ class ProfileSetupActivity : ComponentActivity() {
                                             "프로필 저장이 완료되었습니다.",
                                             Toast.LENGTH_LONG
                                         ).show()
-                                        startActivity(Intent(this, MainActivity::class.java))
+                                        val intent = Intent(this, CompleteActivity::class.java)
+                                        startActivity(intent)
+                                        overridePendingTransition(android.R.anim.slide_in_right, android.R.anim.slide_out_left)
                                         finish()
                                     } else {
                                         snackbarMessage = message
@@ -121,39 +156,99 @@ class ProfileSetupActivity : ComponentActivity() {
         payload: ProfilePayload,
         onResult: (Boolean, String) -> Unit
     ) {
-        val jsonObject = JSONObject().apply {
-            put("birthDate", payload.birthDate)
-            put("gender", payload.gender)
-            put("province", payload.province)
-            put("city", payload.city)
-            put("education", payload.education)
-            put("employment", payload.employment)
-            put("interests", JSONArray(payload.interests))
-        }
-
-        val requestBody = jsonObject.toString()
-            .toRequestBody("application/json".toMediaType())
-
         lifecycleScope.launch(Dispatchers.IO) {
             try {
+                // Firebase 인증 토큰 가져오기
+                val currentUser = auth.currentUser
+                if (currentUser == null) {
+                    withContext(Dispatchers.Main) {
+                        onResult(false, "로그인이 필요합니다. 다시 로그인해주세요.")
+                    }
+                    return@launch
+                }
+
+                val idToken = try {
+                    currentUser.getIdToken(true).await()
+                } catch (e: Exception) {
+                    Log.e("ProfileSetup", "토큰 발급 실패: ${e.message}")
+                    withContext(Dispatchers.Main) {
+                        onResult(false, "인증 토큰 발급 실패: ${e.message}")
+                    }
+                    return@launch
+                }
+
+                val jsonObject = JSONObject().apply {
+                    put("idToken", idToken.token)
+                    put("birthDate", payload.birthDate)
+                    put("gender", payload.gender)
+                    put("province", payload.province)
+                    put("city", payload.city)
+                    put("education", payload.education)
+                    put("employment", payload.employment)
+                    put("interests", JSONArray(payload.interests))
+                }
+
+                val requestBody = jsonObject.toString()
+                    .toRequestBody("application/json".toMediaType())
+
+                val url = Config.getUrl(Config.Api.PROFILE)
+                Log.d("ProfileSetup", "프로필 저장 요청 URL: $url")
+                Log.d("ProfileSetup", "요청 본문: ${jsonObject.toString()}")
+
                 val request = Request.Builder()
-                    .url("http://172.16.1.42:8080/profile")
+                    .url(url)
                     .post(requestBody)
+                    .addHeader("Content-Type", "application/json")
                     .build()
 
                 client.newCall(request).execute().use { response ->
-                    val message = if (response.isSuccessful) {
-                        "서버에 프로필이 저장되었습니다."
-                    } else {
-                        "서버 오류: ${response.code}"
+                    val responseBody = response.body?.string() ?: ""
+                    Log.d("ProfileSetup", "서버 응답 코드: ${response.code}")
+                    Log.d("ProfileSetup", "서버 응답 본문: $responseBody")
+
+                    val message = try {
+                        val jsonResponse = JSONObject(responseBody)
+                        if (response.isSuccessful) {
+                            // 성공 응답 파싱
+                            jsonResponse.optString("message", "프로필이 저장되었습니다.")
+                        } else {
+                            // 에러 응답 파싱
+                            jsonResponse.optString("message", "서버 오류: ${response.code}")
+                        }
+                    } catch (e: Exception) {
+                        // JSON 파싱 실패 시 기본 메시지
+                        if (response.isSuccessful) {
+                            "프로필이 저장되었습니다."
+                        } else {
+                            "서버 오류: ${response.code} - $responseBody"
+                        }
                     }
+                    
+                    // ApiResponse의 success 필드도 확인
+                    val isSuccess = try {
+                        val jsonResponse = JSONObject(responseBody)
+                        jsonResponse.optBoolean("success", response.isSuccessful)
+                    } catch (e: Exception) {
+                        response.isSuccessful
+                    }
+                    
                     withContext(Dispatchers.Main) {
-                        onResult(response.isSuccessful, message)
+                        onResult(isSuccess, message)
                     }
                 }
             } catch (e: Exception) {
+                Log.e("ProfileSetup", "프로필 저장 실패: ${e.message}", e)
                 withContext(Dispatchers.Main) {
-                    onResult(false, e.message ?: "알 수 없는 오류")
+                    // 네트워크 오류인 경우에만 오프라인 모드로 처리
+                    val errorMessage = when {
+                        e.message?.contains("Unable to resolve host") == true -> 
+                            "서버에 연결할 수 없습니다. 네트워크를 확인해주세요."
+                        e.message?.contains("timeout") == true -> 
+                            "서버 응답 시간이 초과되었습니다."
+                        else -> 
+                            "프로필 저장 실패: ${e.message}"
+                    }
+                    onResult(false, errorMessage)
                 }
             }
         }
@@ -190,6 +285,7 @@ fun ProfileSetupScreen(
     var interests by remember { mutableStateOf(setOf<String>()) }
 
     val cityMap = remember { provinceCities }
+    val provinceDisplayMap = remember { provinceDisplayNames }
 
     val canSubmit = birthDate != null &&
             province.isNotBlank() &&
@@ -204,30 +300,23 @@ fun ProfileSetupScreen(
                 .fillMaxSize()
                 .background(Color.White)
                 .verticalScroll(scrollState)
-                .padding(horizontal = 24.dp, vertical = 24.dp)
+                .padding(horizontal = 24.dp, vertical = 32.dp)
         ) {
             HeaderSection(onBack = onBack)
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            DateSection(
+            // 생년월일
+            DateSpinnerSection(
                 birthDate = birthDate,
-                onClick = {
-                    val now = birthDate ?: LocalDate.now()
-                    DatePickerDialog(
-                        context,
-                        { _, year, month, dayOfMonth ->
-                            birthDate = LocalDate.of(year, month + 1, dayOfMonth)
-                        },
-                        now.year,
-                        now.monthValue - 1,
-                        now.dayOfMonth
-                    ).show()
+                onDateChange = { date ->
+                    birthDate = date
                 }
             )
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // 성별
             GenderSection(
                 selectedGender = gender,
                 onSelect = { gender = it }
@@ -235,10 +324,12 @@ fun ProfileSetupScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // 거주 지역 (도)
             DropdownSection(
                 label = "거주 지역 (도)",
                 value = province,
                 options = cityMap.keys.toList(),
+                displayMap = provinceDisplayMap,
                 placeholder = "도 선택",
                 onValueChange = {
                     province = it
@@ -246,8 +337,9 @@ fun ProfileSetupScreen(
                 }
             )
 
+            // 거주 지역 (시)
             if (province.isNotBlank()) {
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(24.dp))
                 DropdownSection(
                     label = "거주 지역 (시)",
                     value = city,
@@ -259,6 +351,7 @@ fun ProfileSetupScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // 학력/재학 상태
             DropdownSection(
                 label = "학력/재학 상태",
                 value = education,
@@ -269,6 +362,7 @@ fun ProfileSetupScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // 직업/고용 상태
             DropdownSection(
                 label = "직업/고용 상태",
                 value = employment,
@@ -279,6 +373,7 @@ fun ProfileSetupScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // 관심분야
             InterestSection(
                 selected = interests,
                 onToggle = { interest ->
@@ -290,8 +385,9 @@ fun ProfileSetupScreen(
                 }
             )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
+            // 완료 버튼
             Button(
                 onClick = {
                     birthDate?.let { date ->
@@ -308,7 +404,9 @@ fun ProfileSetupScreen(
                         )
                     }
                 },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
                 enabled = canSubmit && !isSubmitting,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFF10B981),
@@ -317,20 +415,9 @@ fun ProfileSetupScreen(
             ) {
                 Text(
                     text = if (isSubmitting) "저장 중..." else "시작하기",
-                    color = Color.White,
-                    modifier = Modifier.padding(vertical = 4.dp)
+                    color = Color.White
                 )
             }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                text = "최초 Google 로그인 시 한번만 입력해 주세요.",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray,
-                modifier = Modifier.fillMaxWidth(),
-                textAlign = TextAlign.Center
-            )
         }
 
         if (isSubmitting) {
@@ -349,15 +436,20 @@ fun ProfileSetupScreen(
 @Composable
 private fun HeaderSection(onBack: () -> Unit) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        IconButton(onClick = onBack) {
-            Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "back")
+        IconButton(
+            onClick = onBack,
+            modifier = Modifier.size(24.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.ArrowBack,
+                contentDescription = "back",
+                modifier = Modifier.size(24.dp)
+            )
         }
-        Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = "프로필 입력",
             style = MaterialTheme.typography.titleLarge,
@@ -367,37 +459,232 @@ private fun HeaderSection(onBack: () -> Unit) {
 }
 
 @Composable
-private fun DateSection(birthDate: LocalDate?, onClick: () -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth()) {
+private fun DateSpinnerSection(
+    birthDate: LocalDate?,
+    onDateChange: (LocalDate) -> Unit
+) {
+    val currentYear = LocalDate.now().year
+    val currentMonth = LocalDate.now().monthValue
+    
+    var selectedYear by remember { mutableStateOf(birthDate?.year ?: (currentYear - 25)) }
+    var selectedMonth by remember { mutableStateOf(birthDate?.monthValue ?: 1) }
+    var selectedDay by remember { mutableStateOf(birthDate?.dayOfMonth ?: 1) }
+    
+    // 년도 범위: 현재년도 - 100년 ~ 현재년도
+    val years = remember { (currentYear downTo currentYear - 100).toList() }
+    val months = remember { (1..12).toList() }
+    
+    // 해당 월의 마지막 날짜 계산
+    val getDaysInMonth = { year: Int, month: Int ->
+        LocalDate.of(year, month, 1).lengthOfMonth()
+    }
+    
+    val days = remember(selectedYear, selectedMonth) {
+        (1..getDaysInMonth(selectedYear, selectedMonth)).toList()
+    }
+    
+    // 날짜가 변경될 때마다 onDateChange 호출
+    LaunchedEffect(selectedYear, selectedMonth, selectedDay) {
+        val maxDay = getDaysInMonth(selectedYear, selectedMonth)
+        val adjustedDay = if (selectedDay > maxDay) maxDay else selectedDay
+        
+        if (selectedDay != adjustedDay) {
+            selectedDay = adjustedDay
+        } else {
+            val newDate = LocalDate.of(selectedYear, selectedMonth, adjustedDay)
+            onDateChange(newDate)
+        }
+    }
+    
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
         Text(
             text = "생년월일",
             style = MaterialTheme.typography.bodyMedium,
-            color = Color.DarkGray
+            color = Color(0xFF1A1A1A)
         )
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedButton(
-            onClick = onClick,
-            modifier = Modifier.fillMaxWidth()
+        
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp)
+                .border(BorderStroke(2.dp, Color(0xFFE5E7EB)), RoundedCornerShape(8.dp))
+                .padding(vertical = 8.dp)
         ) {
-            Text(
-                text = birthDate?.formatKoreanDate() ?: "날짜 선택",
-                modifier = Modifier.padding(vertical = 4.dp),
-                color = if (birthDate == null) Color.Gray else Color.Black
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 년도 스피너
+                DateSpinner(
+                    items = years,
+                    selectedValue = selectedYear,
+                    onValueSelected = { selectedYear = it },
+                    label = "년"
+                )
+                
+                Spacer(modifier = Modifier.width(8.dp))
+                
+                // 월 스피너
+                DateSpinner(
+                    items = months,
+                    selectedValue = selectedMonth,
+                    onValueSelected = { selectedMonth = it },
+                    label = "월"
+                )
+                
+                Spacer(modifier = Modifier.width(8.dp))
+                
+                // 일 스피너
+                DateSpinner(
+                    items = days,
+                    selectedValue = selectedDay,
+                    onValueSelected = { selectedDay = it },
+                    label = "일"
+                )
+            }
         }
     }
 }
 
 @Composable
+private fun DateSpinner(
+    items: List<Int>,
+    selectedValue: Int,
+    onValueSelected: (Int) -> Unit,
+    label: String
+) {
+    val itemHeight = 40.dp
+    val visibleItemCount = 5
+    val listState = rememberLazyListState(
+        initialFirstVisibleItemIndex = items.indexOf(selectedValue).coerceAtLeast(0)
+    )
+    val density = LocalDensity.current
+    
+    // 스크롤 위치에 따라 선택된 값 업데이트 및 스냅
+    LaunchedEffect(listState.isScrollInProgress) {
+        if (!listState.isScrollInProgress) {
+            // 스크롤이 멈췄을 때 가장 가까운 항목으로 스냅
+            val scrollOffset = with(density) { listState.firstVisibleItemScrollOffset.toDp() }
+            val itemIndex = listState.firstVisibleItemIndex
+            
+            val targetIndex = if (scrollOffset < itemHeight / 2) {
+                itemIndex
+            } else {
+                (itemIndex + 1).coerceAtMost(items.size - 1)
+            }
+            
+            if (targetIndex >= 0 && targetIndex < items.size) {
+                val targetValue = items[targetIndex]
+                if (targetValue != selectedValue) {
+                    onValueSelected(targetValue)
+                }
+                // 정확한 위치로 스냅
+                listState.animateScrollToItem(targetIndex)
+            }
+        }
+    }
+    
+    // 스크롤 중에도 선택된 값 업데이트
+    LaunchedEffect(listState.firstVisibleItemScrollOffset, listState.firstVisibleItemIndex) {
+        if (listState.isScrollInProgress) {
+            val scrollOffset = with(density) { listState.firstVisibleItemScrollOffset.toDp() }
+            val itemIndex = listState.firstVisibleItemIndex
+            
+            val selectedIndex = if (scrollOffset < itemHeight / 2) {
+                itemIndex
+            } else {
+                (itemIndex + 1).coerceAtMost(items.size - 1)
+            }.coerceIn(0, items.size - 1)
+            
+            if (selectedIndex >= 0 && selectedIndex < items.size) {
+                val newValue = items[selectedIndex]
+                if (newValue != selectedValue) {
+                    onValueSelected(newValue)
+                }
+            }
+        }
+    }
+    
+    // 선택된 값이 변경되면 해당 위치로 스크롤
+    LaunchedEffect(selectedValue) {
+        val index = items.indexOf(selectedValue).coerceAtLeast(0)
+        if (index < items.size && listState.firstVisibleItemIndex != index && !listState.isScrollInProgress) {
+            listState.animateScrollToItem(index)
+        }
+    }
+    
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.width(60.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .height(200.dp)
+                .fillMaxWidth()
+        ) {
+            // 선택 표시선
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(itemHeight)
+                    .align(Alignment.Center)
+                    .background(Color(0xFF8B5CF6).copy(alpha = 0.1f))
+            )
+            
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                contentPadding = PaddingValues(vertical = 80.dp)
+            ) {
+                itemsIndexed(items) { index, item ->
+                    val isSelected = item == selectedValue
+                    Box(
+                        modifier = Modifier
+                            .height(itemHeight)
+                            .fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = item.toString(),
+                            color = if (isSelected) Color(0xFF8B5CF6) else Color(0xFF999999),
+                            fontSize = 16.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
+                }
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(4.dp))
+        
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            color = Color(0xFF666666)
+        )
+    }
+}
+
+@Composable
 private fun GenderSection(selectedGender: String, onSelect: (String) -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth()) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
         Text(
             text = "성별",
             style = MaterialTheme.typography.bodyMedium,
-            color = Color.DarkGray
+            color = Color(0xFF1A1A1A)
         )
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
             GenderButton(
                 text = "남성",
                 isSelected = selectedGender == "male",
@@ -413,16 +700,33 @@ private fun GenderSection(selectedGender: String, onSelect: (String) -> Unit) {
 }
 
 @Composable
-private fun GenderButton(text: String, isSelected: Boolean, onClick: () -> Unit) {
+private fun RowScope.GenderButton(text: String, isSelected: Boolean, onClick: () -> Unit) {
+    if (isSelected) {
     Button(
         onClick = onClick,
-        modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .height(48.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = if (isSelected) Color(0xFF8B5CF6) else Color.White,
-            contentColor = if (isSelected) Color.White else Color(0xFF8B5CF6)
+                containerColor = Color(0xFF8B5CF6),
+                contentColor = Color.White
         )
     ) {
         Text(text)
+        }
+    } else {
+        OutlinedButton(
+            onClick = onClick,
+            modifier = Modifier
+                .weight(1f)
+                .height(48.dp),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = Color(0xFF8B5CF6)
+            ),
+            border = BorderStroke(2.dp, Color(0xFF8B5CF6))
+        ) {
+            Text(text)
+        }
     }
 }
 
@@ -433,29 +737,50 @@ private fun DropdownSection(
     value: String,
     options: List<String>,
     placeholder: String,
-    onValueChange: (String) -> Unit
+    onValueChange: (String) -> Unit,
+    displayMap: Map<String, String>? = null
 ) {
     var expanded by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(text = label, style = MaterialTheme.typography.bodyMedium, color = Color.DarkGray)
-        Spacer(modifier = Modifier.height(8.dp))
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color(0xFF1A1A1A)
+        )
         Box {
             OutlinedButton(
                 onClick = { expanded = !expanded },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 4.dp)
+                    .height(48.dp),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = if (value.isBlank()) Color.Gray else Color.Black
+                ),
+                border = BorderStroke(2.dp, Color(0xFFE5E7EB))
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = if (value.isBlank()) placeholder else value,
-                    color = if (value.isBlank()) Color.Gray else Color.Black
-                )
-                Spacer(modifier = Modifier.weight(1f))
+                        text = if (value.isBlank()) {
+                            placeholder
+                        } else {
+                            displayMap?.get(value) ?: value
+                        },
+                        color = if (value.isBlank()) Color.Gray else Color.Black,
+                        modifier = Modifier.weight(1f)
+                    )
                 Icon(
                     imageVector = if (expanded) Icons.Filled.ArrowDropUp else Icons.Filled.ArrowDropDown,
                     contentDescription = null
                 )
+                }
             }
 
             DropdownMenu(
@@ -465,7 +790,7 @@ private fun DropdownSection(
             ) {
                 options.forEach { option ->
                     DropdownMenuItem(
-                        text = { Text(option) },
+                        text = { Text(displayMap?.get(option) ?: option) },
                         onClick = {
                             onValueChange(option)
                             expanded = false
@@ -479,34 +804,62 @@ private fun DropdownSection(
 
 @Composable
 private fun InterestSection(selected: Set<String>, onToggle: (String) -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(text = "관심분야", style = MaterialTheme.typography.bodyMedium, color = Color.DarkGray)
-        Spacer(modifier = Modifier.height(8.dp))
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "관심분야",
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color(0xFF1A1A1A)
+        )
         val interests = listOf("취업", "창업", "주거", "복지")
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            interests.chunked(2).forEach { rowItems ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    rowItems.forEach { interest ->
-                        val isSelected = selected.contains(interest)
+            interests.forEach { interest ->
+                InterestButton(
+                    interest = interest,
+                    isSelected = selected.contains(interest),
+                    onToggle = { onToggle(interest) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RowScope.InterestButton(
+    interest: String,
+    isSelected: Boolean,
+    onToggle: () -> Unit
+) {
+    if (isSelected) {
                         Button(
-                            onClick = { onToggle(interest) },
-                            modifier = Modifier.weight(1f),
+            onClick = onToggle,
+            modifier = Modifier
+                .weight(1f)
+                .height(48.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isSelected) Color(0xFF8B5CF6) else Color.White,
-                                contentColor = if (isSelected) Color.White else Color(0xFF8B5CF6)
+                containerColor = Color(0xFF8B5CF6),
+                contentColor = Color.White
                             )
                         ) {
                             Text(interest)
                         }
-                    }
-                    if (rowItems.size == 1) {
-                        Spacer(modifier = Modifier.weight(1f))
-                    }
-                }
-            }
+    } else {
+        OutlinedButton(
+            onClick = onToggle,
+            modifier = Modifier
+                .weight(1f)
+                .height(48.dp),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = Color(0xFF8B5CF6)
+            ),
+            border = BorderStroke(2.dp, Color(0xFF8B5CF6))
+        ) {
+            Text(interest)
         }
     }
 }
@@ -532,6 +885,25 @@ private val provinceCities = mapOf(
     "경북" to listOf("경산시", "경주시", "구미시", "김천시", "문경시", "상주시", "안동시", "영주시", "영천시", "포항시"),
     "경남" to listOf("거제시", "김해시", "밀양시", "사천시", "양산시", "진주시", "창원시", "통영시"),
     "제주" to listOf("제주시", "서귀포시")
+)
+
+private val provinceDisplayNames = mapOf(
+    "서울" to "서울특별시",
+    "부산" to "부산광역시",
+    "경기" to "경기도",
+    "인천" to "인천광역시",
+    "대구" to "대구광역시",
+    "광주" to "광주광역시",
+    "대전" to "대전광역시",
+    "울산" to "울산광역시",
+    "강원" to "강원도",
+    "충북" to "충청북도",
+    "충남" to "충청남도",
+    "전북" to "전라북도",
+    "전남" to "전라남도",
+    "경북" to "경상북도",
+    "경남" to "경상남도",
+    "제주" to "제주특별자치도"
 )
 
 private fun LocalDate.formatKoreanDate(): String {

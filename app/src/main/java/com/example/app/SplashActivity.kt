@@ -4,72 +4,131 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class SplashActivity : ComponentActivity() {
+
+    private val auth = FirebaseAuth.getInstance()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         setContent {
             MaterialTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
-                    SplashScreen(
-                        onStart = {
-                            startActivity(Intent(this, WelcomeActivity::class.java))
-                            finish()
-                        }
-                    )
-                }
+                SplashScreen(
+                    onNext = {
+                        navigateToNextScreen()
+                    }
+                )
             }
         }
 
-        // 자동 이동 (선택)
+        // 1초 후 자동 이동
         lifecycleScope.launch {
-            delay(2000)
-            startActivity(Intent(this@SplashActivity, WelcomeActivity::class.java))
-            finish()
+            delay(1000)
+            navigateToNextScreen()
         }
+    }
+
+    /**
+     * 다음 화면으로 네비게이션
+     * 로그인 상태와 프로필 완료 여부를 모두 확인
+     */
+    private fun navigateToNextScreen() {
+        val currentUser = auth.currentUser
+        val hasCompletedProfile = ProfilePreferences.hasCompletedProfile(this)
+
+        val nextActivity = when {
+            // 로그인되어 있고 프로필도 완료된 경우 -> CompleteActivity
+            currentUser != null && hasCompletedProfile -> {
+                CompleteActivity::class.java
+            }
+            // 로그인되어 있지만 프로필이 미완료인 경우 -> ProfileSetupActivity
+            currentUser != null && !hasCompletedProfile -> {
+                ProfileSetupActivity::class.java
+            }
+            // 로그인되지 않은 경우 -> WelcomeActivity
+            else -> {
+                WelcomeActivity::class.java
+            }
+        }
+
+        val intent = Intent(this, nextActivity)
+        startActivity(intent)
+        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+        finish()
     }
 }
 
 @Composable
-fun SplashScreen(onStart: () -> Unit) {
-    Column(
+fun SplashScreen(onNext: () -> Unit) {
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFFFF9A5C),
+                        Color(0xFFFF6B2C)
+                    )
+                )
+            )
+            .padding(horizontal = 32.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = "Welcome to WiseYoung!",
-            textAlign = TextAlign.Center,
-            style = MaterialTheme.typography.titleMedium
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Button(
-            onClick = onStart,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Text("시작하기", color = Color.White)
+            // WY 로고
+            Image(
+                painter = painterResource(id = R.drawable.wy_logo),
+                contentDescription = "WY Logo",
+                modifier = Modifier.size(160.dp)
+            )
+
+            Spacer(modifier = Modifier.height(48.dp))
+
+            // 텍스트
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "슬기로운 청년생활",
+                    color = Color(0xFF1A1A1A),
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = (-0.5).sp,
+                    textAlign = TextAlign.Center
+                )
+
+                Text(
+                    text = "Find your way with Wise & Young",
+                    color = Color(0xFF1A1A1A).copy(alpha = 0.8f),
+                    fontSize = 14.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
         }
     }
 }

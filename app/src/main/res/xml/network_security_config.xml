@@ -3,5 +3,12 @@
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="true">localhost</domain>
         <domain includeSubdomains="true">10.0.2.2</domain>
+        <domain includeSubdomains="true">172.16.1.42</domain>
     </domain-config>
+    <!-- 개발 환경: 모든 IP에 대해 cleartext 허용 (프로덕션에서는 제거 필요) -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
 </network-security-config>

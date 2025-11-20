@@ -64,6 +64,48 @@
             android:exported="false"
             android:theme="@style/Theme.WiseYoung.NoActionBar" />
 
+        <!-- CompleteActivity (프로필 완료 후 시작 화면) -->
+        <activity
+            android:name="com.wiseyoung.app.CompleteActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WiseYoung.NoActionBar" />
+
+        <!-- NotificationActivity (알림 화면) -->
+        <activity
+            android:name="com.wiseyoung.app.NotificationActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WiseYoung.NoActionBar" />
+
+        <!-- BookmarkActivity (북마크 화면) -->
+        <activity
+            android:name="com.wiseyoung.app.BookmarkActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WiseYoung.NoActionBar" />
+
+        <!-- CalendarActivity (캘린더 화면) -->
+        <activity
+            android:name="com.wiseyoung.app.CalendarActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WiseYoung.NoActionBar" />
+
+        <!-- ProfileActivity (프로필 화면) -->
+        <activity
+            android:name="com.wiseyoung.app.ProfileActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WiseYoung.NoActionBar" />
+
+        <!-- PolicyListActivity (정책 리스트 화면) -->
+        <activity
+            android:name="com.wiseyoung.app.PolicyListActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WiseYoung.NoActionBar" />
+
+        <!-- HousingMapActivity (임대주택 추천 화면) -->
+        <activity
+            android:name="com.wiseyoung.app.HousingMapActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WiseYoung.NoActionBar" />
+
 
     </application>
     <uses-permission android:name="android.permission.INTERNET"/>
