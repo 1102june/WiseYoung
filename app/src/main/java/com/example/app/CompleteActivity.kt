@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.app.ui.theme.WiseYoungTheme
+import com.wiseyoung.app.R
 
 class CompleteActivity : ComponentActivity() {
 
@@ -36,7 +37,7 @@ class CompleteActivity : ComponentActivity() {
                     onStart = {
                         val intent = Intent(this, MainActivity::class.java)
                         startActivity(intent)
-                        overridePendingTransition(android.R.anim.slide_in_right, android.R.anim.slide_out_left)
+                        overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
                         finish()
                     }
                 )

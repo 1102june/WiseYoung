@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.wiseyoung.app.ProfileSetupActivity
 import com.example.app.ui.theme.WiseYoungTheme
+import com.wiseyoung.app.R
 import com.example.app.Config
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
@@ -181,7 +182,7 @@ class LoginActivity : ComponentActivity() {
             intent.putExtra("from_google_login", true)
         }
         startActivity(intent)
-        overridePendingTransition(android.R.anim.slide_in_right, android.R.anim.slide_out_left)
+        overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
         finish()
     }
 

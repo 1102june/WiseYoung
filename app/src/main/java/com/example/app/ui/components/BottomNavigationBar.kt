@@ -60,7 +60,7 @@ fun BottomNavigationBar(
             
             // 챗봇 버튼 (특별 스타일)
             Column(
-                modifier = Modifier.padding(top = (-24).dp),
+                modifier = Modifier.offset(y = (-24).dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Box(
@@ -93,10 +93,10 @@ fun BottomNavigationBar(
                 )
             }
             
-            // 북마크 버튼
+            // 좋아요 버튼 (하트 아이콘)
             BottomNavButton(
-                icon = Icons.Default.Bookmark,
-                filledIcon = Icons.Filled.Bookmark,
+                icon = Icons.Default.Favorite,
+                filledIcon = Icons.Filled.Favorite,
                 label = "좋아요",
                 isSelected = currentScreen == "bookmark",
                 onClick = onNavigateBookmark
@@ -125,20 +125,32 @@ private fun BottomNavButton(
     Column(
         modifier = Modifier
             .clickable { onClick() }
-            .padding(vertical = Spacing.sm),
+            .padding(horizontal = 12.dp, vertical = Spacing.sm),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Icon(
-            imageVector = if (isSelected && filledIcon != null) filledIcon else icon,
-            contentDescription = label,
-            modifier = Modifier.size(28.dp),
-            tint = AppColors.TextPrimary
-        )
+        // 선택된 버튼에 배경 추가
+        Box(
+            modifier = Modifier
+                .size(if (isSelected) 48.dp else 40.dp)
+                .clip(CircleShape)
+                .background(
+                    if (isSelected) AppColors.Purple.copy(alpha = 0.1f) else Color.Transparent
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = if (isSelected && filledIcon != null) filledIcon else icon,
+                contentDescription = label,
+                modifier = Modifier.size(if (isSelected) 28.dp else 24.dp),
+                tint = if (isSelected) AppColors.Purple else AppColors.TextSecondary
+            )
+        }
         Text(
             text = label,
             fontSize = 12.sp,
-            color = AppColors.TextPrimary
+            color = if (isSelected) AppColors.Purple else AppColors.TextSecondary,
+            fontWeight = if (isSelected) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal
         )
     }
 }
