@@ -22,6 +22,27 @@
         <item name="windowActionBar">false</item>
     </style>
 
+    <!-- ✅ 어두운 모드 앱 테마 -->
+    <style name="Theme.WiseYoung.Night" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- 주요 색상 (어두운 모드) -->
+        <item name="colorPrimary">@color/night_color_primary</item>
+        <item name="colorOnPrimary">@color/night_color_on_primary</item>
+        <item name="colorSecondary">@color/night_color_secondary</item>
+        <item name="colorOnSecondary">@color/night_color_on_secondary</item>
+
+        <!-- 배경 (어두운 모드) -->
+        <item name="android:windowBackground">@color/night_color_background</item>
+        <item name="colorSurface">@color/night_color_surface</item>
+        <item name="colorOnSurface">@color/night_color_on_surface</item>
+
+        <!-- 상태바 (어두운 모드) -->
+        <item name="android:statusBarColor" tools:targetApi="l">@color/night_color_primary</item>
+
+        <!-- 액션바 제거 (어두운 모드) -->
+        <item name="android:windowNoTitle">true</item>
+        <item name="windowActionBar">false</item>
+    </style>
+
     <!-- ✅ Splash 전용 테마 -->
     <style name="Theme.WiseYoung.NoActionBar" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:windowNoTitle">true</item>

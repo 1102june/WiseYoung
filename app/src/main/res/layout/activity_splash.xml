@@ -11,7 +11,7 @@
         android:layout_width="273dp"
         android:layout_height="259dp"
         android:contentDescription="WY 로고"
-        android:src="@drawable/wy_logo" />
+        android:src="@drawable/wy_logo2" />
 
     <TextView
         android:text="슬기로운 청년생활"

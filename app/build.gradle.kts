@@ -1,7 +1,8 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("com.google.gms.google-services")// Firebase Plugin
+    id("com.google.gms.google-services")  // Firebase Plugin
+    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 android {
@@ -10,7 +11,7 @@ android {
 
     defaultConfig {
         applicationId = "com.wiseyoung.app"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
@@ -26,12 +27,10 @@ android {
             )
         }
     }
-
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
-
     kotlinOptions {
         jvmTarget = "17"
     }
@@ -41,54 +40,56 @@ android {
     }
 
     composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.3"
+        kotlinCompilerExtensionVersion = "1.5.3"  // Compose Compiler Extension 버전 맞추기
     }
-}
 
-dependencies {
+    dependencies {
 
-    // 🔹 Compose BOM (버전 자동 통일)
-    implementation(platform("androidx.compose:compose-bom:2024.02.00"))
+        // 🔹 Compose BOM (버전 자동 통일)
+        implementation(platform("androidx.compose:compose-bom:2025.11.00"))
 
-    // 🔹 Jetpack Compose 필수 패키지
-    implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.ui:ui-tooling-preview")
-    implementation("androidx.compose.foundation:foundation")
-    implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.ui:ui-graphics")
-    implementation("androidx.compose.ui:ui-res")
-    implementation("androidx.compose.ui:ui-text")
+        // 🔹 Jetpack Compose 필수 패키지
+        implementation("androidx.compose.ui:ui")
+        implementation("androidx.compose.ui:ui-tooling-preview")
+        implementation("androidx.compose.foundation:foundation")
+        implementation("androidx.compose.material3:material3")
+        implementation("com.google.android.material:material:1.12.0")
+        implementation("androidx.compose.ui:ui-graphics")
+        implementation("androidx.compose.ui:ui-text")
+        implementation("androidx.compose.material:material-icons-core")
+        implementation("androidx.compose.material:material-icons-extended")
 
-    // 🔹 AndroidX 기본 컴포넌트
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.androidx.activity.compose)
+        // 🔹 AndroidX 기본 컴포넌트
+        implementation(libs.androidx.core.ktx)
+        implementation(libs.androidx.lifecycle.runtime.ktx)
+        implementation(libs.androidx.activity.compose)
 
-    // 🔹 Firebase BOM
-    implementation(platform("com.google.firebase:firebase-bom:34.5.0"))
-    implementation("com.google.firebase:firebase-auth")
-    implementation("com.google.firebase:firebase-firestore")
-    implementation("com.google.firebase:firebase-analytics")
-    implementation("com.google.firebase:firebase-database:22.0.1")
+        // 🔹 Firebase BOM
+        implementation(platform("com.google.firebase:firebase-bom:34.5.0"))
+        implementation("com.google.firebase:firebase-auth")
+        implementation("com.google.firebase:firebase-firestore")
+        implementation("com.google.firebase:firebase-analytics")
+        implementation("com.google.firebase:firebase-database:22.0.1")
+        implementation("com.google.firebase:firebase-messaging") // FCM 알림
 
-    // 🔹 Google 로그인
-    implementation("com.google.android.gms:play-services-auth:21.4.0")
+        // 🔹 Google 로그인
+        implementation("com.google.android.gms:play-services-auth:21.4.0")
 
-    // 🔹 OkHttp
-    implementation("com.squareup.okhttp3:okhttp:4.9.3")
+        // 🔹 OkHttp
+        implementation("com.squareup.okhttp3:okhttp:4.9.3")
 
-    // 🔹 Activity result
-    implementation("androidx.activity:activity-ktx:1.11.0")
+        // 🔹 Activity result
+        implementation("androidx.activity:activity-ktx:1.11.0")
 
-    // 🔹 테스트
-    testImplementation(libs.junit)
-    androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.espresso.core)
-    androidTestImplementation(platform("androidx.compose:compose-bom:2024.02.00"))
-    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
-    debugImplementation("androidx.compose.ui:ui-tooling")
-    debugImplementation("androidx.compose.ui:ui-test-manifest")
+        // 🔹 테스트
+        testImplementation(libs.junit)
+        androidTestImplementation(libs.androidx.junit)
+        androidTestImplementation(libs.androidx.espresso.core)
+        androidTestImplementation(platform("androidx.compose:compose-bom:2025.11.00"))
+        androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+        debugImplementation("androidx.compose.ui:ui-tooling")
+        debugImplementation("androidx.compose.ui:ui-test-manifest")
 
-    implementation("androidx.appcompat:appcompat:1.7.0")
-
+        implementation("androidx.appcompat:appcompat:1.7.1")
+    }
 }
