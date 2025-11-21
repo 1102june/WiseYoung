@@ -12,8 +12,10 @@ object Config {
     private const val isDebug = true
     
     // 서버 기본 URL
-    // 서버 컴퓨터 IP: 192.168.123.163 (ipconfig 확인 결과)
-    private const val BASE_URL_DEV = "http://192.168.123.163:8080"
+    // USB 연결 시: ADB 포트 포워딩 사용 (adb reverse tcp:8080 tcp:8080)
+    // Wi-Fi 연결 시: 서버 컴퓨터 IP 사용
+    private const val BASE_URL_DEV = "http://127.0.0.1:8080"  // USB 연결 시 localhost 사용
+    // private const val BASE_URL_DEV = "http://192.168.123.163:8080"  // Wi-Fi 연결 시 사용
     private const val BASE_URL_PROD = "https://your-production-server.com"
     
     // 현재 사용할 서버 URL
@@ -31,6 +33,7 @@ object Config {
         const val PROFILE = "/auth/profile"
         const val BOOKMARKS = "/bookmarks"
         const val NOTIFICATIONS = "/notifications"
+        const val PUSH_TOKEN = "/auth/push-token" // FCM 토큰 저장
     }
     
     // 전체 URL 생성 헬퍼 함수

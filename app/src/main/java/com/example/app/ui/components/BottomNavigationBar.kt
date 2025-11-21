@@ -28,18 +28,29 @@ fun BottomNavigationBar(
     onNavigateBookmark: () -> Unit,
     onNavigateProfile: () -> Unit
 ) {
+    // 시스템 네비게이션 바 높이를 고려한 패딩
+    val navigationBarsPadding = WindowInsets.navigationBars.asPaddingValues()
+    
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = Color.White,
         shadowElevation = 4.dp
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
-            horizontalArrangement = Arrangement.SpaceAround,
-            verticalAlignment = Alignment.Bottom
+                .padding(bottom = navigationBarsPadding.calculateBottomPadding() + 8.dp)
         ) {
+            // 챗봇 아이콘이 잘리지 않도록 상단 패딩 추가
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
+                horizontalArrangement = Arrangement.SpaceAround,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
             // 홈 버튼
             BottomNavButton(
                 icon = Icons.Default.Home,
@@ -110,6 +121,7 @@ fun BottomNavigationBar(
                 isSelected = currentScreen == "profile",
                 onClick = onNavigateProfile
             )
+            }
         }
     }
 }

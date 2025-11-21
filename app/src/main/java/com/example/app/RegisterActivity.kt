@@ -20,10 +20,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.app.ui.theme.WiseYoungTheme
 import com.example.app.Config
+import com.example.app.DeviceInfo
+import com.example.app.data.FirestoreService
 import com.google.firebase.auth.FirebaseAuth
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import java.io.IOException
+import java.util.Date
 
 
 class RegisterActivity : ComponentActivity() {
@@ -110,6 +113,36 @@ class RegisterActivity : ComponentActivity() {
             override fun onResponse(call: Call, response: Response) {
                 runOnUiThread {
                     if (response.isSuccessful) {
+                        // 서버 저장 성공 시 Firestore에도 저장
+                        val currentUser = auth.currentUser
+                        if (currentUser != null) {
+                            val appVersion = DeviceInfo.getAppVersion(this@RegisterActivity)
+                            val deviceId = DeviceInfo.getDeviceId(this@RegisterActivity)
+                            
+                            val firestoreUser = FirestoreService.User(
+                                userId = currentUser.uid,
+                                email = currentUser.email ?: "",
+                                emailVerified = currentUser.isEmailVerified,
+                                passwordHash = "", // Google 로그인 시 빈 문자열
+                                loginType = "EMAIL",
+                                osType = "ANDROID",
+                                appVersion = appVersion,
+                                deviceId = deviceId,
+                                createdAt = Date()
+                            )
+                            
+                            FirestoreService.saveUser(
+                                user = firestoreUser,
+                                onSuccess = {
+                                    // Firestore 저장 성공
+                                },
+                                onFailure = { exception ->
+                                    // Firestore 저장 실패 (로그만 남김, 서버 저장은 성공했으므로 계속 진행)
+                                    android.util.Log.e("RegisterActivity", "Firestore 저장 실패: ${exception.message}")
+                                }
+                            )
+                        }
+                        
                         Toast.makeText(
                             this@RegisterActivity,
                             "회원정보(DB) 저장 완료!",

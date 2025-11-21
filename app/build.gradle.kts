@@ -70,6 +70,7 @@ android {
         implementation("com.google.firebase:firebase-firestore")
         implementation("com.google.firebase:firebase-analytics")
         implementation("com.google.firebase:firebase-database:22.0.1")
+        implementation("com.google.firebase:firebase-messaging") // FCM 알림
 
         // 🔹 Google 로그인
         implementation("com.google.android.gms:play-services-auth:21.4.0")

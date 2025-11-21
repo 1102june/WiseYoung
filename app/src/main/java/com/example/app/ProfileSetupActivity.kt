@@ -63,6 +63,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
 import com.example.app.Config
+import com.example.app.DeviceInfo
+import com.example.app.data.FirestoreService
 import com.example.app.ui.theme.WiseYoungTheme
 import com.wiseyoung.app.R
 import com.google.firebase.auth.FirebaseAuth
@@ -78,6 +80,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.util.Date
 import java.util.Locale
 import android.util.Log
 
@@ -168,15 +171,32 @@ class ProfileSetupActivity : ComponentActivity() {
                     return@launch
                 }
 
+                // Firebase 토큰 발급 (네트워크 오류 시 캐시된 토큰 사용)
                 val idToken = try {
+                    // 먼저 강제 새로고침 시도
                     currentUser.getIdToken(true).await()
                 } catch (e: Exception) {
-                    Log.e("ProfileSetup", "토큰 발급 실패: ${e.message}")
-                    withContext(Dispatchers.Main) {
-                        onResult(false, "인증 토큰 발급 실패: ${e.message}")
+                    Log.w("ProfileSetup", "새 토큰 발급 실패, 캐시된 토큰 사용 시도: ${e.message}")
+                    try {
+                        // 네트워크 오류 시 캐시된 토큰 사용
+                        currentUser.getIdToken(false).await()
+                    } catch (e2: Exception) {
+                        Log.e("ProfileSetup", "토큰 발급 실패: ${e2.message}")
+                        withContext(Dispatchers.Main) {
+                            val errorMsg = when {
+                                e2.message?.contains("network", ignoreCase = true) == true -> 
+                                    "네트워크 연결을 확인해주세요. Firebase 서버에 연결할 수 없습니다."
+                                else -> 
+                                    "인증 토큰 발급 실패: ${e2.message}"
+                            }
+                            onResult(false, errorMsg)
+                        }
+                        return@launch
                     }
-                    return@launch
                 }
+
+                val appVersion = DeviceInfo.getAppVersion(this@ProfileSetupActivity)
+                val deviceId = DeviceInfo.getDeviceId(this@ProfileSetupActivity)
 
                 val jsonObject = JSONObject().apply {
                     put("idToken", idToken.token)
@@ -187,6 +207,8 @@ class ProfileSetupActivity : ComponentActivity() {
                     put("education", payload.education)
                     put("employment", payload.employment)
                     put("interests", JSONArray(payload.interests))
+                    put("appVersion", appVersion)
+                    put("deviceId", deviceId)
                 }
 
                 val requestBody = jsonObject.toString()
@@ -231,6 +253,53 @@ class ProfileSetupActivity : ComponentActivity() {
                         jsonResponse.optBoolean("success", response.isSuccessful)
                     } catch (e: Exception) {
                         response.isSuccessful
+                    }
+                    
+                    // 서버 저장 성공 시 Firestore에도 저장
+                    if (isSuccess && currentUser != null) {
+                        val appVersion = DeviceInfo.getAppVersion(this@ProfileSetupActivity)
+                        val deviceId = DeviceInfo.getDeviceId(this@ProfileSetupActivity)
+                        
+                        // User 정보 업데이트
+                        val firestoreUser = FirestoreService.User(
+                            userId = currentUser.uid,
+                            email = currentUser.email ?: "",
+                            emailVerified = currentUser.isEmailVerified,
+                            passwordHash = "",
+                            loginType = "GOOGLE", // 또는 "EMAIL"
+                            osType = "ANDROID",
+                            appVersion = appVersion,
+                            deviceId = deviceId,
+                            createdAt = Date()
+                        )
+                        
+                        FirestoreService.saveUser(
+                            user = firestoreUser,
+                            onSuccess = {},
+                            onFailure = { exception ->
+                                Log.e("ProfileSetup", "Firestore User 저장 실패: ${exception.message}")
+                            }
+                        )
+                        
+                        // UserProfile 정보 저장
+                        val firestoreProfile = FirestoreService.UserProfile(
+                            userId = currentUser.uid,
+                            birthYear = payload.birthDate, // "yyyy-MM-dd" 형식
+                            gender = payload.gender,
+                            region = payload.province, // province만 저장 (VARCHAR(10) 제약)
+                            education = payload.education,
+                            jobStatus = payload.employment
+                        )
+                        
+                        FirestoreService.saveUserProfile(
+                            profile = firestoreProfile,
+                            onSuccess = {
+                                Log.d("ProfileSetup", "Firestore 프로필 저장 성공")
+                            },
+                            onFailure = { exception ->
+                                Log.e("ProfileSetup", "Firestore 프로필 저장 실패: ${exception.message}")
+                            }
+                        )
                     }
                     
                     withContext(Dispatchers.Main) {

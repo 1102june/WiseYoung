@@ -9,11 +9,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import com.example.app.ui.theme.WiseYoungTheme
 import com.wiseyoung.app.R
+import com.example.app.FcmTokenService
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        
+        // FCM 토큰 가져오기 및 서버에 저장
+        FcmTokenService.getAndSaveToken()
+        
         setContent {
             WiseYoungTheme {
                 HomeScreen(

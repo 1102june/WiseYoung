@@ -32,6 +32,7 @@ import com.wiseyoung.app.ProfileSetupActivity
 import com.example.app.ui.theme.WiseYoungTheme
 import com.wiseyoung.app.R
 import com.example.app.Config
+import com.example.app.FcmTokenService
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.android.gms.auth.api.signin.GoogleSignIn
@@ -91,7 +92,24 @@ class LoginActivity : ComponentActivity() {
             val account = task.getResult(ApiException::class.java)
             firebaseAuthWithGoogle(account)
         } catch (e: ApiException) {
-            Toast.makeText(this, "Google 로그인 실패: ${e.message}", Toast.LENGTH_SHORT).show()
+            val errorMessage = when (e.statusCode) {
+                com.google.android.gms.common.api.CommonStatusCodes.NETWORK_ERROR -> 
+                    "네트워크 연결을 확인해주세요. 인터넷 연결이 필요합니다."
+                com.google.android.gms.common.api.CommonStatusCodes.INTERNAL_ERROR -> 
+                    "Google 로그인 중 오류가 발생했습니다. 다시 시도해주세요."
+                com.google.android.gms.common.api.CommonStatusCodes.INVALID_ACCOUNT -> 
+                    "유효하지 않은 계정입니다."
+                com.google.android.gms.common.api.CommonStatusCodes.SIGN_IN_REQUIRED -> 
+                    "Google 로그인이 필요합니다."
+                12501 -> // GoogleSignInStatusCodes.SIGN_IN_CANCELLED
+                    "Google 로그인이 취소되었습니다."
+                else -> "Google 로그인 실패: ${e.message} (코드: ${e.statusCode})"
+            }
+            Toast.makeText(this, errorMessage, Toast.LENGTH_LONG).show()
+            android.util.Log.e("LoginActivity", "Google 로그인 실패: ${e.statusCode} - ${e.message}")
+        } catch (e: Exception) {
+            Toast.makeText(this, "Google 로그인 중 오류가 발생했습니다: ${e.message}", Toast.LENGTH_LONG).show()
+            android.util.Log.e("LoginActivity", "Google 로그인 예외: ${e.message}", e)
         }
     }
 
@@ -149,6 +167,8 @@ class LoginActivity : ComponentActivity() {
             override fun onResponse(call: Call, response: Response) {
                 runOnUiThread {
                     if (response.isSuccessful) {
+                        // FCM 토큰 저장
+                        FcmTokenService.getAndSaveToken()
                         // 이메일 로그인 성공 후 프로필 완료 여부 확인하여 네비게이션
                         navigateAfterLogin(isGoogleLogin = false)
                     } else {
