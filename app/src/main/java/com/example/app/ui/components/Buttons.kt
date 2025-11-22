@@ -16,6 +16,7 @@ import com.example.app.ui.theme.Spacing
 
 /**
  * Primary Button - 주요 액션에 사용
+ * 기본 색상: 라이트 블루 (메인 컬러)
  */
 @Composable
 fun PrimaryButton(
@@ -23,7 +24,7 @@ fun PrimaryButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    backgroundColor: Color = AppColors.Purple
+    backgroundColor: Color = AppColors.LightBlue  // 라이트 블루 (메인 컬러)
 ) {
     Button(
         onClick = onClick,
@@ -49,6 +50,7 @@ fun PrimaryButton(
 
 /**
  * Secondary Button - 보조 액션에 사용
+ * 기본 색상: 라이트 블루 (메인 컬러)
  */
 @Composable
 fun SecondaryButton(
@@ -56,8 +58,8 @@ fun SecondaryButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    textColor: Color = AppColors.Purple,
-    borderColor: Color = AppColors.Purple
+    textColor: Color = AppColors.LightBlue,  // 라이트 블루 (메인 컬러)
+    borderColor: Color = AppColors.LightBlue  // 라이트 블루 (메인 컬러)
 ) {
     OutlinedButton(
         onClick = onClick,
@@ -94,7 +96,7 @@ fun SuccessButton(
         onClick = onClick,
         modifier = modifier,
         enabled = enabled,
-        backgroundColor = AppColors.Green
+        backgroundColor = AppColors.Success  // Success 색상 사용 (초록)
     )
 }
 
@@ -135,7 +137,7 @@ fun RowScope.ToggleButton(
                 .weight(1f)
                 .height(Spacing.buttonHeight),
             colors = ButtonDefaults.buttonColors(
-                containerColor = AppColors.Purple,
+                containerColor = AppColors.LightBlue,  // 라이트 블루 (메인 컬러)
                 contentColor = Color.White
             )
         ) {
@@ -152,16 +154,52 @@ fun RowScope.ToggleButton(
                 .weight(1f)
                 .height(Spacing.buttonHeight),
             colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = AppColors.Purple
+                contentColor = AppColors.LightBlue  // 라이트 블루 (메인 컬러)
             ),
-            border = androidx.compose.foundation.BorderStroke(2.dp, AppColors.Purple)
+            border = androidx.compose.foundation.BorderStroke(2.dp, AppColors.LightBlue)  // 라이트 블루 테두리
         ) {
             Text(
                 text = text,
-                color = AppColors.Purple,
+                color = AppColors.LightBlue,  // 라이트 블루 (메인 컬러)
                 fontSize = 16.sp
             )
         }
+    }
+}
+
+/**
+ * Square Button - 정사각형 아이콘 버튼 (재발송 등에 사용)
+ * 작은 액션 버튼에 적합
+ */
+@Composable
+fun SquareButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    backgroundColor: Color = AppColors.LightBlue,
+    textColor: Color = Color.White,
+    size: androidx.compose.ui.unit.Dp = 56.dp
+) {
+    Button(
+        onClick = onClick,
+        modifier = modifier
+            .size(size),
+        enabled = enabled,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = backgroundColor,
+            disabledContainerColor = backgroundColor.copy(alpha = 0.4f),
+            contentColor = textColor,
+            disabledContentColor = textColor.copy(alpha = 0.6f)
+        ),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+    ) {
+        Text(
+            text = text,
+            color = textColor,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium
+        )
     }
 }
 

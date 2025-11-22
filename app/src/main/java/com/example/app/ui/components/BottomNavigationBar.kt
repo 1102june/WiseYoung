@@ -81,8 +81,8 @@ fun BottomNavigationBar(
                         .background(
                             brush = Brush.horizontalGradient(
                                 colors = listOf(
-                                    AppColors.Purple,
-                                    AppColors.BackgroundGradientStart
+                                    AppColors.LightBlue,  // 라이트 블루 (메인 컬러)
+                                    AppColors.Orange  // 오렌지 (포인트 컬러)
                                 )
                             )
                         )
@@ -147,7 +147,7 @@ private fun BottomNavButton(
                 .size(if (isSelected) 48.dp else 40.dp)
                 .clip(CircleShape)
                 .background(
-                    if (isSelected) AppColors.Purple.copy(alpha = 0.1f) else Color.Transparent
+                    if (isSelected) AppColors.LightBlue.copy(alpha = 0.1f) else Color.Transparent  // 라이트 블루 (메인 컬러)
                 ),
             contentAlignment = Alignment.Center
         ) {
@@ -155,13 +155,13 @@ private fun BottomNavButton(
                 imageVector = if (isSelected && filledIcon != null) filledIcon else icon,
                 contentDescription = label,
                 modifier = Modifier.size(if (isSelected) 28.dp else 24.dp),
-                tint = if (isSelected) AppColors.Purple else AppColors.TextSecondary
+                tint = if (isSelected) AppColors.LightBlue else AppColors.TextSecondary  // 라이트 블루 (메인 컬러)
             )
         }
         Text(
             text = label,
             fontSize = 12.sp,
-            color = if (isSelected) AppColors.Purple else AppColors.TextSecondary,
+            color = if (isSelected) AppColors.LightBlue else AppColors.TextSecondary,  // 라이트 블루 (메인 컬러)
             fontWeight = if (isSelected) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal
         )
     }

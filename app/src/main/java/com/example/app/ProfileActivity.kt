@@ -16,6 +16,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -26,14 +28,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.app.ui.theme.AppColors
 import com.example.app.ui.theme.Spacing
-import com.example.app.ui.theme.WiseYoungTheme
+import com.example.app.ui.theme.ThemeWrapper
+import com.example.app.ui.theme.ThemeMode
+import com.example.app.ui.theme.ThemePreferences
 import com.example.app.ui.components.BottomNavigationBar
+import androidx.compose.ui.platform.LocalContext
 
 class ProfileActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            WiseYoungTheme {
+            ThemeWrapper {
                 ProfileScreen(
                     onNavigateHome = {
                         startActivity(Intent(this, MainActivity::class.java))
@@ -52,6 +57,11 @@ class ProfileActivity : ComponentActivity() {
                     },
                     onNavigateChatbot = {
                         // TODO: 챗봇 다이얼로그 표시
+                    },
+                    onThemeModeChange = { mode ->
+                        // ThemePreferences에 저장 (ThemeWrapper가 자동으로 감지하여 즉시 적용)
+                        ThemePreferences.setThemeMode(this, mode)
+                        // recreate() 제거 - ThemeWrapper의 DisposableEffect 리스너가 자동으로 테마 변경 감지
                     }
                 )
             }
@@ -65,12 +75,29 @@ fun ProfileScreen(
     onNavigateCalendar: () -> Unit,
     onNavigateBookmark: () -> Unit,
     onNavigateEditProfile: () -> Unit,
-    onNavigateChatbot: () -> Unit
+    onNavigateChatbot: () -> Unit,
+    onThemeModeChange: (ThemeMode) -> Unit
 ) {
-    var isDarkMode by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    var themeMode by remember { mutableStateOf(ThemePreferences.getThemeMode(context)) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var deletePassword by remember { mutableStateOf("") }
+    
+    // ThemePreferences 변경 감지하여 themeMode 상태 업데이트 (ThemeWrapper와 동기화)
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == ThemePreferences.KEY_THEME_MODE) {
+                themeMode = ThemePreferences.getThemeMode(context)
+            }
+        }
+        val prefs = context.getSharedPreferences(ThemePreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        
+        onDispose {
+            prefs.unregisterOnSharedPreferenceChangeListener(listener)
+        }
+    }
     
     Scaffold(
         bottomBar = {
@@ -105,19 +132,21 @@ fun ProfileScreen(
                     modifier = Modifier.padding(bottom = Spacing.md)
                 )
                 
-                // Edit Profile Button
+                // Edit Profile Button (크기 줄임)
                 Button(
                     onClick = onNavigateEditProfile,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp),  // 높이 명시적으로 줄임
                     colors = ButtonDefaults.buttonColors(
                         containerColor = AppColors.TextPrimary
                     ),
-                    shape = RoundedCornerShape(16.dp),
-                    contentPadding = PaddingValues(vertical = Spacing.lg)
+                    shape = RoundedCornerShape(12.dp),  // 모서리도 약간 줄임
+                    contentPadding = PaddingValues(vertical = 12.dp)  // 패딩 줄임
                 ) {
                     Text(
                         text = "내정보 변경하기",
-                        fontSize = 16.sp,
+                        fontSize = 15.sp,  // 폰트 크기 약간 줄임
                         fontWeight = FontWeight.Medium,
                         color = Color.White
                     )
@@ -125,8 +154,12 @@ fun ProfileScreen(
                 
                 // Settings Section
                 ThemeSettingCard(
-                    isDarkMode = isDarkMode,
-                    onDarkModeChange = { isDarkMode = it },
+                    themeMode = themeMode,
+                    onThemeModeChange = { mode ->
+                        themeMode = mode
+                        ThemePreferences.setThemeMode(context, mode)
+                        onThemeModeChange(mode)  // 부모에게 알림 (테마 즉시 적용)
+                    },
                     modifier = Modifier.padding(top = Spacing.md)
                 )
                 
@@ -139,18 +172,20 @@ fun ProfileScreen(
                         onClick = {
                             // TODO: 로그아웃 로직
                         },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp),  // 높이 명시적으로 줄임
                         colors = ButtonDefaults.buttonColors(
                             containerColor = AppColors.BackgroundGradientStart
                         ),
-                        shape = RoundedCornerShape(16.dp),
-                        contentPadding = PaddingValues(vertical = Spacing.lg)
+                        shape = RoundedCornerShape(12.dp),  // 모서리도 약간 줄임
+                        contentPadding = PaddingValues(vertical = 12.dp)  // 패딩 줄임
                     ) {
                         Text(
                             text = "로그아웃",
-                            fontSize = 16.sp,
+                            fontSize = 15.sp,  // 폰트 크기 약간 줄임
                             fontWeight = FontWeight.Medium,
-                            color = AppColors.TextPrimary
+                            color = Color.White  // 텍스트 색상 흰색으로 변경 (버튼 배경에 맞춤)
                         )
                     }
                     
@@ -335,8 +370,8 @@ private fun InterestTag(
 
 @Composable
 private fun ThemeSettingCard(
-    isDarkMode: Boolean,
-    onDarkModeChange: (Boolean) -> Unit,
+    themeMode: ThemeMode,
+    onThemeModeChange: (ThemeMode) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -375,23 +410,29 @@ private fun ThemeSettingCard(
                 )
             }
             
-            // Theme Toggle
+            // Theme Selection (3개 버튼)
             Surface(
                 shape = RoundedCornerShape(20.dp),
                 color = AppColors.Border
             ) {
                 Row(
-                    modifier = Modifier.padding(4.dp)
+                    modifier = Modifier.padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     ThemeToggleButton(
                         text = "라이트",
-                        isSelected = !isDarkMode,
-                        onClick = { onDarkModeChange(false) }
+                        isSelected = themeMode == ThemeMode.LIGHT,
+                        onClick = { onThemeModeChange(ThemeMode.LIGHT) }
                     )
                     ThemeToggleButton(
                         text = "다크",
-                        isSelected = isDarkMode,
-                        onClick = { onDarkModeChange(true) }
+                        isSelected = themeMode == ThemeMode.DARK,
+                        onClick = { onThemeModeChange(ThemeMode.DARK) }
+                    )
+                    ThemeToggleButton(
+                        text = "다크블루",
+                        isSelected = themeMode == ThemeMode.DARK_BLUE,
+                        onClick = { onThemeModeChange(ThemeMode.DARK_BLUE) }
                     )
                 }
             }

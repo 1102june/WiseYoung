@@ -57,17 +57,17 @@ class SplashActivity : ComponentActivity() {
         val hasCompletedProfile = ProfilePreferences.hasCompletedProfile(this)
 
         val nextActivity = when {
-            // 로그인되어 있고 프로필도 완료된 경우 -> CompleteActivity
+            // 로그인되어 있고 프로필도 완료된 경우 -> MainActivity
             currentUser != null && hasCompletedProfile -> {
-                CompleteActivity::class.java
+                MainActivity::class.java
             }
             // 로그인되어 있지만 프로필이 미완료인 경우 -> ProfileSetupActivity
             currentUser != null && !hasCompletedProfile -> {
                 ProfileSetupActivity::class.java
             }
-            // 로그인되지 않은 경우 -> WelcomeActivity
+            // 로그인되지 않은 경우 -> AuthActivity (WelcomeActivity 제거)
             else -> {
-                WelcomeActivity::class.java
+                AuthActivity::class.java
             }
         }
 
@@ -83,14 +83,7 @@ fun SplashScreen(onNext: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFFFF9A5C),
-                        Color(0xFFFF6B2C)
-                    )
-                )
-            )
+            .background(Color(0xFFF79659))  // #f79659 배경색
             .padding(horizontal = 32.dp),
         contentAlignment = Alignment.Center
     ) {

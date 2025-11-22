@@ -7,7 +7,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
-import com.example.app.ui.theme.WiseYoungTheme
+import com.example.app.ui.theme.ThemeWrapper
 import com.wiseyoung.app.R
 import com.example.app.FcmTokenService
 
@@ -20,7 +20,7 @@ class MainActivity : ComponentActivity() {
         FcmTokenService.getAndSaveToken()
         
         setContent {
-            WiseYoungTheme {
+            ThemeWrapper {
                 HomeScreen(
                     onNavigateNotifications = {
                         val intent = Intent(this, NotificationActivity::class.java)
@@ -56,7 +56,11 @@ class MainActivity : ComponentActivity() {
                         // HomeScreen 내부에서 이미 챗봇 다이얼로그를 관리하고 있음
                         // BottomNavigationBar에서 호출 시 HomeScreen의 showChatbotDialog가 true로 설정됨
                     },
-                    onBack = {}
+                    onBack = {
+                        val intent = Intent(this, LoginActivity::class.java)
+                        startActivity(intent)
+                        finish()
+                    }
                 )
             }
         }

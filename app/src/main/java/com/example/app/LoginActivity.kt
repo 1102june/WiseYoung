@@ -29,7 +29,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.wiseyoung.app.ProfileSetupActivity
-import com.example.app.ui.theme.WiseYoungTheme
+import com.example.app.ui.theme.ThemeWrapper
 import com.wiseyoung.app.R
 import com.example.app.Config
 import com.example.app.FcmTokenService
@@ -62,7 +62,7 @@ class LoginActivity : ComponentActivity() {
         googleSignInClient = GoogleSignIn.getClient(this, gso)
 
         setContent {
-            WiseYoungTheme {
+            ThemeWrapper {
                 LoginScreen(
                     onBack = { finish() },
                     onRegister = {
@@ -185,12 +185,12 @@ class LoginActivity : ComponentActivity() {
 
     /**
      * 로그인 성공 후 네비게이션 처리
-     * 이메일 로그인: 프로필 완료 여부에 따라 CompleteActivity 또는 ProfileSetupActivity로 이동
-     * Google 로그인: 항상 ProfileSetupActivity로 이동 (최초 로그인 시 프로필 입력 필요)
+     * 이메일/Google 로그인 모두: 프로필 완료 여부에 따라 CompleteActivity 또는 ProfileSetupActivity로 이동
      */
     private fun navigateAfterLogin(isGoogleLogin: Boolean = false) {
-        val nextActivity = if (isGoogleLogin || !ProfilePreferences.hasCompletedProfile(this)) {
-            // Google 로그인이거나 프로필이 미완료인 경우 프로필 입력 화면으로
+        val hasCompletedProfile = ProfilePreferences.hasCompletedProfile(this)
+        val nextActivity = if (!hasCompletedProfile) {
+            // 프로필이 미완료인 경우 프로필 입력 화면으로
             ProfileSetupActivity::class.java
         } else {
             // 프로필이 완료된 경우 CompleteActivity로
@@ -269,7 +269,7 @@ class LoginActivity : ComponentActivity() {
 
             override fun onResponse(call: Call, response: Response) {
                 runOnUiThread {
-                    // Google 로그인 성공 시 항상 프로필 입력 화면으로 이동
+                    // Google 로그인 성공 시 프로필 완료 여부 확인 후 네비게이션
                     navigateAfterLogin(isGoogleLogin = true)
                 }
             }
@@ -319,11 +319,10 @@ fun LoginScreen(
         Spacer(modifier = Modifier.height(32.dp))
 
         // WY 로고 (원형)
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 48.dp),
-            contentAlignment = Alignment.Center
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)  // 로고와 텍스트 사이 간격 줄임
         ) {
             Box(
                 modifier = Modifier
@@ -339,68 +338,85 @@ fun LoginScreen(
                     contentScale = ContentScale.Crop
                 )
             }
+            
+            // 환영 메시지
+            Text(
+                text = "슬기로운 청년생활에 오신것을 환영합니다!",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 32.dp),
+                textAlign = TextAlign.Center,
+                color = Color(0xFF1A1A1A),
+                fontSize = 16.sp,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Normal
+            )
         }
 
-        // 로그인 메시지
-        Text(
-            text = "이메일 주소로 로그인 하실 수 있습니다",
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 32.dp),
-            textAlign = TextAlign.Center,
-            color = Color(0xFF666666),
-            fontSize = 14.sp
-        )
-
-        // 폼
+        // 폼 (간격도 줄임)
         Column(
             modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp)  // 24.dp -> 16.dp
         ) {
-            // 이메일
+            // 이메일 (입력 필드 크기 줄임)
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
                     text = "이메일",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFF1A1A1A)
+                    style = MaterialTheme.typography.bodySmall,  // bodyMedium -> bodySmall
+                    color = Color(0xFF1A1A1A),
+                    fontSize = 13.sp
                 )
                 OutlinedTextField(
                     value = email,
                     onValueChange = { email = it },
-                    placeholder = { Text("이메일 주소를 입력해주세요", color = Color.Gray) },
-                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("이메일 주소를 입력해주세요", color = Color.Gray, fontSize = 12.sp) },  // 14.sp -> 12.sp로 축소
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)  // 입력 필드 높이 명시적으로 줄임
+                        .background(Color.White, MaterialTheme.shapes.small),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                        disabledContainerColor = Color(0xFFF5F5F5),
                         focusedTextColor = Color.Black,
                         unfocusedTextColor = Color.Black
-                    )
+                    ),
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp)  // 텍스트 크기도 줄임
                 )
             }
 
-            // 비밀번호
+            // 비밀번호 (입력 필드 크기 줄임)
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
                     text = "비밀번호",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFF1A1A1A)
+                    style = MaterialTheme.typography.bodySmall,  // bodyMedium -> bodySmall
+                    color = Color(0xFF1A1A1A),
+                    fontSize = 13.sp
                 )
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
-                    placeholder = { Text("비밀번호를 입력해주세요", color = Color.Gray) },
+                    placeholder = { Text("비밀번호를 입력해주세요", color = Color.Gray, fontSize = 12.sp) },  // 14.sp -> 12.sp로 축소
                     visualTransformation = PasswordVisualTransformation(),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)  // 입력 필드 높이 명시적으로 줄임
+                        .background(Color.White, MaterialTheme.shapes.small),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                        disabledContainerColor = Color(0xFFF5F5F5),
                         focusedTextColor = Color.Black,
                         unfocusedTextColor = Color.Black
-                    )
+                    ),
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp)  // 텍스트 크기도 줄임
                 )
             }
 
@@ -441,7 +457,7 @@ fun LoginScreen(
                     .fillMaxWidth()
                     .height(48.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF8B5CF6)
+                    containerColor = Color(0xFF59ABF7)  // 라이트 블루 (메인 컬러)
                 )
             ) {
                 Text("로그인", color = Color.White)
@@ -532,7 +548,7 @@ fun LoginScreen(
                     Text(
                         text = "회원가입",
                         fontSize = 14.sp,
-                        color = Color(0xFF8B5CF6)
+                        color = Color(0xFF59ABF7)  // 라이트 블루 (메인 컬러)
                     )
                 }
             }

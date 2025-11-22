@@ -1,5 +1,6 @@
 package com.wiseyoung.app
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
@@ -144,6 +145,9 @@ fun HomeScreen(
     val currentPolicy = aiRecommendations[currentIndex]
     val isBookmarked = bookmarkedPolicies.contains(currentPolicy.title)
     
+    // 시스템 뒤로가기 버튼 처리
+    BackHandler(onBack = onBack)
+    
     // 자동 슬라이드 (3초마다)
     LaunchedEffect(isExpanded) {
         while (!isExpanded) {
@@ -262,8 +266,8 @@ fun HomeScreen(
                         subtitle = "나에게 딱 맞는 정책 찾기",
                         icon = Icons.Default.CalendarToday,
                         gradientColors = listOf(
-                            Color(0xFF8B5CF6),
-                            Color(0xFF7C3AED)
+                            Color(0xFF59ABF7),  // 라이트 블루 (메인 컬러)
+                            Color(0xFF4A8FD9)  // 진한 블루
                         ),
                         onClick = onNavigatePolicy
                     )
@@ -564,8 +568,8 @@ private fun PolicyCard(
                                 .background(
                                     brush = Brush.horizontalGradient(
                                         colors = listOf(
-                                            AppColors.Purple,
-                                            AppColors.BackgroundGradientStart
+                                            AppColors.LightBlue,  // 라이트 블루 (메인 컬러)
+                                            AppColors.Orange  // 오렌지 (포인트 컬러)
                                         )
                                     )
                                 )

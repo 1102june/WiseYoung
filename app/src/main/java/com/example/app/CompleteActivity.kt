@@ -23,7 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.app.ui.theme.WiseYoungTheme
+import com.example.app.ui.theme.ThemeWrapper
 import com.wiseyoung.app.R
 
 class CompleteActivity : ComponentActivity() {
@@ -32,7 +32,7 @@ class CompleteActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         setContent {
-            WiseYoungTheme {
+            ThemeWrapper {
                 CompleteScreen(
                     onStart = {
                         val intent = Intent(this, MainActivity::class.java)
@@ -113,7 +113,7 @@ fun CompleteScreen(onStart: () -> Unit) {
                 .fillMaxWidth()
                 .height(48.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF10B981)
+                containerColor = Color(0xFF59ABF7)  // 라이트 블루 (메인 컬러)
             )
         ) {
             Text(

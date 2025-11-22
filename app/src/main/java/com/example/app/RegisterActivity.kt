@@ -4,12 +4,17 @@ import android.os.Bundle
 import android.content.Intent
 import android.widget.Toast
 import android.content.Context
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -18,13 +23,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.example.app.ui.theme.WiseYoungTheme
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
+import com.example.app.ui.theme.ThemeWrapper
+import com.example.app.ui.components.SquareButton
 import com.example.app.Config
 import com.example.app.DeviceInfo
 import com.example.app.data.FirestoreService
 import com.google.firebase.auth.FirebaseAuth
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
+import org.json.JSONObject
 import java.io.IOException
 import java.util.Date
 
@@ -36,36 +45,83 @@ class RegisterActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            WiseYoungTheme {
+            ThemeWrapper {
                 RegisterScreen(
                     onBack = { finish() },
-                    onRegister = { email, password, nickname ->
-                        registerUser(email, password, nickname)
+                    onRegister = { email, password ->
+                        registerUser(email, password)
                     }
                 )
             }
         }
     }
 
-    /** 🔥 Firebase 회원가입 → (이메일 인증 없음) → 서버 DB 저장 */
-    private fun registerUser(email: String, password: String, nickname: String) {
+    /** 🔥 Firebase 회원가입 → (이메일 인증 완료 후) → 서버 DB 저장 */
+    private fun registerUser(email: String, password: String, retryCount: Int = 0) {
+        Log.d("RegisterActivity", "회원가입 시작: $email (재시도 횟수: $retryCount)")
 
         auth.createUserWithEmailAndPassword(email, password)
             .addOnSuccessListener { result ->
-
+                Log.d("RegisterActivity", "Firebase 회원가입 성공")
                 val user = result.user ?: return@addOnSuccessListener
 
                 // 🔥 Firebase ID Token 발급 → Spring 서버로 전달
                 user.getIdToken(true)
                     .addOnSuccessListener { tokenResult ->
                         val idToken = tokenResult.token ?: return@addOnSuccessListener
-                        sendSignupToServer(idToken, nickname)
+                        Log.d("RegisterActivity", "ID Token 발급 성공, 서버로 전송 중...")
+                        sendSignupToServer(idToken)
+                    }
+                    .addOnFailureListener { e ->
+                        Log.e("RegisterActivity", "ID Token 발급 실패", e)
+                        Toast.makeText(this, "토큰 발급 실패: ${e.message}", Toast.LENGTH_LONG).show()
                     }
 
                 launchProfileSetup()
             }
-            .addOnFailureListener {
-                Toast.makeText(this, "회원가입 실패: ${it.message}", Toast.LENGTH_SHORT).show()
+            .addOnFailureListener { e ->
+                Log.e("RegisterActivity", "Firebase 회원가입 실패 (재시도 횟수: $retryCount)", e)
+                
+                // reCAPTCHA 또는 Connection reset 오류 발생 시 최대 3번까지 재시도
+                val isNetworkError = e.message?.contains("reCAPTCHA") == true || 
+                                    e.message?.contains("Connection reset") == true ||
+                                    e.message?.contains("network") == true ||
+                                    e is com.google.firebase.FirebaseNetworkException
+                
+                if (isNetworkError && retryCount < 3) {
+                    // 재시도 간격을 늘림: 1초 -> 2초 -> 3초 (지수 백오프)
+                    val delayMs = (retryCount + 1) * 2000L // 2초, 4초, 6초
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        Log.d("RegisterActivity", "재시도 중... (${retryCount + 1}/3) - ${delayMs/1000}초 대기 후")
+                        registerUser(email, password, retryCount + 1)
+                    }, delayMs)
+                } else {
+                    val errorMessage = when {
+                        isNetworkError -> {
+                            "네트워크 연결 오류가 발생했습니다.\n\n" +
+                            "🔧 해결 방법:\n" +
+                            "1. Wi-Fi 또는 모바일 데이터 연결 확인\n" +
+                            "2. 앱 완전 종료 후 재시작\n" +
+                            "3. 기기 재부팅 후 재시도\n" +
+                            "4. 다른 네트워크로 변경 후 재시도\n\n" +
+                            "⚠️ Firebase reCAPTCHA 연결 문제일 수 있습니다.\n" +
+                            "잠시 후 다시 시도해주세요."
+                        }
+                        e.message?.contains("email-already-in-use") == true -> {
+                            "이미 사용 중인 이메일 주소입니다."
+                        }
+                        e.message?.contains("weak-password") == true -> {
+                            "비밀번호가 너무 약합니다."
+                        }
+                        e.message?.contains("invalid-email") == true -> {
+                            "올바른 이메일 주소를 입력해주세요."
+                        }
+                        else -> {
+                            "회원가입 실패: ${e.message ?: "알 수 없는 오류"}"
+                        }
+                    }
+                    Toast.makeText(this, errorMessage, Toast.LENGTH_LONG).show()
+                }
             }
     }
 
@@ -76,15 +132,14 @@ class RegisterActivity : ComponentActivity() {
     }
 
 
-    /** 🔥 서버로 idToken + nickname 전송 → MariaDB 저장 */
-    private fun sendSignupToServer(idToken: String, nickname: String) {
+    /** 🔥 서버로 idToken 전송 → MariaDB 저장 */
+    private fun sendSignupToServer(idToken: String) {
 
         val client = OkHttpClient()
 
         val json = """
             {
-                "idToken": "$idToken",
-                "nickname": "$nickname"
+                "idToken": "$idToken"
             }
         """.trimIndent()
 
@@ -167,18 +222,18 @@ class RegisterActivity : ComponentActivity() {
 @Composable
 fun RegisterScreen(
     onBack: () -> Unit,
-    onRegister: (String, String, String) -> Unit,
+    onRegister: (String, String) -> Unit,
     onLogin: () -> Unit = {}
 ) {
     var email by remember { mutableStateOf("") }
     var otp by remember { mutableStateOf("") }
     var otpSent by remember { mutableStateOf(false) }
     var isOtpVerified by remember { mutableStateOf(false) }
+    var isEmailChecked by remember { mutableStateOf(false) }
+    var isEmailDuplicate by remember { mutableStateOf(false) }
 
     var password by remember { mutableStateOf("") }
     var passwordCheck by remember { mutableStateOf("") }
-    var nickname by remember { mutableStateOf("") }
-    var nicknameChecked by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
 
@@ -220,36 +275,168 @@ fun RegisterScreen(
                 email = it
                 otpSent = false
                 isOtpVerified = false
+                isEmailChecked = false
+                isEmailDuplicate = false
             },
             label = { Text("이메일 주소") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color.White, MaterialTheme.shapes.small),
+            singleLine = true,
+            isError = isEmailChecked && isEmailDuplicate,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = Color.White,
+                unfocusedContainerColor = Color.White,
+                disabledContainerColor = Color(0xFFF5F5F5),
+                focusedTextColor = Color.Black,
+                unfocusedTextColor = Color.Black
+            )
         )
+
+        /* 이메일 중복 확인 결과 표시 */
+        if (isEmailChecked) {
+            if (isEmailDuplicate) {
+                Text(
+                    "✘ 이미 사용 중인 이메일 주소입니다.",
+                    color = Color.Red,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            } else {
+                Text(
+                    "✔ 사용 가능한 이메일 주소입니다.",
+                    color = Color(0xFF4CAF50),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
 
         Spacer(Modifier.height(10.dp))
 
-        /* 인증번호 발송 버튼 */
+        /* 이메일 중복 확인 및 인증번호 발송 버튼 */
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // 중복 확인 버튼
+            OutlinedButton(
+                onClick = {
+                    checkEmailDuplicate(email, context) { isDuplicate ->
+                        isEmailChecked = true
+                        isEmailDuplicate = isDuplicate
+                    }
+                },
+                enabled = isEmailFormatValid && !isEmailChecked,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.outlinedButtonColors(),
+                border = BorderStroke(1.dp, Color(0xFF59ABF7))
+            ) {
+                Text("중복 확인", color = Color(0xFF59ABF7))
+            }
+
+            // 인증번호 발송 버튼
         Button(
             onClick = {
-                sendOtpToServer(email, context)
+                    sendOtpToServer(email, context) { success ->
+                        if (success) {
                 otpSent = true
+                            isEmailChecked = true
+                            isEmailDuplicate = false
+                        }
+                    }
             },
-            enabled = isEmailFormatValid,
-            modifier = Modifier.fillMaxWidth()
+                enabled = isEmailFormatValid && !isEmailDuplicate,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF59ABF7))
         ) {
             Text("인증번호 발송")
+            }
         }
 
         /* 인증번호 입력 */
         if (otpSent) {
             Spacer(Modifier.height(12.dp))
+            
+            // 5분 타이머 상태
+            var remainingTime by remember { mutableStateOf(300) } // 5분 = 300초
+            var isTimerExpired by remember { mutableStateOf(false) }
+            
+            // 타이머 시작
+            LaunchedEffect(otpSent) {
+                remainingTime = 300 // 발송 시마다 초기화
+                isTimerExpired = false
+                while (remainingTime > 0 && otpSent) {
+                    kotlinx.coroutines.delay(1000)
+                    remainingTime--
+                }
+                if (remainingTime == 0) {
+                    isTimerExpired = true
+                }
+            }
+            
+            // 타이머 표시 포맷 (MM:SS)
+            val minutes = remainingTime / 60
+            val seconds = remainingTime % 60
+            val timerText = String.format("%02d:%02d", minutes, seconds)
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
             OutlinedTextField(
                 value = otp,
                 onValueChange = { otp = it },
                 label = { Text("인증번호 입력") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
+                    modifier = Modifier
+                        .weight(1f)
+                        .background(Color.White, MaterialTheme.shapes.small),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                        disabledContainerColor = Color(0xFFF5F5F5),
+                        focusedTextColor = Color.Black,
+                        unfocusedTextColor = Color.Black
+                    ),
+                    trailingIcon = {
+                        if (!isTimerExpired) {
+                            Text(
+                                text = timerText,
+                                color = if (remainingTime <= 60) Color.Red else Color(0xFF59ABF7),
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                        } else {
+                            Text(
+                                text = "만료",
+                                color = Color.Red,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                        }
+                    }
+                )
+                
+                // 재발송 버튼 (SquareButton) - 크기 더 크게
+                SquareButton(
+                    text = "재발송",
+                    onClick = {
+                        sendOtpToServer(email, context) { success ->
+                            if (success) {
+                                remainingTime = 300 // 타이머 초기화
+                                isTimerExpired = false
+                                otp = "" // 인증번호 입력칸 초기화
+                                isOtpVerified = false
+                                Toast.makeText(context, "인증번호가 재발송되었습니다.", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    enabled = !isTimerExpired, // 만료된 경우에도 재발송 가능
+                    backgroundColor = Color(0xFF59ABF7),  // 라이트 블루 (메인 컬러)
+                    textColor = Color.White,
+                    size = 64.dp  // 56.dp -> 64.dp로 증가
+                )
+            }
 
             Spacer(Modifier.height(8.dp))
 
@@ -259,31 +446,21 @@ fun RegisterScreen(
                         isOtpVerified = success
                     }
                 },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isTimerExpired && otp.isNotEmpty(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF59ABF7))
             ) {
                 Text("인증번호 확인")
             }
 
             if (isOtpVerified) {
                 Text("✔ 이메일 인증 완료", color = Color(0xFF4CAF50))
+            } else if (isTimerExpired) {
+                Text("✘ 인증번호가 만료되었습니다. 재발송 버튼을 눌러주세요.", color = Color.Red, style = MaterialTheme.typography.bodySmall)
             }
         }
 
         Spacer(Modifier.height(20.dp))
-
-        /* 닉네임 */
-        OutlinedTextField(
-            value = nickname,
-            onValueChange = {
-                nickname = it
-                nicknameChecked = false
-            },
-            label = { Text("닉네임") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
-        )
-
-        Spacer(Modifier.height(16.dp))
 
         /* 비밀번호 */
         OutlinedTextField(
@@ -291,8 +468,17 @@ fun RegisterScreen(
             onValueChange = { password = it },
             label = { Text("비밀번호 (영어/숫자/특수문자 포함)") },
             visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color.White, MaterialTheme.shapes.small),
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = Color.White,
+                unfocusedContainerColor = Color.White,
+                disabledContainerColor = Color(0xFFF5F5F5),
+                focusedTextColor = Color.Black,
+                unfocusedTextColor = Color.Black
+            )
         )
 
         Column(Modifier.fillMaxWidth()) {
@@ -310,31 +496,57 @@ fun RegisterScreen(
             onValueChange = { passwordCheck = it },
             label = { Text("비밀번호 확인") },
             visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color.White, MaterialTheme.shapes.small),
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = Color.White,
+                unfocusedContainerColor = Color.White,
+                disabledContainerColor = Color(0xFFF5F5F5),
+                focusedTextColor = Color.Black,
+                unfocusedTextColor = Color.Black
+            )
         )
 
         if (passwordCheck.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(
+                            if (isPasswordMatch) Color(0xFF10B981) else Color(0xFF9CA3AF)  // 성공: 초록, 실패: 회색
+                        )
+                )
             Text(
-                if (isPasswordMatch) "비밀번호가 일치합니다 ✔"
-                else "비밀번호가 일치하지 않습니다 ✘",
-                color = if (isPasswordMatch) Color(0xFF4CAF50) else Color.Red,
-                style = MaterialTheme.typography.bodySmall
-            )
+                    text = if (isPasswordMatch) "비밀번호가 일치합니다" else "비밀번호가 일치하지 않습니다",
+                    color = if (isPasswordMatch) Color(0xFF1A1A1A) else Color(0xFF666666),  // 성공: 진한 회색, 실패: 중간 회색
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontSize = 12.sp,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Normal
+                    )
+                )
+            }
         }
 
         Spacer(Modifier.height(24.dp))
 
         /* 회원가입 버튼 (OTP 인증 완료해야 활성화됨) */
         Button(
-            onClick = { onRegister(email, password, nickname) },
+            onClick = { onRegister(email, password) },
             modifier = Modifier.fillMaxWidth(),
             enabled =
                 isOtpVerified &&
-                        nickname.isNotEmpty() &&
                         isPasswordValid &&
                         isPasswordMatch,
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF59ABF7))
         ) {
             Text("회원가입", color = Color.White)
         }
@@ -343,34 +555,179 @@ fun RegisterScreen(
 
 @Composable
 fun PwRule(valid: Boolean, text: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // 간단한 체크/엑스 아이콘 대신 색상 원 사용
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .clip(androidx.compose.foundation.shape.CircleShape)
+                .background(
+                    if (valid) Color(0xFF10B981) else Color(0xFF9CA3AF)  // 성공: 초록, 실패: 회색
+                )
+        )
     Text(
-        text = if (valid) "✔ $text" else "✘ $text",
-        color = if (valid) Color(0xFF4CAF50) else Color.Red,
-        style = MaterialTheme.typography.bodySmall
-    )
+            text = text,
+            color = if (valid) Color(0xFF1A1A1A) else Color(0xFF666666),  // 성공: 진한 회색, 실패: 중간 회색
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontSize = 12.sp,
+                fontWeight = if (valid) androidx.compose.ui.text.font.FontWeight.Normal else androidx.compose.ui.text.font.FontWeight.Normal
+            )
+        )
+    }
 }
 
 
 /* ---------------- OTP API ---------------- */
 
-fun sendOtpToServer(email: String, context: Context) {
+/**
+ * 이메일 중복 확인
+ * @param email 확인할 이메일 주소
+ * @param context Android Context
+ * @param callback 중복 여부를 반환 (true: 중복, false: 사용 가능)
+ */
+fun checkEmailDuplicate(email: String, context: Context, callback: (Boolean) -> Unit) {
+    val client = OkHttpClient()
+
+    val url = "${Config.getUrl(Config.Api.EMAIL_CHECK)}?email=${java.net.URLEncoder.encode(email, "UTF-8")}"
+    val request = Request.Builder()
+        .url(url)
+        .get()
+        .build()
+
+    client.newCall(request).enqueue(object : Callback {
+        override fun onFailure(call: Call, e: IOException) {
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                Toast.makeText(context, "중복 확인 실패: ${e.message}", Toast.LENGTH_SHORT).show()
+                callback(true) // 에러 시 안전하게 중복으로 처리
+            }
+        }
+
+        override fun onResponse(call: Call, response: Response) {
+            try {
+                // OkHttp의 enqueue는 백그라운드 스레드에서 실행되므로 여기서 응답 본문을 읽어도 됩니다
+                if (response.isSuccessful) {
+                    val responseBody = response.body
+                    if (responseBody == null) {
+                        Log.e("RegisterActivity", "응답 본문이 null입니다.")
+                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                            Toast.makeText(context, "서버 응답이 없습니다.", Toast.LENGTH_SHORT).show()
+                            callback(true)
+                        }
+                        return
+                    }
+                    
+                    val jsonString = responseBody.string()
+                    Log.d("RegisterActivity", "서버 응답: $jsonString")
+                    
+                    if (jsonString.isBlank()) {
+                        Log.e("RegisterActivity", "응답 본문이 비어있습니다.")
+                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                            Toast.makeText(context, "서버 응답이 비어있습니다.", Toast.LENGTH_SHORT).show()
+                            callback(true)
+                        }
+                        return
+                    }
+                    
+                    // JSON 파싱: {"success":true,"message":"성공","data":true/false}
+                    // data가 true면 중복, false면 사용 가능
+                    val jsonObject = JSONObject(jsonString)
+                    val isDuplicate = jsonObject.optBoolean("data", false)
+                    
+                    // UI 업데이트는 메인 스레드에서 수행
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        callback(isDuplicate)
+                        
+                        if (isDuplicate) {
+                            Toast.makeText(context, "이미 사용 중인 이메일 주소입니다.", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "사용 가능한 이메일 주소입니다.", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                } else {
+                    val errorBody = try {
+                        response.body?.string() ?: "응답 없음"
+                    } catch (e: Exception) {
+                        "응답 읽기 실패: ${e.message}"
+                    }
+                    Log.e("RegisterActivity", "서버 오류: ${response.code}, 응답: $errorBody")
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        Toast.makeText(context, "중복 확인 실패: ${response.code}", Toast.LENGTH_SHORT).show()
+                        callback(true)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("RegisterActivity", "이메일 중복 확인 오류", e)
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    Toast.makeText(context, "중복 확인 실패: ${e.message ?: "알 수 없는 오류"}", Toast.LENGTH_SHORT).show()
+                    callback(true)
+                }
+            }
+        }
+    })
+}
+
+/**
+ * 인증번호 발송 (자동 중복 확인 포함)
+ * @param email 이메일 주소
+ * @param context Android Context
+ * @param callback 발송 성공 여부
+ */
+fun sendOtpToServer(email: String, context: Context, callback: (Boolean) -> Unit = {}) {
     val client = OkHttpClient()
 
     val json = """{"email":"$email"}"""
     val body = RequestBody.create("application/json".toMediaType(), json)
 
     val request = Request.Builder()
-        .url("http://172.16.1.42:8080/auth/otp/send")
+        .url(Config.getUrl(Config.Api.OTP_SEND))
         .post(body)
         .build()
 
     client.newCall(request).enqueue(object : Callback {
         override fun onFailure(call: Call, e: IOException) {
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
             Toast.makeText(context, "OTP 발송 실패: ${e.message}", Toast.LENGTH_LONG).show()
+                callback(false)
+            }
         }
 
         override fun onResponse(call: Call, response: Response) {
+            // OkHttp의 enqueue는 백그라운드 스레드에서 실행되므로 여기서 응답 본문을 읽어도 됩니다
+            when (response.code) {
+                200 -> {
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
             Toast.makeText(context, "인증번호가 이메일로 전송되었습니다.", Toast.LENGTH_SHORT).show()
+                        callback(true)
+                    }
+                }
+                409 -> {
+                    // 이메일 중복 (서버에서 자동 확인)
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        Toast.makeText(context, "이미 등록된 이메일 주소입니다.", Toast.LENGTH_LONG).show()
+                        callback(false)
+                    }
+                }
+                else -> {
+                    val errorMsg = try {
+                        val jsonString = response.body?.string()
+                        // 간단한 JSON 파싱 (실제로는 Gson 사용 권장)
+                        jsonString?.substringAfter("\"message\":\"")?.substringBefore("\"") 
+                            ?: "서버 오류: ${response.code}"
+                    } catch (e: Exception) {
+                        "서버 오류: ${response.code}"
+                    }
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        Toast.makeText(context, "OTP 발송 실패: $errorMsg", Toast.LENGTH_LONG).show()
+                        callback(false)
+                    }
+                }
+            }
         }
     })
 }
@@ -387,24 +744,77 @@ fun verifyOtpWithServer(
     val body = RequestBody.create("application/json".toMediaType(), json)
 
     val request = Request.Builder()
-        .url("http://172.16.1.42:8080/auth/otp/verify")
+        .url(Config.getUrl(Config.Api.OTP_VERIFY))
         .post(body)
         .build()
 
     client.newCall(request).enqueue(object : Callback {
         override fun onFailure(call: Call, e: IOException) {
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
             callback(false)
             Toast.makeText(context, "인증 실패: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
         }
 
         override fun onResponse(call: Call, response: Response) {
-            val ok = response.isSuccessful
-            callback(ok)
-            Toast.makeText(
-                context,
-                if (ok) "인증 성공" else "인증 실패",
-                Toast.LENGTH_SHORT
-            ).show()
+            // OkHttp의 enqueue는 백그라운드 스레드에서 실행되므로 여기서 응답 본문을 읽어도 됩니다
+            try {
+                if (response.isSuccessful) {
+                    val responseBody = response.body?.string()
+                    Log.d("RegisterActivity", "인증번호 검증 응답: $responseBody")
+                    
+                    if (responseBody != null && responseBody.isNotBlank()) {
+                        try {
+                            val jsonObject = JSONObject(responseBody)
+                            val success = jsonObject.optBoolean("success", false)
+                            
+                            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                callback(success)
+                                if (success) {
+                                    Toast.makeText(context, "인증 성공", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    val message = jsonObject.optString("message", "인증 실패")
+                                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                            return
+                        } catch (e: Exception) {
+                            Log.e("RegisterActivity", "JSON 파싱 오류", e)
+                        }
+                    }
+                    
+                    // JSON 파싱 실패 시 기본 처리
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        callback(true) // 응답이 성공이면 인증 성공으로 처리
+                        Toast.makeText(context, "인증 성공", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    val errorBody = try {
+                        response.body?.string() ?: "응답 없음"
+                    } catch (e: Exception) {
+                        "응답 읽기 실패: ${e.message}"
+                    }
+                    Log.e("RegisterActivity", "인증번호 검증 실패: ${response.code}, 응답: $errorBody")
+                    
+                    val errorMessage = try {
+                        val jsonObject = JSONObject(errorBody)
+                        jsonObject.optString("message", "인증 실패")
+                    } catch (e: Exception) {
+                        "인증 실패: ${response.code}"
+                    }
+                    
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        callback(false)
+                        Toast.makeText(context, errorMessage, Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("RegisterActivity", "인증번호 검증 중 오류", e)
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    callback(false)
+                    Toast.makeText(context, "인증 실패: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
         }
     })
 }

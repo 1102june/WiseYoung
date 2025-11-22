@@ -25,7 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.app.ui.theme.AppColors
 import com.example.app.ui.theme.Spacing
-import com.example.app.ui.theme.WiseYoungTheme
+import com.example.app.ui.theme.ThemeWrapper
 import com.example.app.ui.components.BottomNavigationBar
 
 // 북마크 데이터 모델
@@ -56,7 +56,7 @@ class BookmarkActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            WiseYoungTheme {
+            ThemeWrapper {
                 BookmarkScreen(
                     onNavigateHome = {
                         startActivity(Intent(this, MainActivity::class.java))

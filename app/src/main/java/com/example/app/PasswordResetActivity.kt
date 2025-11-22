@@ -15,13 +15,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import com.example.app.ui.theme.WiseYoungTheme
+import com.example.app.ui.theme.ThemeWrapper
 
 class PasswordResetActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            WiseYoungTheme {
+            ThemeWrapper {
                 PasswordResetScreen(
                     onBack = { finish() },
                     onComplete = { finish() }
@@ -44,7 +44,7 @@ fun PasswordResetScreen(
     var confirmPassword by remember { mutableStateOf("") }
 
     val isPasswordMatch = confirmPassword.isNotEmpty() && confirmPassword == password
-    val accentColor = Color(0xFF8B5CF6)
+    val accentColor = Color(0xFF59ABF7)  // 라이트 블루 (메인 컬러)
 
     Column(
         modifier = Modifier

@@ -28,7 +28,7 @@ import androidx.compose.ui.window.Dialog
 import com.example.app.NotificationSettings
 import com.example.app.ui.theme.AppColors
 import com.example.app.ui.theme.Spacing
-import com.example.app.ui.theme.WiseYoungTheme
+import com.example.app.ui.theme.ThemeWrapper
 import com.example.app.ui.components.BottomNavigationBar
 import java.text.SimpleDateFormat
 import java.util.*
@@ -179,7 +179,7 @@ class PolicyListActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            WiseYoungTheme {
+            ThemeWrapper {
                 PolicyListScreen(
                     onNavigateHome = {
                         startActivity(Intent(this, MainActivity::class.java))

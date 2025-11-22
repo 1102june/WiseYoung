@@ -65,7 +65,7 @@ import androidx.lifecycle.lifecycleScope
 import com.example.app.Config
 import com.example.app.DeviceInfo
 import com.example.app.data.FirestoreService
-import com.example.app.ui.theme.WiseYoungTheme
+import com.example.app.ui.theme.ThemeWrapper
 import com.wiseyoung.app.R
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.Dispatchers
@@ -103,7 +103,7 @@ class ProfileSetupActivity : ComponentActivity() {
         isFromGoogleLogin = intent.getBooleanExtra("from_google_login", false)
         
         setContent {
-            WiseYoungTheme {
+            ThemeWrapper {
                 var isSubmitting by remember { mutableStateOf(false) }
                 var snackbarMessage by remember { mutableStateOf<String?>(null) }
                 val snackbarHostState = remember { SnackbarHostState() }
@@ -119,6 +119,10 @@ class ProfileSetupActivity : ComponentActivity() {
                     ProfileSetupScreen(
                         modifier = Modifier.padding(paddingValues),
                         isSubmitting = isSubmitting,
+                        onLoadProfile = { callback ->
+                            // 화면 로드 시 기존 프로필 정보 불러오기
+                            loadExistingProfile(callback)
+                        },
                         onBack = {
                             if (isFromGoogleLogin) {
                                 // Google 로그인에서 온 경우 LoginActivity로 이동
@@ -323,6 +327,43 @@ class ProfileSetupActivity : ComponentActivity() {
             }
         }
     }
+
+    /**
+     * 기존 프로필 정보 불러오기 (Firestore 또는 서버에서)
+     */
+    private fun loadExistingProfile(callback: (ProfilePayload?) -> Unit) {
+        val currentUser = auth.currentUser ?: run {
+            callback(null)
+            return
+        }
+
+        // Firestore에서 프로필 정보 불러오기
+        FirestoreService.getUserProfile(
+            userId = currentUser.uid,
+            onSuccess = { profile ->
+                if (profile != null && profile.birthYear != null) {
+                    // 프로필 정보가 있는 경우 ProfilePayload 생성
+                    val payload = ProfilePayload(
+                        birthDate = profile.birthYear, // "yyyy-MM-dd" 형식
+                        gender = profile.gender ?: "male",
+                        province = profile.region ?: "",
+                        city = "", // Firestore에 city 정보가 없음 (province만 저장)
+                        education = profile.education ?: "",
+                        employment = profile.jobStatus ?: "",
+                        interests = emptyList() // Firestore에 interests 정보가 없음
+                    )
+                    callback(payload)
+                } else {
+                    // 프로필 정보가 없는 경우
+                    callback(null)
+                }
+            },
+            onFailure = { e ->
+                Log.e("ProfileSetup", "프로필 정보 불러오기 실패: ${e.message}", e)
+                callback(null)
+            }
+        )
+    }
 }
 
 data class ProfilePayload(
@@ -340,6 +381,7 @@ data class ProfilePayload(
 fun ProfileSetupScreen(
     modifier: Modifier = Modifier,
     isSubmitting: Boolean,
+    onLoadProfile: ((ProfilePayload?) -> Unit) -> Unit = {},
     onBack: () -> Unit,
     onSubmit: (ProfilePayload) -> Unit
 ) {
@@ -353,6 +395,31 @@ fun ProfileSetupScreen(
     var education by remember { mutableStateOf("") }
     var employment by remember { mutableStateOf("") }
     var interests by remember { mutableStateOf(setOf<String>()) }
+    var isProfileLoaded by remember { mutableStateOf(false) }
+
+    // 화면 로드 시 기존 프로필 정보 불러오기
+    LaunchedEffect(Unit) {
+        if (!isProfileLoaded) {
+            onLoadProfile { existingProfile ->
+                if (existingProfile != null) {
+                    // 기존 프로필 정보로 입력 필드 채우기
+                    try {
+                        val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+                        birthDate = LocalDate.parse(existingProfile.birthDate, dateFormatter)
+                    } catch (e: Exception) {
+                        Log.e("ProfileSetup", "생년월일 파싱 실패: ${e.message}")
+                    }
+                    gender = existingProfile.gender
+                    province = existingProfile.province
+                    city = existingProfile.city
+                    education = existingProfile.education
+                    employment = existingProfile.employment
+                    interests = existingProfile.interests.toSet()
+                }
+                isProfileLoaded = true
+            }
+        }
+    }
 
     val cityMap = remember { provinceCities }
     val provinceDisplayMap = remember { provinceDisplayNames }
@@ -479,8 +546,8 @@ fun ProfileSetupScreen(
                     .height(48.dp),
                 enabled = canSubmit && !isSubmitting,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF10B981),
-                    disabledContainerColor = Color(0xFF10B981).copy(alpha = 0.4f)
+                    containerColor = Color(0xFF59ABF7),  // 라이트 블루 (메인 컬러)
+                    disabledContainerColor = Color(0xFF59ABF7).copy(alpha = 0.4f)
                 )
             ) {
                 Text(
@@ -702,7 +769,7 @@ private fun DateSpinner(
                     .fillMaxWidth()
                     .height(itemHeight)
                     .align(Alignment.Center)
-                    .background(Color(0xFF8B5CF6).copy(alpha = 0.1f))
+                    .background(Color(0xFF59ABF7).copy(alpha = 0.1f))  // 라이트 블루 (메인 컬러)
             )
             
             LazyColumn(
@@ -721,7 +788,7 @@ private fun DateSpinner(
                     ) {
                         Text(
                             text = item.toString(),
-                            color = if (isSelected) Color(0xFF8B5CF6) else Color(0xFF999999),
+                            color = if (isSelected) Color(0xFF59ABF7) else Color(0xFF999999),  // 라이트 블루 (메인 컬러)
                             fontSize = 16.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                         )
@@ -778,7 +845,7 @@ private fun RowScope.GenderButton(text: String, isSelected: Boolean, onClick: ()
                 .weight(1f)
                 .height(48.dp),
         colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF8B5CF6),
+                containerColor = Color(0xFF59ABF7),  // 라이트 블루 (메인 컬러)
                 contentColor = Color.White
         )
     ) {
@@ -791,9 +858,9 @@ private fun RowScope.GenderButton(text: String, isSelected: Boolean, onClick: ()
                 .weight(1f)
                 .height(48.dp),
             colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = Color(0xFF8B5CF6)
+                contentColor = Color(0xFF59ABF7)  // 라이트 블루 (메인 컬러)
             ),
-            border = BorderStroke(2.dp, Color(0xFF8B5CF6))
+            border = BorderStroke(2.dp, Color(0xFF59ABF7))  // 라이트 블루 테두리
         ) {
             Text(text)
         }
@@ -912,7 +979,7 @@ private fun RowScope.InterestButton(
                 .weight(1f)
                 .height(48.dp),
                             colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF8B5CF6),
+                containerColor = Color(0xFF59ABF7),  // 라이트 블루 (메인 컬러)
                 contentColor = Color.White
                             )
                         ) {
@@ -925,9 +992,9 @@ private fun RowScope.InterestButton(
                 .weight(1f)
                 .height(48.dp),
             colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = Color(0xFF8B5CF6)
+                contentColor = Color(0xFF59ABF7)  // 라이트 블루 (메인 컬러)
             ),
-            border = BorderStroke(2.dp, Color(0xFF8B5CF6))
+            border = BorderStroke(2.dp, Color(0xFF59ABF7))  // 라이트 블루 테두리
         ) {
             Text(interest)
         }
