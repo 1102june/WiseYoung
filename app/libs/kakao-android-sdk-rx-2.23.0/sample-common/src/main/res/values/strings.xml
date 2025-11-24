@@ -1,8 +1,0 @@
-<resources>
-    <string name="send">Send</string>
-    <string name="select_friends">Select Friends</string>
-    <string name="debug">Debug</string>
-    <string name="clear">Clear</string>
-    <string name="phase">Phase</string>
-    <string name="close">Close</string>
-</resources>
