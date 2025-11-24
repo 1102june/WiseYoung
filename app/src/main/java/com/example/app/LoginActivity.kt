@@ -371,10 +371,10 @@ fun LoginScreen(
                 OutlinedTextField(
                     value = email,
                     onValueChange = { email = it },
-                    placeholder = { Text("이메일 주소를 입력해주세요", color = Color.Gray, fontSize = 12.sp) },  // 14.sp -> 12.sp로 축소
+                    placeholder = { Text("이메일을 입력하세요", color = Color.Gray, fontSize = 11.sp) },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp)  // 입력 필드 높이 명시적으로 줄임
+                        .height(48.dp)
                         .background(Color.White, MaterialTheme.shapes.small),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
@@ -384,7 +384,7 @@ fun LoginScreen(
                         focusedTextColor = Color.Black,
                         unfocusedTextColor = Color.Black
                     ),
-                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp)  // 텍스트 크기도 줄임
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp)
                 )
             }
 
@@ -402,11 +402,11 @@ fun LoginScreen(
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
-                    placeholder = { Text("비밀번호를 입력해주세요", color = Color.Gray, fontSize = 12.sp) },  // 14.sp -> 12.sp로 축소
+                    placeholder = { Text("비밀번호를 입력하세요", color = Color.Gray, fontSize = 11.sp) },
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp)  // 입력 필드 높이 명시적으로 줄임
+                        .height(48.dp)
                         .background(Color.White, MaterialTheme.shapes.small),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
@@ -416,7 +416,7 @@ fun LoginScreen(
                         focusedTextColor = Color.Black,
                         unfocusedTextColor = Color.Black
                     ),
-                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp)  // 텍스트 크기도 줄임
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp)
                 )
             }
 

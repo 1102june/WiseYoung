@@ -58,9 +58,36 @@ class RegisterActivity : ComponentActivity() {
 
     /** 🔥 Firebase 회원가입 → (이메일 인증 완료 후) → 서버 DB 저장 */
     private fun registerUser(email: String, password: String, retryCount: Int = 0) {
-        Log.d("RegisterActivity", "회원가입 시작: $email (재시도 횟수: $retryCount)")
+        // 이메일과 비밀번호 앞뒤 공백 제거
+        val trimmedEmail = email.trim()
+        val trimmedPassword = password.trim()
+        
+        // 이메일 형식 검증 (더 엄격한 검증)
+        val emailPattern = android.util.Patterns.EMAIL_ADDRESS
+        if (trimmedEmail.isEmpty() || !emailPattern.matcher(trimmedEmail).matches()) {
+            Toast.makeText(
+                this, 
+                "올바른 이메일 주소를 입력해주세요.\n예: example@email.com", 
+                Toast.LENGTH_LONG
+            ).show()
+            Log.e("RegisterActivity", "이메일 형식 오류: '$trimmedEmail'")
+            return
+        }
+        
+        // 이메일에 공백이 있는지 확인
+        if (trimmedEmail.contains(" ")) {
+            Toast.makeText(
+                this, 
+                "이메일 주소에 공백이 포함되어 있습니다.\n공백을 제거해주세요.", 
+                Toast.LENGTH_LONG
+            ).show()
+            Log.e("RegisterActivity", "이메일 공백 포함: '$trimmedEmail'")
+            return
+        }
+        
+        Log.d("RegisterActivity", "회원가입 시작: $trimmedEmail (재시도 횟수: $retryCount)")
 
-        auth.createUserWithEmailAndPassword(email, password)
+        auth.createUserWithEmailAndPassword(trimmedEmail, trimmedPassword)
             .addOnSuccessListener { result ->
                 Log.d("RegisterActivity", "Firebase 회원가입 성공")
                 val user = result.user ?: return@addOnSuccessListener
@@ -93,7 +120,7 @@ class RegisterActivity : ComponentActivity() {
                     val delayMs = (retryCount + 1) * 2000L // 2초, 4초, 6초
                     android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                         Log.d("RegisterActivity", "재시도 중... (${retryCount + 1}/3) - ${delayMs/1000}초 대기 후")
-                        registerUser(email, password, retryCount + 1)
+                        registerUser(trimmedEmail, trimmedPassword, retryCount + 1)
                     }, delayMs)
                 } else {
                     val errorMessage = when {
@@ -113,8 +140,14 @@ class RegisterActivity : ComponentActivity() {
                         e.message?.contains("weak-password") == true -> {
                             "비밀번호가 너무 약합니다."
                         }
-                        e.message?.contains("invalid-email") == true -> {
-                            "올바른 이메일 주소를 입력해주세요."
+                        e.message?.contains("invalid-email") == true ||
+                        e.message?.contains("badly formatted") == true ||
+                        e.message?.contains("The email address is badly formatted") == true -> {
+                            "이메일 주소 형식이 올바르지 않습니다.\n\n" +
+                            "확인 사항:\n" +
+                            "1. 이메일 주소에 공백이 없는지 확인\n" +
+                            "2. @ 기호와 도메인이 포함되어 있는지 확인\n" +
+                            "3. 예: example@email.com"
                         }
                         else -> {
                             "회원가입 실패: ${e.message ?: "알 수 없는 오류"}"
@@ -135,7 +168,11 @@ class RegisterActivity : ComponentActivity() {
     /** 🔥 서버로 idToken 전송 → MariaDB 저장 */
     private fun sendSignupToServer(idToken: String) {
 
-        val client = OkHttpClient()
+        val client = OkHttpClient.Builder()
+            .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .build()
 
         val json = """
             {
@@ -156,10 +193,40 @@ class RegisterActivity : ComponentActivity() {
         client.newCall(request).enqueue(object : Callback {
 
             override fun onFailure(call: Call, e: IOException) {
+                Log.e("RegisterActivity", "회원가입 서버 전송 네트워크 오류", e)
+                val errorMessage = when {
+                    e.message?.contains("Failed to connect") == true || 
+                    e.message?.contains("Unable to resolve host") == true -> {
+                        "서버에 연결할 수 없습니다.\n\n" +
+                        "🔧 확인 사항:\n" +
+                        "1. 서버가 실행 중인지 확인\n" +
+                        "2. ADB 포트 포워딩 실행:\n" +
+                        "   adb reverse tcp:8080 tcp:8080\n" +
+                        "3. Wi-Fi 또는 모바일 데이터 연결 확인"
+                    }
+                    e.message?.contains("timeout") == true -> {
+                        "연결 시간이 초과되었습니다.\n서버 응답을 기다리는 중입니다."
+                    }
+                    e.message?.contains("Connection refused") == true ||
+                    e is java.net.ConnectException -> {
+                        "서버 연결이 거부되었습니다.\n\n" +
+                        "🔧 확인 사항:\n" +
+                        "1. Spring Boot 서버가 실행 중인지 확인\n" +
+                        "   (http://localhost:8080 접속 테스트)\n" +
+                        "2. ADB 포트 포워딩 확인:\n" +
+                        "   adb reverse --list\n" +
+                        "   (없으면: adb reverse tcp:8080 tcp:8080)\n" +
+                        "3. USB 연결이 끊기지 않았는지 확인"
+                    }
+                    else -> {
+                        "서버 연결 실패: ${e.message ?: "알 수 없는 오류"}"
+                    }
+                }
+                
                 runOnUiThread {
                     Toast.makeText(
                         this@RegisterActivity,
-                        "서버 연결 실패: ${e.message}",
+                        errorMessage,
                         Toast.LENGTH_LONG
                     ).show()
                 }
@@ -540,7 +607,7 @@ fun RegisterScreen(
 
         /* 회원가입 버튼 (OTP 인증 완료해야 활성화됨) */
         Button(
-            onClick = { onRegister(email, password) },
+            onClick = { onRegister(email.trim(), password.trim()) },
             modifier = Modifier.fillMaxWidth(),
             enabled =
                 isOtpVerified &&
@@ -592,9 +659,15 @@ fun PwRule(valid: Boolean, text: String) {
  * @param callback 중복 여부를 반환 (true: 중복, false: 사용 가능)
  */
 fun checkEmailDuplicate(email: String, context: Context, callback: (Boolean) -> Unit) {
-    val client = OkHttpClient()
+    val client = OkHttpClient.Builder()
+        .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
 
     val url = "${Config.getUrl(Config.Api.EMAIL_CHECK)}?email=${java.net.URLEncoder.encode(email, "UTF-8")}"
+    Log.d("RegisterActivity", "이메일 중복 확인 요청 URL: $url")
+    
     val request = Request.Builder()
         .url(url)
         .get()
@@ -602,8 +675,30 @@ fun checkEmailDuplicate(email: String, context: Context, callback: (Boolean) -> 
 
     client.newCall(request).enqueue(object : Callback {
         override fun onFailure(call: Call, e: IOException) {
+            Log.e("RegisterActivity", "이메일 중복 확인 네트워크 오류", e)
+            val errorMessage = when {
+                e.message?.contains("Failed to connect") == true || 
+                e.message?.contains("Unable to resolve host") == true -> {
+                    "서버에 연결할 수 없습니다.\n\n" +
+                    "🔧 확인 사항:\n" +
+                    "1. 서버가 실행 중인지 확인\n" +
+                    "2. ADB 포트 포워딩 실행:\n" +
+                    "   adb reverse tcp:8080 tcp:8080\n" +
+                    "3. Wi-Fi 또는 모바일 데이터 연결 확인"
+                }
+                e.message?.contains("timeout") == true -> {
+                    "연결 시간이 초과되었습니다.\n서버 응답을 기다리는 중입니다."
+                }
+                e.message?.contains("Connection refused") == true -> {
+                    "서버 연결이 거부되었습니다.\n서버가 실행 중인지 확인해주세요."
+                }
+                else -> {
+                    "네트워크 오류: ${e.message ?: "알 수 없는 오류"}"
+                }
+            }
+            
             android.os.Handler(android.os.Looper.getMainLooper()).post {
-                Toast.makeText(context, "중복 확인 실패: ${e.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
                 callback(true) // 에러 시 안전하게 중복으로 처리
             }
         }
@@ -679,7 +774,11 @@ fun checkEmailDuplicate(email: String, context: Context, callback: (Boolean) -> 
  * @param callback 발송 성공 여부
  */
 fun sendOtpToServer(email: String, context: Context, callback: (Boolean) -> Unit = {}) {
-    val client = OkHttpClient()
+    val client = OkHttpClient.Builder()
+        .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
 
     val json = """{"email":"$email"}"""
     val body = RequestBody.create("application/json".toMediaType(), json)
@@ -691,8 +790,30 @@ fun sendOtpToServer(email: String, context: Context, callback: (Boolean) -> Unit
 
     client.newCall(request).enqueue(object : Callback {
         override fun onFailure(call: Call, e: IOException) {
+            Log.e("RegisterActivity", "OTP 발송 네트워크 오류", e)
+            val errorMessage = when {
+                e.message?.contains("Failed to connect") == true || 
+                e.message?.contains("Unable to resolve host") == true -> {
+                    "서버에 연결할 수 없습니다.\n\n" +
+                    "🔧 확인 사항:\n" +
+                    "1. 서버가 실행 중인지 확인\n" +
+                    "2. ADB 포트 포워딩 실행:\n" +
+                    "   adb reverse tcp:8080 tcp:8080\n" +
+                    "3. Wi-Fi 또는 모바일 데이터 연결 확인"
+                }
+                e.message?.contains("timeout") == true -> {
+                    "연결 시간이 초과되었습니다.\n서버 응답을 기다리는 중입니다."
+                }
+                e.message?.contains("Connection refused") == true -> {
+                    "서버 연결이 거부되었습니다.\n서버가 실행 중인지 확인해주세요."
+                }
+                else -> {
+                    "OTP 발송 실패: ${e.message ?: "알 수 없는 오류"}"
+                }
+            }
+            
             android.os.Handler(android.os.Looper.getMainLooper()).post {
-            Toast.makeText(context, "OTP 발송 실패: ${e.message}", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
                 callback(false)
             }
         }
@@ -738,7 +859,11 @@ fun verifyOtpWithServer(
     context: Context,
     callback: (Boolean) -> Unit
 ) {
-    val client = OkHttpClient()
+    val client = OkHttpClient.Builder()
+        .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
 
     val json = """{"email":"$email","otp":"$otp"}"""
     val body = RequestBody.create("application/json".toMediaType(), json)
@@ -750,9 +875,31 @@ fun verifyOtpWithServer(
 
     client.newCall(request).enqueue(object : Callback {
         override fun onFailure(call: Call, e: IOException) {
+            Log.e("RegisterActivity", "OTP 인증 네트워크 오류", e)
+            val errorMessage = when {
+                e.message?.contains("Failed to connect") == true || 
+                e.message?.contains("Unable to resolve host") == true -> {
+                    "서버에 연결할 수 없습니다.\n\n" +
+                    "🔧 확인 사항:\n" +
+                    "1. 서버가 실행 중인지 확인\n" +
+                    "2. ADB 포트 포워딩 실행:\n" +
+                    "   adb reverse tcp:8080 tcp:8080\n" +
+                    "3. Wi-Fi 또는 모바일 데이터 연결 확인"
+                }
+                e.message?.contains("timeout") == true -> {
+                    "연결 시간이 초과되었습니다.\n서버 응답을 기다리는 중입니다."
+                }
+                e.message?.contains("Connection refused") == true -> {
+                    "서버 연결이 거부되었습니다.\n서버가 실행 중인지 확인해주세요."
+                }
+                else -> {
+                    "인증 실패: ${e.message ?: "알 수 없는 오류"}"
+                }
+            }
+            
             android.os.Handler(android.os.Looper.getMainLooper()).post {
-            callback(false)
-            Toast.makeText(context, "인증 실패: ${e.message}", Toast.LENGTH_SHORT).show()
+                callback(false)
+                Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
             }
         }
 
