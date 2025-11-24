@@ -47,6 +47,7 @@ object Config {
         const val EMAIL_CHECK = "/auth/otp/email/check" // 이메일 중복 확인
         const val OTP_SEND = "/auth/otp/send" // 이메일 인증번호 발송
         const val OTP_VERIFY = "/auth/otp/verify" // 이메일 인증번호 확인
+        const val PASSWORD_RESET = "/auth/password-reset" // 비밀번호 재설정
     }
     
     // 전체 URL 생성 헬퍼 함수

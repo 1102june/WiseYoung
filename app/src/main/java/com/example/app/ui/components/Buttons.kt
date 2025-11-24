@@ -197,8 +197,9 @@ fun SquareButton(
         Text(
             text = text,
             color = textColor,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1
         )
     }
 }

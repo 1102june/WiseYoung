@@ -114,8 +114,9 @@ class LoginActivity : ComponentActivity() {
     }
 
     private fun loginUser(email: String, password: String) {
-
-        auth.signInWithEmailAndPassword(email, password)
+        val trimmedPassword = password.trim()
+        
+        auth.signInWithEmailAndPassword(email, trimmedPassword)
             .addOnSuccessListener { result ->
                 val user = result.user ?: return@addOnSuccessListener
 
@@ -131,7 +132,7 @@ class LoginActivity : ComponentActivity() {
 
                 user.getIdToken(true)
                     .addOnSuccessListener { token ->
-                        sendIdTokenToServer(token.token ?: "")
+                        sendIdTokenToServer(token.token ?: "", trimmedPassword)
                     }
             }
             .addOnFailureListener {
@@ -143,9 +144,13 @@ class LoginActivity : ComponentActivity() {
             }
     }
 
-    private fun sendIdTokenToServer(idToken: String) {
-        val client = OkHttpClient()
-        val json = """{"idToken": "$idToken"}"""
+    private fun sendIdTokenToServer(idToken: String, password: String) {
+        val client = OkHttpClient.Builder()
+            .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .build()
+        val json = """{"idToken": "$idToken", "password": "$password"}"""
         val body = RequestBody.create("application/json".toMediaType(), json)
 
         val request = Request.Builder()
@@ -185,7 +190,7 @@ class LoginActivity : ComponentActivity() {
 
     /**
      * 로그인 성공 후 네비게이션 처리
-     * 이메일/Google 로그인 모두: 프로필 완료 여부에 따라 CompleteActivity 또는 ProfileSetupActivity로 이동
+     * 이메일/Google 로그인 모두: 프로필 완료 여부에 따라 MainActivity 또는 ProfileSetupActivity로 이동
      */
     private fun navigateAfterLogin(isGoogleLogin: Boolean = false) {
         val hasCompletedProfile = ProfilePreferences.hasCompletedProfile(this)
@@ -193,8 +198,8 @@ class LoginActivity : ComponentActivity() {
             // 프로필이 미완료인 경우 프로필 입력 화면으로
             ProfileSetupActivity::class.java
         } else {
-            // 프로필이 완료된 경우 CompleteActivity로
-            CompleteActivity::class.java
+            // 프로필이 완료된 경우 MainActivity로 바로 이동
+            MainActivity::class.java
         }
         val intent = Intent(this, nextActivity)
         if (isGoogleLogin) {
@@ -248,9 +253,14 @@ class LoginActivity : ComponentActivity() {
 
     /**
      * Google 로그인용 서버 전송 (프로필 입력 화면으로 이동)
+     * Google 로그인은 비밀번호가 없으므로 password 필드 없이 전송
      */
     private fun sendIdTokenToServerForGoogleLogin(idToken: String) {
-        val client = OkHttpClient()
+        val client = OkHttpClient.Builder()
+            .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .build()
         val json = """{"idToken": "$idToken"}"""
         val body = RequestBody.create("application/json".toMediaType(), json)
 
@@ -371,7 +381,14 @@ fun LoginScreen(
                 OutlinedTextField(
                     value = email,
                     onValueChange = { email = it },
-                    placeholder = { Text("이메일을 입력하세요", color = Color.Gray, fontSize = 11.sp) },
+                    placeholder = { 
+                        Text(
+                            "이메일을 입력하세요", 
+                            color = Color.Gray, 
+                            fontSize = 10.sp,
+                            maxLines = 1
+                        ) 
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp)
@@ -402,7 +419,14 @@ fun LoginScreen(
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
-                    placeholder = { Text("비밀번호를 입력하세요", color = Color.Gray, fontSize = 11.sp) },
+                    placeholder = { 
+                        Text(
+                            "비밀번호를 입력하세요", 
+                            color = Color.Gray, 
+                            fontSize = 10.sp,
+                            maxLines = 1
+                        ) 
+                    },
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier
                         .fillMaxWidth()

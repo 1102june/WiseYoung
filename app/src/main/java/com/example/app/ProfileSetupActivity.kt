@@ -210,7 +210,8 @@ class ProfileSetupActivity : ComponentActivity() {
                     put("city", payload.city)
                     put("education", payload.education)
                     put("employment", payload.employment)
-                    put("interests", JSONArray(payload.interests))
+                    // interests를 콤마로 구분된 문자열로 변환하여 category 필드로 전송
+                    put("category", payload.interests.joinToString(","))
                     put("appVersion", appVersion)
                     put("deviceId", deviceId)
                 }

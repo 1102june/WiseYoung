@@ -34,7 +34,10 @@ class CompleteActivity : ComponentActivity() {
         setContent {
             ThemeWrapper {
                 CompleteScreen(
+                    isFirstLogin = ProfilePreferences.isFirstLogin(this),
                     onStart = {
+                        // 첫 로그인 플래그를 false로 설정
+                        ProfilePreferences.setFirstLogin(this, false)
                         val intent = Intent(this, MainActivity::class.java)
                         startActivity(intent)
                         overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
@@ -47,7 +50,7 @@ class CompleteActivity : ComponentActivity() {
 }
 
 @Composable
-fun CompleteScreen(onStart: () -> Unit) {
+fun CompleteScreen(isFirstLogin: Boolean, onStart: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -106,21 +109,28 @@ fun CompleteScreen(onStart: () -> Unit) {
             }
         }
 
-        // 하단 버튼
-        Button(
-            onClick = onStart,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF59ABF7)  // 라이트 블루 (메인 컬러)
-            )
-        ) {
-            Text(
-                text = "시작하기",
-                color = Color.White,
-                fontSize = 16.sp
-            )
+        // 하단 버튼 - 초기 로그인일 때만 표시
+        if (isFirstLogin) {
+            Button(
+                onClick = onStart,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF59ABF7)  // 라이트 블루 (메인 컬러)
+                )
+            ) {
+                Text(
+                    text = "시작하기",
+                    color = Color.White,
+                    fontSize = 16.sp
+                )
+            }
+        } else {
+            // 초기 로그인이 아니면 자동으로 MainActivity로 이동
+            androidx.compose.runtime.LaunchedEffect(Unit) {
+                onStart()
+            }
         }
     }
 }

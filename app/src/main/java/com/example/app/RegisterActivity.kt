@@ -92,12 +92,12 @@ class RegisterActivity : ComponentActivity() {
                 Log.d("RegisterActivity", "Firebase 회원가입 성공")
                 val user = result.user ?: return@addOnSuccessListener
 
-                // 🔥 Firebase ID Token 발급 → Spring 서버로 전달
+                // 🔥 Firebase ID Token 발급 → Spring 서버로 전달 (비밀번호 포함)
                 user.getIdToken(true)
                     .addOnSuccessListener { tokenResult ->
                         val idToken = tokenResult.token ?: return@addOnSuccessListener
                         Log.d("RegisterActivity", "ID Token 발급 성공, 서버로 전송 중...")
-                        sendSignupToServer(idToken)
+                        sendSignupToServer(idToken, trimmedPassword)
                     }
                     .addOnFailureListener { e ->
                         Log.e("RegisterActivity", "ID Token 발급 실패", e)
@@ -165,8 +165,8 @@ class RegisterActivity : ComponentActivity() {
     }
 
 
-    /** 🔥 서버로 idToken 전송 → MariaDB 저장 */
-    private fun sendSignupToServer(idToken: String) {
+    /** 🔥 서버로 idToken + password 전송 → MariaDB 저장 (서버에서 BCrypt로 해시화) */
+    private fun sendSignupToServer(idToken: String, password: String) {
 
         val client = OkHttpClient.Builder()
             .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
@@ -176,7 +176,8 @@ class RegisterActivity : ComponentActivity() {
 
         val json = """
             {
-                "idToken": "$idToken"
+                "idToken": "$idToken",
+                "password": "$password"
             }
         """.trimIndent()
 
