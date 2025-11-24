@@ -1,0 +1,21 @@
+on:
+  push:
+    branches:
+      - release/*
+      - hotfix/*
+  manual:
+    branches: [ '*' ]
+
+jobs:
+  - name: build
+    execute:
+      - ./gradlew publishDokkaPublicationToMavenRepository -PNEXUS_USERNAME=${NEXUS_USERNAME} -PNEXUS_PASSWORD=${NEXUS_PASSWORD} -PNEXUS_RELEASE_REPOSITORY_URL=${NEXUS_RELEASE_REPOSITORY_URL} -PNEXUS_SNAPSHOT_REPOSITORY_URL=${NEXUS_SNAPSHOT_REPOSITORY_URL}
+    run-on:
+      image: +@android-jdk17
+      resources: large
+    caches:
+      - key: gradle-caches
+        path: ~/.gradle/caches
+      - key: gradle-wrapper
+        path: ~/.gradle/wrapper
+    set-proxy: [ gradle, shell ]

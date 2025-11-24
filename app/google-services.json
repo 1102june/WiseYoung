@@ -15,6 +15,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "609597104515-game25ubfq6o53d73m7ebvcvhs10orc5.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.wiseyoung.app",
+            "certificate_hash": "263b2503fc33359a0b64ea0f1ca712e803ceb1ed"
+          }
+        },
+        {
           "client_id": "609597104515-qcvkoqiu6c35i3mghcaq82s6112q7rpa.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {

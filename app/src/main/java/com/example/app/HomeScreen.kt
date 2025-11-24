@@ -36,6 +36,7 @@ import com.example.app.ui.theme.Spacing
 import com.example.app.ui.components.BottomNavigationBar
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.example.app.network.NetworkModule
 
 data class PolicyRecommendation(
     val id: Int,
@@ -110,6 +111,7 @@ val aiRecommendations = listOf(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
+    userId: String?,
     onNavigateNotifications: () -> Unit,
     onNavigatePolicy: () -> Unit = {},
     onNavigateHousing: () -> Unit = {},
@@ -128,6 +130,11 @@ fun HomeScreen(
     var bookmarkedPolicies by remember { mutableStateOf(setOf<String>()) }
     val coroutineScope = rememberCoroutineScope()
     
+    // API 데이터
+    var aiRecommendationsList by remember { mutableStateOf<List<PolicyRecommendation>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    
     var notifications by remember {
         mutableStateOf(
             NotificationSettings(
@@ -142,21 +149,81 @@ fun HomeScreen(
         )
     }
     
-    val currentPolicy = aiRecommendations[currentIndex]
+    // 메인 페이지 데이터 로드
+    LaunchedEffect(userId) {
+        if (userId != null) {
+            isLoading = true
+            errorMessage = null
+            try {
+                val response = com.example.app.network.NetworkModule.apiService.getMainPage(userId)
+                if (response.isSuccessful && response.body()?.success == true) {
+                    val mainPageData = response.body()?.data
+                    mainPageData?.aiRecommendedPolicies?.let { recommendations ->
+                        // AIRecommendationResponse를 PolicyRecommendation으로 변환
+                        aiRecommendationsList = recommendations.mapNotNull { rec ->
+                            rec.policy?.let { policy ->
+                                PolicyRecommendation(
+                                    id = rec.recId.toInt(),
+                                    title = policy.title,
+                                    date = "${policy.ageStart ?: 0}-${policy.ageEnd ?: 0}세 ${policy.applicationEnd?.take(10)?.replace("-", ".") ?: ""}",
+                                    organization = policy.region ?: "",
+                                    age = "만 ${policy.ageStart ?: 0}세 ~ ${policy.ageEnd ?: 0}세",
+                                    period = "${policy.applicationStart?.take(10)?.replace("-", ".") ?: ""} ~ ${policy.applicationEnd?.take(10)?.replace("-", ".") ?: ""}",
+                                    content = policy.summary ?: "",
+                                    applicationMethod = policy.link1 ?: "",
+                                    deadline = policy.applicationEnd?.take(10) ?: ""
+                                )
+                            }
+                        }
+                    }
+                    // 데이터가 없으면 기본 데이터 사용
+                    if (aiRecommendationsList.isEmpty()) {
+                        aiRecommendationsList = aiRecommendations
+                    }
+                } else {
+                    errorMessage = response.body()?.message ?: "데이터를 불러올 수 없습니다."
+                    // 에러 시 기본 데이터 사용
+                    aiRecommendationsList = aiRecommendations
+                }
+            } catch (e: Exception) {
+                errorMessage = "네트워크 오류: ${e.message}"
+                // 에러 시 기본 데이터 사용
+                aiRecommendationsList = aiRecommendations
+            } finally {
+                isLoading = false
+            }
+        } else {
+            // userId가 없으면 기본 데이터 사용
+            aiRecommendationsList = aiRecommendations
+            isLoading = false
+        }
+    }
+    
+    if (aiRecommendationsList.isEmpty() && !isLoading) {
+        aiRecommendationsList = aiRecommendations
+    }
+    
+    val currentPolicy = if (aiRecommendationsList.isNotEmpty()) {
+        aiRecommendationsList[currentIndex % aiRecommendationsList.size]
+    } else {
+        aiRecommendations[0]
+    }
     val isBookmarked = bookmarkedPolicies.contains(currentPolicy.title)
     
     // 시스템 뒤로가기 버튼 처리
     BackHandler(onBack = onBack)
     
     // 자동 슬라이드 (3초마다)
-    LaunchedEffect(isExpanded) {
-        while (!isExpanded) {
-            delay(3000)
-            if (!isExpanded) {
-                isTransitioning = true
-                delay(300)
-                currentIndex = (currentIndex + 1) % aiRecommendations.size
-                isTransitioning = false
+    LaunchedEffect(isExpanded, aiRecommendationsList.size) {
+        if (aiRecommendationsList.isNotEmpty()) {
+            while (!isExpanded) {
+                delay(3000)
+                if (!isExpanded && aiRecommendationsList.isNotEmpty()) {
+                    isTransitioning = true
+                    delay(300)
+                    currentIndex = (currentIndex + 1) % aiRecommendationsList.size
+                    isTransitioning = false
+                }
             }
         }
     }
@@ -217,22 +284,26 @@ fun HomeScreen(
                         isTransitioning = isTransitioning,
                         isBookmarked = isBookmarked,
                         currentIndex = currentIndex,
-                        totalCount = aiRecommendations.size,
+                        totalCount = aiRecommendationsList.size,
                         onToggleExpanded = { isExpanded = !isExpanded },
                         onPrevious = {
-                            isTransitioning = true
-                            coroutineScope.launch {
-                                delay(300)
-                                currentIndex = (currentIndex - 1 + aiRecommendations.size) % aiRecommendations.size
-                                isTransitioning = false
+                            if (aiRecommendationsList.isNotEmpty()) {
+                                isTransitioning = true
+                                coroutineScope.launch {
+                                    delay(300)
+                                    currentIndex = (currentIndex - 1 + aiRecommendationsList.size) % aiRecommendationsList.size
+                                    isTransitioning = false
+                                }
                             }
                         },
                         onNext = {
-                            isTransitioning = true
-                            coroutineScope.launch {
-                                delay(300)
-                                currentIndex = (currentIndex + 1) % aiRecommendations.size
-                                isTransitioning = false
+                            if (aiRecommendationsList.isNotEmpty()) {
+                                isTransitioning = true
+                                coroutineScope.launch {
+                                    delay(300)
+                                    currentIndex = (currentIndex + 1) % aiRecommendationsList.size
+                                    isTransitioning = false
+                                }
                             }
                         },
                         onIndicatorClick = { index ->

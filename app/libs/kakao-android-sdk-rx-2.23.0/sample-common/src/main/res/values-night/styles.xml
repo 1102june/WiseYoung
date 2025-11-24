@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base application theme. -->
+    <style name="AppTheme" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <style name="SampleWebView" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="statusBarColor">#303030</item>
+    </style>
+</resources>

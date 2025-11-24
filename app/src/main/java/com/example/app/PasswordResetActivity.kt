@@ -15,6 +15,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -306,10 +308,10 @@ fun PasswordResetScreen(
             )
             
             Column(Modifier.fillMaxWidth()) {
-                PwRule(hasMinLength, "8자리 이상")
-                PwRule(hasEng, "영어 포함")
-                PwRule(hasNum, "숫자 포함")
-                PwRule(hasSpecial, "특수문자 포함")
+                PasswordResetPwRule(hasMinLength, "8자리 이상")
+                PasswordResetPwRule(hasEng, "영어 포함")
+                PasswordResetPwRule(hasNum, "숫자 포함")
+                PasswordResetPwRule(hasSpecial, "특수문자 포함")
             }
             
             Spacer(Modifier.height(12.dp))
@@ -383,7 +385,7 @@ fun PasswordResetScreen(
 }
 
 @Composable
-fun PwRule(valid: Boolean, text: String) {
+fun PasswordResetPwRule(valid: Boolean, text: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()

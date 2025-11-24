@@ -30,6 +30,7 @@ import com.example.app.ui.theme.AppColors
 import com.example.app.ui.theme.Spacing
 import com.example.app.ui.theme.ThemeWrapper
 import com.example.app.ui.components.BottomNavigationBar
+import com.google.firebase.auth.FirebaseAuth
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -176,11 +177,16 @@ val userInterests = listOf("취업", "복지", "주거")
 val categories = listOf("전체") + userInterests + listOf("자기계발", "교육")
 
 class PolicyListActivity : ComponentActivity() {
+    private val auth = FirebaseAuth.getInstance()
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val userId = auth.currentUser?.uid ?: "test-user"
+        
         setContent {
             ThemeWrapper {
                 PolicyListScreen(
+                    userId = userId,
                     onNavigateHome = {
                         startActivity(Intent(this, MainActivity::class.java))
                         finish()
@@ -208,6 +214,7 @@ class PolicyListActivity : ComponentActivity() {
 
 @Composable
 fun PolicyListScreen(
+    userId: String,
     onNavigateHome: () -> Unit,
     onNavigateCalendar: () -> Unit,
     onNavigateBookmark: () -> Unit,
@@ -221,6 +228,12 @@ fun PolicyListScreen(
     var selectedPolicy by remember { mutableStateOf<PolicyItem?>(null) }
     var bookmarkedPolicies by remember { mutableStateOf(setOf<String>()) }
     var searchQuery by remember { mutableStateOf("") }
+    
+    // API 데이터
+    var policiesList by remember { mutableStateOf<List<PolicyItem>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
     
     var notifications by remember {
         mutableStateOf(
@@ -236,13 +249,55 @@ fun PolicyListScreen(
         )
     }
     
-    val filteredPolicies = if (selectedCategory == "전체") {
-        allPolicies
-    } else {
-        allPolicies.filter { it.category == selectedCategory }
+    // 정책 목록 로드
+    LaunchedEffect(userId) {
+        isLoading = true
+        errorMessage = null
+        try {
+            val response = com.example.app.network.NetworkModule.apiService.getActivePolicies(userId)
+            if (response.isSuccessful && response.body()?.success == true) {
+                val policies = response.body()?.data ?: emptyList()
+                // PolicyResponse를 PolicyItem으로 변환
+                policiesList = policies.mapIndexed { index, policy ->
+                    PolicyItem(
+                        id = index + 1,
+                        title = policy.title,
+                        date = "${policy.ageStart ?: 0}-${policy.ageEnd ?: 0}세 ${policy.applicationEnd?.take(10)?.replace("-", ".") ?: ""}",
+                        category = policy.category ?: "기타",
+                        support = "지원금",
+                        isFavorite = policy.isBookmarked,
+                        organization = policy.region ?: "",
+                        age = "만 ${policy.ageStart ?: 0}세 ~ ${policy.ageEnd ?: 0}세",
+                        period = "${policy.applicationStart?.take(10)?.replace("-", ".") ?: ""} ~ ${policy.applicationEnd?.take(10)?.replace("-", ".") ?: ""}",
+                        content = policy.summary ?: "",
+                        applicationMethod = policy.link1 ?: "",
+                        deadline = policy.applicationEnd?.take(10) ?: "",
+                        isUrgent = false // TODO: 마감일 계산
+                    )
+                }
+                // 데이터가 없으면 기본 데이터 사용
+                if (policiesList.isEmpty()) {
+                    policiesList = allPolicies
+                }
+            } else {
+                errorMessage = response.body()?.message ?: "정책 목록을 불러올 수 없습니다."
+                policiesList = allPolicies
+            }
+        } catch (e: Exception) {
+            errorMessage = "네트워크 오류: ${e.message}"
+            policiesList = allPolicies
+        } finally {
+            isLoading = false
+        }
     }
     
-    val urgentPolicies = allPolicies.filter { it.isUrgent }
+    val filteredPolicies = if (selectedCategory == "전체") {
+        policiesList
+    } else {
+        policiesList.filter { it.category == selectedCategory }
+    }
+    
+    val urgentPolicies = filteredPolicies.filter { it.isUrgent }
     
     Scaffold(
         bottomBar = {

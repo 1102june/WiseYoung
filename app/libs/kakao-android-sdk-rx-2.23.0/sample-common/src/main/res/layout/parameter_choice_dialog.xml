@@ -1,0 +1,338 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    tools:ignore="UseSwitchCompatOrMaterialXml">
+
+    <TextView
+        android:id="@+id/title_tv"
+        android:layout_width="400dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:layout_margin="20dp"
+        android:gravity="center"
+        android:text="defaultText"
+        android:textSize="20sp"
+        android:textStyle="bold" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/black" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="8dp"
+        android:layout_marginRight="8dp"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:id="@+id/prompts_linear_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Switch
+                android:id="@+id/prompts_switch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+
+            <TextView
+                android:layout_width="@dimen/parameter_title_width"
+                android:layout_height="wrap_content"
+                android:text="prompts"
+                android:textSize="12sp" />
+
+            <CheckBox
+                android:id="@+id/prompts_login_checkbox"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="login"
+                android:textSize="11sp" />
+
+            <CheckBox
+                android:id="@+id/prompts_create_checkbox"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="create"
+                android:textSize="11sp" />
+
+            <CheckBox
+                android:id="@+id/prompts_select_account_checkbox"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="selectAccount"
+                android:textSize="11sp" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/sign_identify_items_linear_layout"
+            android:layout_width="match_parent"
+            android:gravity="center_vertical"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+
+            <Switch
+                android:id="@+id/identify_items_switch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+
+            <TextView
+                android:layout_width="@dimen/parameter_title_width"
+                android:layout_height="wrap_content"
+                android:text="idetifyItems"
+                android:textSize="11sp" />
+
+            <HorizontalScrollView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1">
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <CheckBox
+                        android:id="@+id/identify_phone_number_checkbox"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="phoneNumber"
+                        android:textSize="11sp" />
+
+                    <CheckBox
+                        android:id="@+id/identify_ci_checkbox"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="ci"
+                        android:textSize="11sp" />
+
+                    <CheckBox
+                        android:id="@+id/identify_name_checkbox"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="name"
+                        android:textSize="11sp" />
+
+                    <CheckBox
+                        android:id="@+id/identify_birthday_checkbox"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="birthday"
+                        android:textSize="11sp" />
+                </LinearLayout>
+            </HorizontalScrollView>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/login_hints_linear_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Switch
+                android:id="@+id/login_hint_switch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+
+            <TextView
+                android:layout_width="@dimen/parameter_title_width"
+                android:layout_height="wrap_content"
+                android:text="loginHints"
+                android:textSize="12sp" />
+
+            <EditText
+                android:id="@+id/login_hint_et"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint=" write login hint here" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/scopes_linear_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Switch
+                android:id="@+id/scopes_switch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+
+            <TextView
+                android:layout_width="@dimen/parameter_title_width"
+                android:layout_height="wrap_content"
+                android:text="scopes"
+                android:textSize="12sp" />
+
+            <EditText
+                android:id="@+id/scopes_et"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint=" separate string by ','" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/state_linear_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Switch
+                android:id="@+id/state_switch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+
+            <TextView
+                android:layout_width="@dimen/parameter_title_width"
+                android:layout_height="wrap_content"
+                android:text="state"
+                android:textSize="12sp" />
+
+            <EditText
+                android:id="@+id/state_et"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint=" write state here" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/nonce_linear_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Switch
+                android:id="@+id/nonce_switch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+
+            <TextView
+                android:layout_width="@dimen/parameter_title_width"
+                android:layout_height="wrap_content"
+                android:text="nonce"
+                android:textSize="12sp" />
+
+            <EditText
+                android:id="@+id/nonce_et"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint=" write nonce here" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/channel_public_ids_linear_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Switch
+                android:id="@+id/channel_public_ids_switch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+
+            <TextView
+                android:layout_width="@dimen/parameter_title_width"
+                android:layout_height="wrap_content"
+                android:text="channelPublicIds"
+                android:textSize="8sp" />
+
+            <EditText
+                android:id="@+id/channel_public_ids_et"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint=" separate string by ','" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/service_terms_linear_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Switch
+                android:id="@+id/service_terms_switch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+
+            <TextView
+                android:layout_width="@dimen/parameter_title_width"
+                android:layout_height="wrap_content"
+                android:text="serviceTerms"
+                android:textSize="10sp" />
+
+            <EditText
+                android:id="@+id/service_terms_et"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint=" separate string by ','" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/settle_id_linear_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Switch
+                android:id="@+id/settle_id_switch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+
+            <TextView
+                android:layout_width="@dimen/parameter_title_width"
+                android:layout_height="wrap_content"
+                android:text="settleId"
+                android:textSize="12sp" />
+
+            <EditText
+                android:id="@+id/settle_id_et"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textSize="11sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/black" />
+
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/cancel_btn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="10dp"
+            android:backgroundTint="#868e96"
+            android:text="닫기" />
+
+        <Button
+            android:id="@+id/request_btn"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_margin="10dp"
+            android:layout_weight="1"
+            android:backgroundTint="#495057"
+            android:text="Request" />
+    </LinearLayout>
+</LinearLayout>
