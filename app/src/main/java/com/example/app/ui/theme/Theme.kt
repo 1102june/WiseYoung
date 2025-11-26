@@ -47,17 +47,39 @@ private val DarkBlueColorScheme = darkColorScheme(
 
 private val LightColorScheme = lightColorScheme(
     primary = LightBlue40,  // 라이트 블루 (메인) - #59abf7
-    secondary = GrayPurple40,  // 그레이 퍼플 (서브) - #6459f7
-    tertiary = Orange40,  // 오렌지 (포인트)
-    background = Color(0xFFFFFFFF),  // 화이트 배경
-    surface = Color(0xFFFFFFFF),  // 화이트 표면
-    surfaceVariant = Color(0xFFF5F5F5),  // 약간의 그레이 톤
     onPrimary = Color.White,
+    primaryContainer = Color(0xFFE3F2FD),  // Primary Container - 연한 블루 배경
+    onPrimaryContainer = Color(0xFF0D47A1),  // Primary Container 텍스트
+    
+    secondary = GrayPurple40,  // 그레이 퍼플 (서브) - #6459f7
     onSecondary = Color.White,
+    secondaryContainer = Color(0xFFE8E5FF),  // Secondary Container
+    onSecondaryContainer = Color(0xFF1A0E5C),
+    
+    tertiary = Orange40,  // 오렌지 (포인트)
     onTertiary = Color.White,
+    tertiaryContainer = Color(0xFFFFE0B2),  // Tertiary Container
+    onTertiaryContainer = Color(0xFFE65100),
+    
+    error = Color(0xFFBA1A1A),  // Error 색상
+    onError = Color.White,
+    errorContainer = Color(0xFFFFDAD6),
+    onErrorContainer = Color(0xFF410002),
+    
+    background = Color(0xFFFFFFFF),  // 화이트 배경
     onBackground = Color(0xFF1A1A1A),  // 거의 검정 텍스트
+    
+    surface = Color(0xFFFFFFFF),  // 화이트 표면
     onSurface = Color(0xFF1A1A1A),  // 거의 검정 텍스트
-    outline = Color(0xFFE5E7EB)  // 테두리 색상
+    surfaceVariant = Color(0xFFF5F5F5),  // 약간의 그레이 톤
+    onSurfaceVariant = Color(0xFF424242),  // Surface Variant 텍스트
+    
+    outline = Color(0xFFE5E7EB),  // 테두리 색상
+    outlineVariant = Color(0xFFE0E0E0),  // Outline Variant
+    
+    inverseSurface = Color(0xFF1A1A1A),  // Inverse Surface
+    inverseOnSurface = Color(0xFFF5F5F5),  // Inverse On Surface
+    inversePrimary = Color(0xFF90CAF9)  // Inverse Primary
 )
 
 @Composable
@@ -76,6 +98,7 @@ fun WiseYoungTheme(
     MaterialTheme(
         colorScheme = colorScheme,
         typography = Typography,
+        shapes = Shapes,
         content = content
     )
 }

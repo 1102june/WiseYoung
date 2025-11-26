@@ -395,7 +395,33 @@ fun PasswordResetScreen(
     }
 }
 
-// PwRule 함수는 RegisterActivity.kt에 정의되어 있음 (중복 정의 제거)
+@Composable
+fun PwRule(valid: Boolean, text: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .clip(CircleShape)
+                .background(
+                    if (valid) Color(0xFF10B981) else Color(0xFF9CA3AF)
+                )
+        )
+        Text(
+            text = text,
+            color = if (valid) Color(0xFF1A1A1A) else Color(0xFF666666),
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Normal
+            )
+        )
+    }
+}
 
 /**
  * 이메일 존재 확인 (비밀번호 찾기용 - 이메일이 존재해야 함)

@@ -27,6 +27,10 @@ import com.example.app.ui.theme.AppColors
 import com.example.app.ui.theme.Spacing
 import com.example.app.ui.theme.ThemeWrapper
 import com.example.app.ui.components.BottomNavigationBar
+import com.example.app.ui.components.ElevatedCard
+import com.example.app.ui.components.PrimaryButton
+import com.example.app.ui.components.SecondaryButton
+import androidx.compose.ui.platform.LocalContext
 
 // 북마크 데이터 모델
 data class BookmarkItem(
@@ -88,14 +92,25 @@ fun BookmarkScreen(
 ) {
     var activeTab by remember { mutableStateOf("policy") }
     var expandedCardId by remember { mutableStateOf<Int?>(null) }
+    val context = LocalContext.current
     
-    // 임시 북마크 데이터 (나중에 ViewModel이나 데이터베이스로 관리)
+    // SharedPreferences에서 북마크 불러오기
     var bookmarks by remember {
-        mutableStateOf(
-            listOf<BookmarkItem>(
-                // 예시 데이터
-            )
-        )
+        mutableStateOf(BookmarkPreferences.getBookmarks(context))
+    }
+    
+    // SharedPreferences 변경 감지하여 북마크 새로고침
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        val prefs = context.getSharedPreferences(BookmarkPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+            // SharedPreferences 리스너는 메인 스레드에서 실행되므로 안전하게 상태 업데이트 가능
+            bookmarks = BookmarkPreferences.getBookmarks(context)
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        
+        onDispose {
+            prefs.unregisterOnSharedPreferenceChangeListener(listener)
+        }
     }
     
     val policyBookmarks = bookmarks.filter { it.type == BookmarkType.POLICY }
@@ -151,6 +166,9 @@ fun BookmarkScreen(
                                         expandedCardId = if (expandedCardId == bookmark.id) null else bookmark.id
                                     },
                                     onRemoveBookmark = {
+                                        // SharedPreferences에서 제거
+                                        BookmarkPreferences.removeBookmark(context, bookmark.title, bookmark.type)
+                                        // 로컬 상태 업데이트
                                         bookmarks = bookmarks.filter { it.id != bookmark.id }
                                     },
                                     onApply = {
@@ -176,6 +194,9 @@ fun BookmarkScreen(
                                         expandedCardId = if (expandedCardId == bookmark.id) null else bookmark.id
                                     },
                                     onRemoveBookmark = {
+                                        // SharedPreferences에서 제거
+                                        BookmarkPreferences.removeBookmark(context, bookmark.title, bookmark.type)
+                                        // 로컬 상태 업데이트
                                         bookmarks = bookmarks.filter { it.id != bookmark.id }
                                     },
                                     onApply = {
@@ -264,9 +285,9 @@ private fun TabButton(
         ) {
             Text(
                 text = text,
-                fontSize = 16.sp,
-                color = if (isSelected) AppColors.TextPrimary else AppColors.TextTertiary,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                style = MaterialTheme.typography.titleMedium,
+                color = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
             )
         }
         if (isSelected) {
@@ -315,146 +336,109 @@ private fun PolicyBookmarkCard(
     onApply: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        border = androidx.compose.foundation.BorderStroke(2.dp, AppColors.Purple.copy(alpha = 0.5f)),
-        colors = CardDefaults.cardColors(
-            containerColor = AppColors.Purple.copy(alpha = 0.05f)
-        )
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(Spacing.md)
+    Column(modifier = modifier.fillMaxWidth()) {
+        ElevatedCard(
+            modifier = Modifier.fillMaxWidth()
         ) {
-            // 좋아요 버튼
-            IconButton(
-                onClick = onRemoveBookmark,
-                modifier = Modifier.align(Alignment.TopEnd)
+            Box(
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Icon(
-                    imageVector = Icons.Default.Favorite,
-                    contentDescription = "Remove bookmark",
-                    tint = AppColors.TextPrimary,
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-            
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(end = 48.dp)
-            ) {
-                Text(
-                    text = bookmark.title,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = AppColors.TextPrimary,
-                    modifier = Modifier.padding(bottom = Spacing.sm)
-                )
+                // 좋아요 버튼
+                IconButton(
+                    onClick = onRemoveBookmark,
+                    modifier = Modifier.align(Alignment.TopEnd)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Favorite,
+                        contentDescription = "Remove bookmark",
+                        tint = AppColors.TextPrimary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
                 
-                if (!isExpanded) {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(Spacing.xs)
-                    ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(end = 48.dp)
+                ) {
+                    Text(
+                        text = bookmark.title,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AppColors.TextPrimary,
+                        modifier = Modifier.padding(bottom = Spacing.sm)
+                    )
+                    
+                    if (!isExpanded) {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(Spacing.xs)
+                        ) {
                         bookmark.age?.let {
                             Text(
                                 text = "연령: $it",
-                                fontSize = 14.sp,
-                                color = AppColors.TextSecondary
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         bookmark.period?.let {
                             Text(
                                 text = "신청기간: $it",
-                                fontSize = 14.sp,
-                                color = AppColors.TextSecondary
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                    }
-                } else {
-                    Column(
-                        modifier = Modifier.padding(top = Spacing.md),
-                        verticalArrangement = Arrangement.spacedBy(Spacing.md)
-                    ) {
-                        bookmark.organization?.let {
-                            PolicyDetailRow("주관기관명", it)
                         }
-                        PolicyDetailRow("정책명", bookmark.title)
-                        bookmark.age?.let {
-                            PolicyDetailRow("연령", it)
-                        }
-                        bookmark.period?.let {
-                            PolicyDetailRow("신청기간", it)
-                        }
-                        bookmark.content?.let {
-                            PolicyDetailRow("정책내용", it)
-                        }
-                        bookmark.applicationMethod?.let {
-                            PolicyDetailRow("신청방법", it)
+                    } else {
+                        Column(
+                            modifier = Modifier.padding(top = Spacing.md),
+                            verticalArrangement = Arrangement.spacedBy(Spacing.md)
+                        ) {
+                            bookmark.organization?.let {
+                                PolicyDetailRow("주관기관명", it)
+                            }
+                            PolicyDetailRow("정책명", bookmark.title)
+                            bookmark.age?.let {
+                                PolicyDetailRow("연령", it)
+                            }
+                            bookmark.period?.let {
+                                PolicyDetailRow("신청기간", it)
+                            }
+                            bookmark.content?.let {
+                                PolicyDetailRow("정책내용", it)
+                            }
+                            bookmark.applicationMethod?.let {
+                                PolicyDetailRow("신청방법", it)
+                            }
                         }
                     }
                 }
             }
-            
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = Spacing.lg),
-                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+        }
+        
+        // 버튼들을 카드 밖에 배치
+        Spacer(modifier = Modifier.height(Spacing.sm))
+        
+        if (!isExpanded) {
+            PrimaryButton(
+                text = "상세보기",
+                onClick = onToggleExpand
+            )
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
             ) {
-                if (!isExpanded) {
-                    Button(
-                        onClick = onToggleExpand,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = AppColors.TextPrimary
-                        )
-                    ) {
-                        Text("상세보기", color = Color.White)
-                    }
-                } else {
-                    Button(
-                        onClick = onToggleExpand,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = AppColors.Border
-                        )
-                    ) {
-                        Text("닫아두기", color = AppColors.TextPrimary)
-                    }
-                    
-                    Button(
-                        onClick = onApply,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.Transparent
-                        ),
-                        contentPadding = PaddingValues(0.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(
-                                    brush = Brush.horizontalGradient(
-                                        colors = listOf(
-                                            AppColors.Purple,
-                                            AppColors.BackgroundGradientStart
-                                        )
-                                    )
-                                )
-                                .padding(vertical = 12.dp)
-                        ) {
-                            Text(
-                                "신청하기",
-                                color = Color.White,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
-                }
+                SecondaryButton(
+                    text = "닫기",
+                    onClick = onToggleExpand,
+                    modifier = Modifier.weight(1f)
+                )
+                
+                PrimaryButton(
+                    text = "신청하기",
+                    onClick = onApply,
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
     }
@@ -469,151 +453,114 @@ private fun HousingBookmarkCard(
     onApply: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        border = androidx.compose.foundation.BorderStroke(2.dp, AppColors.BackgroundGradientStart.copy(alpha = 0.5f)),
-        colors = CardDefaults.cardColors(
-            containerColor = AppColors.BackgroundGradientStart.copy(alpha = 0.05f)
-        )
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(Spacing.md)
+    Column(modifier = modifier.fillMaxWidth()) {
+        ElevatedCard(
+            modifier = Modifier.fillMaxWidth()
         ) {
-            // 좋아요 버튼
-            IconButton(
-                onClick = onRemoveBookmark,
-                modifier = Modifier.align(Alignment.TopEnd)
+            Box(
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Icon(
-                    imageVector = Icons.Default.Favorite,
-                    contentDescription = "Remove bookmark",
-                    tint = AppColors.TextPrimary,
-                    modifier = Modifier.size(28.dp)
-                )
+                // 좋아요 버튼
+                IconButton(
+                    onClick = onRemoveBookmark,
+                    modifier = Modifier.align(Alignment.TopEnd)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Favorite,
+                        contentDescription = "Remove bookmark",
+                        tint = AppColors.TextPrimary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+                
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(end = 48.dp)
+                ) {
+                    Text(
+                        text = bookmark.title,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AppColors.TextPrimary,
+                        modifier = Modifier.padding(bottom = Spacing.sm)
+                    )
+                    
+                    if (!isExpanded) {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(Spacing.xs)
+                        ) {
+                            bookmark.distance?.let {
+                                Text(
+                                    text = "📍 사용자로부터 $it",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            if (bookmark.deposit != null && bookmark.monthlyRent != null) {
+                                Text(
+                                    text = "💰 보증금 ${bookmark.deposit} / 월세 ${bookmark.monthlyRent}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Text(
+                                text = "📅 신청마감일: ${bookmark.deadline}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
+                        Column(
+                            modifier = Modifier.padding(top = Spacing.md),
+                            verticalArrangement = Arrangement.spacedBy(Spacing.md)
+                        ) {
+                            bookmark.address?.let {
+                                PolicyDetailRow("위치 / 주소", it)
+                            }
+                            if (bookmark.deposit != null && bookmark.monthlyRent != null) {
+                                PolicyDetailRow("가격", "보증금 ${bookmark.deposit} / 월세 ${bookmark.monthlyRent}")
+                            }
+                            bookmark.area?.let {
+                                PolicyDetailRow("공급전용면적", it)
+                            }
+                            bookmark.completionDate?.let {
+                                PolicyDetailRow("준공날짜", it)
+                            }
+                            bookmark.organization?.let {
+                                PolicyDetailRow("기관명", it)
+                            }
+                            PolicyDetailRow("마감날짜", bookmark.deadline)
+                        }
+                    }
+                }
             }
-            
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(end = 48.dp)
+        }
+        
+        // 버튼들을 카드 밖에 배치
+        Spacer(modifier = Modifier.height(Spacing.sm))
+        
+        if (!isExpanded) {
+            PrimaryButton(
+                text = "상세보기",
+                onClick = onToggleExpand
+            )
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
             ) {
-                Text(
-                    text = bookmark.title,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = AppColors.TextPrimary,
-                    modifier = Modifier.padding(bottom = Spacing.sm)
+                SecondaryButton(
+                    text = "닫기",
+                    onClick = onToggleExpand,
+                    modifier = Modifier.weight(1f)
                 )
                 
-                if (!isExpanded) {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(Spacing.xs)
-                    ) {
-                        bookmark.distance?.let {
-                            Text(
-                                text = "📍 사용자로부터 $it",
-                                fontSize = 14.sp,
-                                color = AppColors.TextSecondary
-                            )
-                        }
-                        if (bookmark.deposit != null && bookmark.monthlyRent != null) {
-                            Text(
-                                text = "💰 보증금 ${bookmark.deposit} / 월세 ${bookmark.monthlyRent}",
-                                fontSize = 14.sp,
-                                color = AppColors.TextSecondary
-                            )
-                        }
-                        Text(
-                            text = "📅 신청마감일: ${bookmark.deadline}",
-                            fontSize = 14.sp,
-                            color = AppColors.TextSecondary
-                        )
-                    }
-                } else {
-                    Column(
-                        modifier = Modifier.padding(top = Spacing.md),
-                        verticalArrangement = Arrangement.spacedBy(Spacing.md)
-                    ) {
-                        bookmark.address?.let {
-                            PolicyDetailRow("위치 / 주소", it)
-                        }
-                        if (bookmark.deposit != null && bookmark.monthlyRent != null) {
-                            PolicyDetailRow("가격", "보증금 ${bookmark.deposit} / 월세 ${bookmark.monthlyRent}")
-                        }
-                        bookmark.area?.let {
-                            PolicyDetailRow("공급전용면적", it)
-                        }
-                        bookmark.completionDate?.let {
-                            PolicyDetailRow("준공날짜", it)
-                        }
-                        bookmark.organization?.let {
-                            PolicyDetailRow("기관명", it)
-                        }
-                        PolicyDetailRow("마감날짜", bookmark.deadline)
-                    }
-                }
-            }
-            
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = Spacing.lg),
-                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
-            ) {
-                if (!isExpanded) {
-                    Button(
-                        onClick = onToggleExpand,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = AppColors.TextPrimary
-                        )
-                    ) {
-                        Text("상세보기", color = Color.White)
-                    }
-                } else {
-                    Button(
-                        onClick = onToggleExpand,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = AppColors.Border
-                        )
-                    ) {
-                        Text("닫아두기", color = AppColors.TextPrimary)
-                    }
-                    
-                    Button(
-                        onClick = onApply,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.Transparent
-                        ),
-                        contentPadding = PaddingValues(0.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(
-                                    brush = Brush.horizontalGradient(
-                                        colors = listOf(
-                                            AppColors.Purple,
-                                            AppColors.BackgroundGradientStart
-                                        )
-                                    )
-                                )
-                                .padding(vertical = 12.dp)
-                        ) {
-                            Text(
-                                "신청하기",
-                                color = Color.White,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
-                }
+                PrimaryButton(
+                    text = "신청하기",
+                    onClick = onApply,
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
     }
@@ -624,14 +571,14 @@ private fun PolicyDetailRow(label: String, value: String) {
     Column {
         Text(
             text = label,
-            fontSize = 12.sp,
-            color = AppColors.TextTertiary,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 4.dp)
         )
         Text(
             text = value,
-            fontSize = 14.sp,
-            color = AppColors.TextPrimary
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface
         )
     }
 }

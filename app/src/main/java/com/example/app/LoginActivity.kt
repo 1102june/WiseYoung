@@ -120,16 +120,7 @@ class LoginActivity : ComponentActivity() {
             .addOnSuccessListener { result ->
                 val user = result.user ?: return@addOnSuccessListener
 
-                if (!user.isEmailVerified) {
-                    Toast.makeText(
-                        this,
-                        "이메일 인증 후 로그인 가능합니다.",
-                        Toast.LENGTH_LONG
-                    ).show()
-                    auth.signOut()
-                    return@addOnSuccessListener
-                }
-
+                // Firebase 이메일 인증 체크 제거 (Gmail SMTP 사용)
                 user.getIdToken(true)
                     .addOnSuccessListener { token ->
                         sendIdTokenToServer(token.token ?: "", trimmedPassword)
@@ -174,8 +165,8 @@ class LoginActivity : ComponentActivity() {
                     if (response.isSuccessful) {
                         // FCM 토큰 저장
                         FcmTokenService.getAndSaveToken()
-                        // 이메일 로그인 성공 후 프로필 완료 여부 확인하여 네비게이션
-                        navigateAfterLogin(isGoogleLogin = false)
+                        // 서버에서 프로필 확인 후 네비게이션
+                        checkProfileAndNavigate(isGoogleLogin = false)
                     } else {
                         Toast.makeText(
                             this@LoginActivity,
@@ -186,6 +177,61 @@ class LoginActivity : ComponentActivity() {
                 }
             }
         })
+    }
+
+    /**
+     * 서버에서 프로필 확인 후 네비게이션 처리
+     * 이메일/Google 로그인 모두: 서버에 프로필이 있으면 MainActivity, 없으면 ProfileSetupActivity로 이동
+     */
+    private fun checkProfileAndNavigate(isGoogleLogin: Boolean = false) {
+        val currentUser = auth.currentUser ?: run {
+            navigateAfterLogin(isGoogleLogin)
+            return
+        }
+
+        currentUser.getIdToken(true).addOnSuccessListener { tokenResult ->
+            val idToken = tokenResult.token ?: run {
+                navigateAfterLogin(isGoogleLogin)
+                return@addOnSuccessListener
+            }
+
+            val client = OkHttpClient.Builder()
+                .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+
+            val request = Request.Builder()
+                .url(Config.getUrl(Config.Api.PROFILE))
+                .get()
+                .addHeader("Authorization", "Bearer $idToken")
+                .build()
+
+            client.newCall(request).enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    runOnUiThread {
+                        // 서버 연결 실패 시 로컬 프로필 상태 확인
+                        navigateAfterLogin(isGoogleLogin)
+                    }
+                }
+
+                override fun onResponse(call: Call, response: Response) {
+                    runOnUiThread {
+                        if (response.isSuccessful) {
+                            // 서버에 프로필이 있으면 완료 표시
+                            ProfilePreferences.setProfileCompleted(this@LoginActivity, true)
+                            navigateAfterLogin(isGoogleLogin)
+                        } else {
+                            // 프로필이 없으면 미완료 표시
+                            ProfilePreferences.setProfileCompleted(this@LoginActivity, false)
+                            navigateAfterLogin(isGoogleLogin)
+                        }
+                    }
+                }
+            })
+        }.addOnFailureListener {
+            navigateAfterLogin(isGoogleLogin)
+        }
     }
 
     /**
@@ -272,15 +318,15 @@ class LoginActivity : ComponentActivity() {
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 runOnUiThread {
-                    // 서버 연결 실패해도 Google 로그인은 성공했으므로 프로필 입력 화면으로 이동
-                    navigateAfterLogin(isGoogleLogin = true)
+                    // 서버 연결 실패해도 Google 로그인은 성공했으므로 프로필 확인 시도
+                    checkProfileAndNavigate(isGoogleLogin = true)
                 }
             }
 
             override fun onResponse(call: Call, response: Response) {
                 runOnUiThread {
-                    // Google 로그인 성공 시 프로필 완료 여부 확인 후 네비게이션
-                    navigateAfterLogin(isGoogleLogin = true)
+                    // Google 로그인 성공 시 서버에서 프로필 확인 후 네비게이션
+                    checkProfileAndNavigate(isGoogleLogin = true)
                 }
             }
         })
@@ -344,8 +390,10 @@ fun LoginScreen(
                 Image(
                     painter = painterResource(id = R.drawable.wy_logo),
                     contentDescription = "WY Logo",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(12.dp), // 패딩을 추가하여 로고가 잘리지 않도록
+                    contentScale = ContentScale.Fit // Crop 대신 Fit 사용
                 )
             }
             

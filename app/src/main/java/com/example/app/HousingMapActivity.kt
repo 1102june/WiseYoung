@@ -185,7 +185,17 @@ fun HousingMapScreen(
     var showNotificationDialog by remember { mutableStateOf(false) }
     var showFilterDialog by remember { mutableStateOf(false) }
     var selectedHousing by remember { mutableStateOf<ApartmentItem?>(null) }
-    var bookmarkedHousings by remember { mutableStateOf(setOf<String>()) }
+    val context = LocalContext.current
+    
+    // 북마크 초기 상태 불러오기
+    var bookmarkedHousings by remember {
+        mutableStateOf(
+            BookmarkPreferences.getBookmarks(context)
+                .filter { it.type == BookmarkType.HOUSING }
+                .map { it.title }
+                .toSet()
+        )
+    }
     
     // API 데이터
     var housingList by remember { mutableStateOf<List<com.example.app.data.model.HousingResponse>>(emptyList()) }
@@ -314,7 +324,10 @@ fun HousingMapScreen(
                                 selectedHousing = apartment
                                 showNotificationDialog = true
                             } else {
+                                // 북마크 제거 (로컬 상태)
                                 bookmarkedHousings = bookmarkedHousings - apartment.name
+                                // SharedPreferences에서도 제거
+                                BookmarkPreferences.removeBookmark(context, apartment.name, BookmarkType.HOUSING)
                             }
                         },
                         onDetailClick = {
@@ -339,7 +352,10 @@ fun HousingMapScreen(
                     showDetailDialog = false
                     showNotificationDialog = true
                 } else {
+                    // 북마크 제거 (로컬 상태)
                     bookmarkedHousings = bookmarkedHousings - selectedApartment!!.name
+                    // SharedPreferences에서도 제거
+                    BookmarkPreferences.removeBookmark(context, selectedApartment!!.name, BookmarkType.HOUSING)
                 }
             },
             onClose = {
@@ -353,7 +369,6 @@ fun HousingMapScreen(
     }
     
     // Notification Dialog
-    val context = LocalContext.current
     val calendarService = remember { CalendarService(context) }
     
     if (showNotificationDialog) {
@@ -362,8 +377,24 @@ fun HousingMapScreen(
             onNotificationsChange = { notifications = it },
             onSave = {
                 selectedHousing?.let { housing ->
-                    // 북마크 추가
+                    // 북마크 추가 (로컬 상태)
                     bookmarkedHousings = bookmarkedHousings + housing.name
+                    
+                    // 북마크를 SharedPreferences에 저장
+                    val bookmark = BookmarkItem(
+                        id = housing.id,
+                        type = BookmarkType.HOUSING,
+                        title = housing.name,
+                        organization = housing.organization,
+                        address = housing.address,
+                        deposit = housing.depositDisplay,
+                        monthlyRent = housing.monthlyRentDisplay,
+                        area = housing.area.toString(),
+                        completionDate = housing.completionDate,
+                        distance = housing.distance,
+                        deadline = housing.deadline
+                    )
+                    BookmarkPreferences.addBookmark(context, bookmark)
                     
                     // 캘린더에 일정 추가
                     calendarService.addHousingToCalendar(

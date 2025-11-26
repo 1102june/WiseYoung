@@ -57,7 +57,7 @@ class RegisterActivity : ComponentActivity() {
         }
     }
 
-    /** 🔥 Firebase 회원가입 → (이메일 인증 완료 후) → 서버 DB 저장 */
+    /** 🔥 Firebase 회원가입 → 서버 DB 저장 (Gmail SMTP 사용) */
     private fun registerUser(email: String, password: String, retryCount: Int = 0) {
         // 이메일과 비밀번호 앞뒤 공백 제거
         val trimmedEmail = email.trim()

@@ -26,7 +26,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.app.ui.theme.WiseYoungTheme
-import com.example.app.ProfilePreferences
+import com.wiseyoung.app.ProfilePreferences
 import com.wiseyoung.app.R
 
 class WelcomeActivity : ComponentActivity() {
@@ -60,7 +60,7 @@ fun WelcomeScreen(onNext: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(Color.Black)
             .padding(horizontal = 32.dp, vertical = 64.dp)
             .pointerInput(Unit) {
                 detectHorizontalDragGestures(
@@ -97,8 +97,10 @@ fun WelcomeScreen(onNext: () -> Unit) {
                 Image(
                     painter = painterResource(id = R.drawable.wy_logo),
                     contentDescription = "WY Logo",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp), // 패딩을 추가하여 로고가 잘리지 않도록
+                    contentScale = ContentScale.Fit // Crop 대신 Fit 사용
                 )
             }
 

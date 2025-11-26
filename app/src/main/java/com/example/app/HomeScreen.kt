@@ -34,11 +34,15 @@ import com.example.app.NotificationSettings
 import com.example.app.ui.theme.AppColors
 import com.example.app.ui.theme.Spacing
 import com.example.app.ui.components.BottomNavigationBar
+import com.example.app.ui.components.ElevatedCard
 import com.example.app.service.CalendarService
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.example.app.network.NetworkModule
+import com.wiseyoung.app.BookmarkItem
+import com.wiseyoung.app.BookmarkType
+import com.wiseyoung.app.BookmarkPreferences
 
 data class PolicyRecommendation(
     val id: Int,
@@ -129,6 +133,7 @@ fun HomeScreen(
     var showChatbotDialog by remember { mutableStateOf(false) }
     var selectedPolicy by remember { mutableStateOf<PolicyRecommendation?>(null) }
     var isTransitioning by remember { mutableStateOf(false) }
+    val context = LocalContext.current
     var bookmarkedPolicies by remember { mutableStateOf(setOf<String>()) }
     val coroutineScope = rememberCoroutineScope()
     
@@ -321,7 +326,10 @@ fun HomeScreen(
                                 selectedPolicy = currentPolicy
                                 showNotificationDialog = true
                             } else {
+                                // 북마크 제거 (로컬 상태)
                                 bookmarkedPolicies = bookmarkedPolicies - currentPolicy.title
+                                // SharedPreferences에서도 제거
+                                BookmarkPreferences.removeBookmark(context, currentPolicy.title, BookmarkType.POLICY)
                             }
                         },
                         onApply = {}
@@ -361,7 +369,6 @@ fun HomeScreen(
     }
     
     // 알림 설정 다이얼로그
-    val context = LocalContext.current
     val calendarService = remember { CalendarService(context) }
     
     if (showNotificationDialog) {
@@ -370,8 +377,22 @@ fun HomeScreen(
             onNotificationsChange = { notifications = it },
             onSave = {
                 selectedPolicy?.let { policy ->
-                    // 북마크 추가
+                    // 북마크 추가 (로컬 상태)
                     bookmarkedPolicies = bookmarkedPolicies + policy.title
+                    
+                    // 북마크를 SharedPreferences에 저장
+                    val bookmark = BookmarkItem(
+                        id = policy.id,
+                        type = BookmarkType.POLICY,
+                        title = policy.title,
+                        organization = policy.organization,
+                        age = policy.age,
+                        period = policy.period,
+                        content = policy.content,
+                        applicationMethod = policy.applicationMethod,
+                        deadline = policy.deadline
+                    )
+                    BookmarkPreferences.addBookmark(context, bookmark)
                     
                     // 캘린더에 일정 추가
                     calendarService.addPolicyToCalendar(
@@ -475,16 +496,11 @@ private fun PolicyCard(
         label = "card_alpha"
     )
     
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        border = androidx.compose.foundation.BorderStroke(2.dp, AppColors.TextPrimary),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(Spacing.md)
+            modifier = Modifier.fillMaxWidth()
         ) {
             // 상단: 좋아요 버튼과 제목
             Box(modifier = Modifier.fillMaxWidth()) {

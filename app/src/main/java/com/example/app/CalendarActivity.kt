@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.State
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,10 +39,11 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.gson.Gson
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.flow.collectAsState
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.collectAsState
 import java.text.SimpleDateFormat
 import java.time.LocalDate
 import java.time.ZoneId
@@ -102,6 +104,7 @@ fun CalendarScreen(
     val coroutineScope = rememberCoroutineScope()
     
     var selectedDate by remember { mutableStateOf(Date()) }
+    var currentMonthDate by remember { mutableStateOf(LocalDate.now()) }
     var selectedCategory by remember { mutableStateOf("전체") }
     var deleteDialogOpen by remember { mutableStateOf(false) }
     var notificationDialogOpen by remember { mutableStateOf(false) }
@@ -113,14 +116,12 @@ fun CalendarScreen(
     }
     
     // Room DB에서 일정 가져오기
-    val allEvents by remember {
-        if (currentUser != null) {
-            repository.getEventsByUserId(currentUser.uid)
-                .collectAsState(initial = emptyList())
-        } else {
-            mutableStateOf(emptyList<CalendarEvent>())
-        }
-    }.collectAsState(initial = emptyList())
+    val allEventsState: State<List<CalendarEvent>> = if (currentUser != null) {
+        repository.getEventsByUserId(currentUser.uid).collectAsState(initial = emptyList<CalendarEvent>())
+    } else {
+        remember { mutableStateOf(emptyList<CalendarEvent>()) }
+    }
+    val allEvents = allEventsState.value
     
     // 선택된 날짜의 일정 필터링
     val selectedLocalDate = remember(selectedDate) {
@@ -129,17 +130,19 @@ fun CalendarScreen(
     
     val eventsForSelectedDate by remember(selectedLocalDate, allEvents) {
         derivedStateOf {
-            allEvents.filter { it.endDate == selectedLocalDate }
+            allEvents.filter { event -> event.endDate == selectedLocalDate }
         }
     }
     
     // 카테고리별 필터링
-    val filteredEvents = remember(allEvents, selectedCategory) {
-        when (selectedCategory) {
-            "전체" -> allEvents
-            "정책" -> allEvents.filter { it.eventType == EventType.POLICY }
-            "임대주택" -> allEvents.filter { it.eventType == EventType.HOUSING }
-            else -> allEvents
+    val filteredEvents by remember(allEvents, selectedCategory) {
+        derivedStateOf {
+            when (selectedCategory) {
+                "전체" -> allEvents
+                "정책" -> allEvents.filter { event -> event.eventType == EventType.POLICY }
+                "임대주택" -> allEvents.filter { event -> event.eventType == EventType.HOUSING }
+                else -> allEvents
+            }
         }
     }
     
@@ -174,8 +177,14 @@ fun CalendarScreen(
                 
                 // Calendar Card
                 CalendarCard(
-                    selectedDate = selectedDate,
-                    onDateSelected = { selectedDate = it },
+                    selectedDate = selectedLocalDate,
+                    currentMonthDate = currentMonthDate,
+                    onDateSelected = { date ->
+                        selectedDate = Date.from(date.atStartOfDay(ZoneId.systemDefault()).toInstant())
+                    },
+                    onMonthChange = { date ->
+                        currentMonthDate = date
+                    },
                     events = allEvents,
                     modifier = Modifier.padding(bottom = Spacing.lg)
                 )
@@ -329,15 +338,13 @@ private fun CalendarHeader() {
 
 @Composable
 private fun CalendarCard(
-    selectedDate: Date,
-    onDateSelected: (Date) -> Unit,
+    selectedDate: LocalDate,
+    currentMonthDate: LocalDate,
+    onDateSelected: (LocalDate) -> Unit,
+    onMonthChange: (LocalDate) -> Unit,
     events: List<CalendarEvent>,
     modifier: Modifier = Modifier
 ) {
-    val selectedLocalDate = remember(selectedDate) {
-        selectedDate.toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDate()
-    }
-    
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -351,12 +358,10 @@ private fun CalendarCard(
         ) {
             // 달력 UI
             CalendarView(
-                selectedDate = selectedLocalDate,
+                selectedDate = selectedDate,
                 events = events,
-                onDateSelected = { date ->
-                    val instant = date.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant()
-                    onDateSelected(Date.from(instant))
-                }
+                onDateSelected = onDateSelected,
+                onMonthChange = onMonthChange
             )
             
             Spacer(modifier = Modifier.height(Spacing.md))
