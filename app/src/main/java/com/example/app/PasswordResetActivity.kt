@@ -16,10 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-<<<<<<< HEAD
-=======
 import androidx.compose.foundation.shape.CircleShape
->>>>>>> bdfba64cbbd8e8630ad8ed32b12ce54887bf96a3
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -321,18 +318,11 @@ fun PasswordResetScreen(
             )
             
             Column(Modifier.fillMaxWidth()) {
-<<<<<<< HEAD
                 // PwRule은 RegisterActivity.kt에 정의되어 있음 (같은 패키지이므로 직접 사용 가능)
                 PwRule(hasMinLength, "8자리 이상")
                 PwRule(hasEng, "영어 포함")
                 PwRule(hasNum, "숫자 포함")
                 PwRule(hasSpecial, "특수문자 포함")
-=======
-                PasswordResetPwRule(hasMinLength, "8자리 이상")
-                PasswordResetPwRule(hasEng, "영어 포함")
-                PasswordResetPwRule(hasNum, "숫자 포함")
-                PasswordResetPwRule(hasSpecial, "특수문자 포함")
->>>>>>> bdfba64cbbd8e8630ad8ed32b12ce54887bf96a3
             }
             
             Spacer(Modifier.height(12.dp))
@@ -367,7 +357,7 @@ fun PasswordResetScreen(
                     Box(
                         modifier = Modifier
                             .size(6.dp)
-                            .clip(androidx.compose.foundation.shape.CircleShape)
+                            .clip(CircleShape)
                             .background(
                                 if (isPasswordMatch) Color(0xFF10B981) else Color(0xFF9CA3AF)
                             )
@@ -405,37 +395,7 @@ fun PasswordResetScreen(
     }
 }
 
-<<<<<<< HEAD
-// PwRule 함수는 RegisterActivity.kt에 정의되어 있음 (중복 제거)
-=======
-@Composable
-fun PasswordResetPwRule(valid: Boolean, text: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 2.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(6.dp)
-                .clip(androidx.compose.foundation.shape.CircleShape)
-                .background(
-                    if (valid) Color(0xFF10B981) else Color(0xFF9CA3AF)
-                )
-        )
-        Text(
-            text = text,
-            color = if (valid) Color(0xFF1A1A1A) else Color(0xFF666666),
-            style = MaterialTheme.typography.bodySmall.copy(
-                fontSize = 12.sp,
-                fontWeight = androidx.compose.ui.text.font.FontWeight.Normal
-            )
-        )
-    }
-}
->>>>>>> bdfba64cbbd8e8630ad8ed32b12ce54887bf96a3
+// PwRule 함수는 RegisterActivity.kt에 정의되어 있음 (중복 정의 제거)
 
 /**
  * 이메일 존재 확인 (비밀번호 찾기용 - 이메일이 존재해야 함)
