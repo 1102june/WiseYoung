@@ -109,7 +109,7 @@ interface ApiService {
      * GET /api/profile
      */
     @GET("api/profile")
-    suspend fun getProfile(
+    suspend fun getUserProfile(
         @Header("X-User-Id") userId: String
     ): Response<ApiResponse<UserProfileResponse>>
     

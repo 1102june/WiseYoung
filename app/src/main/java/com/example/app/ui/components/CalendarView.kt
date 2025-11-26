@@ -5,8 +5,17 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,9 +41,10 @@ fun CalendarView(
     selectedDate: LocalDate,
     events: List<CalendarEvent>,
     onDateSelected: (LocalDate) -> Unit,
+    onMonthChange: ((LocalDate) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    val currentMonth = YearMonth.from(selectedDate)
+    var currentMonth by remember(selectedDate) { mutableStateOf(YearMonth.from(selectedDate)) }
     val firstDayOfMonth = currentMonth.atDay(1)
     val lastDayOfMonth = currentMonth.atEndOfMonth()
     val firstDayOfWeek = firstDayOfMonth.dayOfWeek
@@ -53,14 +63,47 @@ fun CalendarView(
             .border(2.dp, AppColors.Border, RoundedCornerShape(16.dp))
             .padding(16.dp)
     ) {
-        // 월/년 표시
-        Text(
-            text = currentMonth.format(DateTimeFormatter.ofPattern("yyyy년 MM월")),
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = AppColors.TextPrimary,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
+        // 월/년 표시 및 네비게이션
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(
+                onClick = {
+                    currentMonth = currentMonth.minusMonths(1)
+                    onMonthChange?.invoke(currentMonth.atDay(1))
+                }
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ChevronLeft,
+                    contentDescription = "이전 달",
+                    tint = AppColors.TextPrimary
+                )
+            }
+            
+            Text(
+                text = currentMonth.format(DateTimeFormatter.ofPattern("yyyy년 MM월")),
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = AppColors.TextPrimary
+            )
+            
+            IconButton(
+                onClick = {
+                    currentMonth = currentMonth.plusMonths(1)
+                    onMonthChange?.invoke(currentMonth.atDay(1))
+                }
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = "다음 달",
+                    tint = AppColors.TextPrimary
+                )
+            }
+        }
         
         // 요일 헤더
         Row(
@@ -104,9 +147,17 @@ fun CalendarView(
             // 현재 달의 날짜들
             for (day in 1..daysInMonth) {
                 val date = currentMonth.atDay(day)
-                val hasEvent = events.any { it.endDate == date }
+                val dayEvents = events.filter { it.endDate == date }
+                val hasEvent = dayEvents.isNotEmpty()
                 val isSelected = date == selectedDate
                 val isToday = date == LocalDate.now()
+                
+                // 이벤트 타입별 색상 결정
+                val eventType = when {
+                    dayEvents.any { it.eventType == EventType.POLICY } -> EventType.POLICY
+                    dayEvents.any { it.eventType == EventType.HOUSING } -> EventType.HOUSING
+                    else -> null
+                }
                 
                 currentWeek.add(
                     DayItem(
@@ -114,7 +165,8 @@ fun CalendarView(
                         isCurrentMonth = true,
                         isSelected = isSelected,
                         hasEvent = hasEvent,
-                        isToday = isToday
+                        isToday = isToday,
+                        eventType = eventType
                     )
                 )
                 
@@ -159,7 +211,8 @@ private data class DayItem(
     val isCurrentMonth: Boolean,
     val isSelected: Boolean,
     val hasEvent: Boolean,
-    val isToday: Boolean = false
+    val isToday: Boolean = false,
+    val eventType: EventType? = null
 )
 
 @Composable
@@ -224,14 +277,20 @@ private fun CalendarDayCell(
                 }
             )
             
-            // 일정이 있는 날 표시
+            // 일정이 있는 날 표시 (이벤트 타입별 색상)
             if (dayItem.hasEvent && dayItem.isCurrentMonth) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Box(
                     modifier = Modifier
                         .size(4.dp)
                         .clip(RoundedCornerShape(2.dp))
-                        .background(AppColors.BackgroundGradientStart)
+                        .background(
+                            when (dayItem.eventType) {
+                                EventType.POLICY -> Color(0xFF59ABF7) // 정책 - 파란색
+                                EventType.HOUSING -> Color(0xFFFF9800) // 임대주택 - 주황색
+                                null -> AppColors.BackgroundGradientStart
+                            }
+                        )
                 )
             }
         }

@@ -123,10 +123,7 @@
 
 
     </application>
-<<<<<<< HEAD
-    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- 알림 권한 (Android 13 이상) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-=======
->>>>>>> bdfba64cbbd8e8630ad8ed32b12ce54887bf96a3
 
 </manifest>

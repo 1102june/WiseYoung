@@ -1,10 +1,7 @@
 package com.example.app.ui.components
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -12,11 +9,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.app.ui.theme.AppColors
+import com.example.app.ui.theme.AppShapes
 import com.example.app.ui.theme.Spacing
 
 /**
- * Primary Button - 주요 액션에 사용
- * 기본 색상: 라이트 블루 (메인 컬러)
+ * Material3 Primary Button - 주요 액션에 사용
+ * Material3 스타일의 Filled Button
  */
 @Composable
 fun PrimaryButton(
@@ -24,7 +22,7 @@ fun PrimaryButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    backgroundColor: Color = AppColors.LightBlue  // 라이트 블루 (메인 컬러)
+    backgroundColor: Color = MaterialTheme.colorScheme.primary
 ) {
     Button(
         onClick = onClick,
@@ -32,25 +30,30 @@ fun PrimaryButton(
             .fillMaxWidth()
             .height(Spacing.buttonHeight),
         enabled = enabled,
+        shape = AppShapes.button,
         colors = ButtonDefaults.buttonColors(
             containerColor = backgroundColor,
-            disabledContainerColor = backgroundColor.copy(alpha = 0.4f),
-            contentColor = Color.White,
-            disabledContentColor = Color.White.copy(alpha = 0.6f)
+            disabledContainerColor = backgroundColor.copy(alpha = 0.38f),
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            disabledContentColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.38f)
+        ),
+        elevation = ButtonDefaults.buttonElevation(
+            defaultElevation = 0.dp,
+            pressedElevation = 0.dp,
+            disabledElevation = 0.dp
         )
     ) {
         Text(
             text = text,
-            color = Color.White,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Medium
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold
         )
     }
 }
 
 /**
- * Secondary Button - 보조 액션에 사용
- * 기본 색상: 라이트 블루 (메인 컬러)
+ * Material3 Outlined Button - 보조 액션에 사용
+ * Material3 스타일의 Outlined Button
  */
 @Composable
 fun SecondaryButton(
@@ -58,8 +61,7 @@ fun SecondaryButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    textColor: Color = AppColors.LightBlue,  // 라이트 블루 (메인 컬러)
-    borderColor: Color = AppColors.LightBlue  // 라이트 블루 (메인 컬러)
+    textColor: Color = MaterialTheme.colorScheme.primary
 ) {
     OutlinedButton(
         onClick = onClick,
@@ -67,16 +69,49 @@ fun SecondaryButton(
             .fillMaxWidth()
             .height(Spacing.buttonHeight),
         enabled = enabled,
+        shape = AppShapes.button,
         colors = ButtonDefaults.outlinedButtonColors(
             contentColor = textColor
         ),
-        border = androidx.compose.foundation.BorderStroke(2.dp, borderColor)
+        border = ButtonDefaults.outlinedButtonBorder.copy(
+            width = 1.dp
+        )
     ) {
         Text(
             text = text,
-            color = textColor,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Medium
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+/**
+ * Material3 FilledTonalButton - 강조가 필요한 보조 액션
+ * Material3의 Filled Tonal Button 스타일
+ */
+@Composable
+fun FilledTonalButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
+) {
+    FilledTonalButton(
+        onClick = onClick,
+        modifier = modifier
+            .fillMaxWidth()
+            .height(Spacing.buttonHeight),
+        enabled = enabled,
+        shape = AppShapes.button,
+        colors = ButtonDefaults.filledTonalButtonColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+        )
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold
         )
     }
 }
@@ -192,7 +227,7 @@ fun SquareButton(
             contentColor = textColor,
             disabledContentColor = textColor.copy(alpha = 0.6f)
         ),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+        shape = AppShapes.buttonSmall
     ) {
         Text(
             text = text,

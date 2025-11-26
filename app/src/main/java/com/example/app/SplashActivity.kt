@@ -23,7 +23,7 @@ import androidx.lifecycle.lifecycleScope
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import com.example.app.ProfilePreferences
+import com.wiseyoung.app.ProfilePreferences
 
 class SplashActivity : ComponentActivity() {
 

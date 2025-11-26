@@ -284,7 +284,7 @@ fun PolicyListScreen(
         try {
             // 1) 프로필 정보 조회 (userId 변경 시에만)
             if (profile == null) {
-                val profileResponse = com.example.app.network.NetworkModule.apiService.getProfile(userId)
+                val profileResponse = com.example.app.network.NetworkModule.apiService.getUserProfile(userId)
                 if (profileResponse.isSuccessful && profileResponse.body()?.success == true) {
                     profile = profileResponse.body()?.data
                 }

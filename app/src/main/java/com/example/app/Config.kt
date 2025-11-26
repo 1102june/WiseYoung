@@ -49,7 +49,7 @@ object Config {
         const val SIGNUP = "/auth/signup"
         const val LOGIN = "/auth/login"
         const val LOGOUT = "/auth/logout"
-        const val PROFILE = "/auth/profile"
+        const val PROFILE = "/auth/profile" // GET: 프로필 조회, POST: 프로필 저장
         const val BOOKMARKS = "/bookmarks"
         const val NOTIFICATIONS = "/notifications"
         const val PUSH_TOKEN = "/auth/push-token" // FCM 토큰 저장
