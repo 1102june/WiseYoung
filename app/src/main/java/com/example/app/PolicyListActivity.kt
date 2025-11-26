@@ -1,7 +1,9 @@
 package com.wiseyoung.app
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -21,21 +23,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.app.NotificationSettings
+import com.example.app.service.CalendarService
+import com.example.app.ui.components.BottomNavigationBar
 import com.example.app.ui.theme.AppColors
 import com.example.app.ui.theme.Spacing
 import com.example.app.ui.theme.ThemeWrapper
-import com.example.app.ui.components.BottomNavigationBar
-<<<<<<< HEAD
-import com.example.app.service.CalendarService
-import androidx.compose.ui.platform.LocalContext
-=======
 import com.google.firebase.auth.FirebaseAuth
->>>>>>> bdfba64cbbd8e8630ad8ed32b12ce54887bf96a3
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -52,7 +51,9 @@ data class PolicyItem(
     val content: String,
     val applicationMethod: String,
     val deadline: String,
-    val isUrgent: Boolean
+    val isUrgent: Boolean,
+    val link1: String?,
+    val link2: String?
 )
 
 val allPolicies = listOf(
@@ -69,7 +70,9 @@ val allPolicies = listOf(
         content = "청년의 주거비 부담 완화를 위해 월세를 지원하는 정책입니다. 최대 12개월간 월 20만원까지 지원합니다.",
         applicationMethod = "온라인 신청 (복지로 홈페이지) 또는 주민센터 방문 신청",
         deadline = "2025-03-31",
-        isUrgent = true
+        isUrgent = true,
+        link1 = null,
+        link2 = null
     ),
     PolicyItem(
         id = 2,
@@ -84,7 +87,9 @@ val allPolicies = listOf(
         content = "청년의 자기계발 활동을 지원하기 위해 온오프라인 교육, 자격증 취득 비용을 지원합니다.",
         applicationMethod = "내일배움카드 홈페이지에서 온라인 신청",
         deadline = "2025-04-30",
-        isUrgent = true
+        isUrgent = true,
+        link1 = null,
+        link2 = null
     ),
     PolicyItem(
         id = 3,
@@ -99,7 +104,9 @@ val allPolicies = listOf(
         content = "취업을 원하는 청년에게 진로설정, 직업훈련, 취업알선 등을 종합적으로 지원하며, 참여수당을 지급합니다.",
         applicationMethod = "고용센터 방문 또는 워크넷 온라인 신청",
         deadline = "2025-06-20",
-        isUrgent = false
+        isUrgent = false,
+        link1 = null,
+        link2 = null
     ),
     PolicyItem(
         id = 4,
@@ -114,7 +121,9 @@ val allPolicies = listOf(
         content = "중소·중견기업에 취업한 청년에게 3년간 최대 1,200만원의 장려금을 지원합니다.",
         applicationMethod = "경기일자리재단 홈페이지에서 온라인 신청",
         deadline = "2025-05-15",
-        isUrgent = true
+        isUrgent = true,
+        link1 = null,
+        link2 = null
     ),
     PolicyItem(
         id = 5,
@@ -129,7 +138,9 @@ val allPolicies = listOf(
         content = "전월세 보증금 마련이 어려운 청년에게 최대 1억원까지 저금리로 대출해주는 상품입니다.",
         applicationMethod = "금융기관 방문 또는 주택도시기금 홈페이지 신청",
         deadline = "2025-12-31",
-        isUrgent = false
+        isUrgent = false,
+        link1 = null,
+        link2 = null
     ),
     PolicyItem(
         id = 6,
@@ -144,7 +155,9 @@ val allPolicies = listOf(
         content = "평생교육 기회 확대를 위해 대학 진학 및 학위 취득 비용을 지원합니다.",
         applicationMethod = "평생교육진흥원 홈페이지에서 온라인 신청",
         deadline = "2025-07-30",
-        isUrgent = false
+        isUrgent = false,
+        link1 = null,
+        link2 = null
     ),
     PolicyItem(
         id = 7,
@@ -159,7 +172,9 @@ val allPolicies = listOf(
         content = "저소득 청년층의 생활 안정을 위한 복지 지원금을 지급합니다.",
         applicationMethod = "복지로 홈페이지에서 온라인 신청",
         deadline = "2025-08-31",
-        isUrgent = false
+        isUrgent = false,
+        link1 = null,
+        link2 = null
     ),
     PolicyItem(
         id = 8,
@@ -174,12 +189,15 @@ val allPolicies = listOf(
         content = "청년층의 건강관리를 위해 종합 건강검진 비용을 전액 지원합니다.",
         applicationMethod = "국민건강보험 홈페이지에서 온라인 신청",
         deadline = "2025-09-30",
-        isUrgent = false
+        isUrgent = false,
+        link1 = null,
+        link2 = null
     )
 )
 
-val userInterests = listOf("취업", "복지", "주거")
-val categories = listOf("전체") + userInterests + listOf("자기계발", "교육")
+// 백엔드 policy.category 필드와 동일한 카테고리 셋
+val userInterests = listOf("일자리", "주거", "복지문화", "교육")
+val categories = listOf("전체") + userInterests
 
 class PolicyListActivity : ComponentActivity() {
     private val auth = FirebaseAuth.getInstance()
@@ -254,12 +272,31 @@ fun PolicyListScreen(
         )
     }
     
-    // 정책 목록 로드
-    LaunchedEffect(userId) {
+    val context = LocalContext.current
+
+    // 프로필 정보
+    var profile by remember { mutableStateOf<com.example.app.data.model.UserProfileResponse?>(null) }
+
+    // 프로필 + 정책 목록 로드
+    LaunchedEffect(userId, selectedCategory) {
         isLoading = true
         errorMessage = null
         try {
-            val response = com.example.app.network.NetworkModule.apiService.getActivePolicies(userId)
+            // 1) 프로필 정보 조회 (userId 변경 시에만)
+            if (profile == null) {
+                val profileResponse = com.example.app.network.NetworkModule.apiService.getProfile(userId)
+                if (profileResponse.isSuccessful && profileResponse.body()?.success == true) {
+                    profile = profileResponse.body()?.data
+                }
+            }
+
+            // 2) 정책 목록 조회
+            // "전체"일 때는 category 파라미터를 보내지 않고, 나머지 탭에서는 카테고리 이름을 함께 전송
+            val categoryParam = if (selectedCategory == "전체") null else selectedCategory
+            val response = com.example.app.network.NetworkModule.apiService.getActivePolicies(
+                userId = userId,
+                category = categoryParam
+            )
             if (response.isSuccessful && response.body()?.success == true) {
                 val policies = response.body()?.data ?: emptyList()
                 // PolicyResponse를 PolicyItem으로 변환
@@ -275,9 +312,12 @@ fun PolicyListScreen(
                         age = "만 ${policy.ageStart ?: 0}세 ~ ${policy.ageEnd ?: 0}세",
                         period = "${policy.applicationStart?.take(10)?.replace("-", ".") ?: ""} ~ ${policy.applicationEnd?.take(10)?.replace("-", ".") ?: ""}",
                         content = policy.summary ?: "",
-                        applicationMethod = policy.link1 ?: "",
+                        // eligibility에는 지원내용/신청방법 등이 포함되어 있어 상세 정보로 사용
+                        applicationMethod = policy.eligibility ?: "",
                         deadline = policy.applicationEnd?.take(10) ?: "",
-                        isUrgent = false // TODO: 마감일 계산
+                        isUrgent = false, // TODO: 마감일 계산
+                        link1 = policy.link1,
+                        link2 = policy.link2
                     )
                 }
                 // 데이터가 없으면 기본 데이터 사용
@@ -296,10 +336,29 @@ fun PolicyListScreen(
         }
     }
     
-    val filteredPolicies = if (selectedCategory == "전체") {
-        policiesList
-    } else {
-        policiesList.filter { it.category == selectedCategory }
+    // 카테고리 + 통합검색(제목/내용/주관기관/카테고리) 필터링
+    val filteredPolicies by remember(policiesList, selectedCategory, searchQuery) {
+        mutableStateOf(
+            policiesList
+                // 카테고리 필터
+                .filter { policy ->
+                    selectedCategory == "전체" || policy.category == selectedCategory
+                }
+                // 검색어 필터
+                .filter { policy ->
+                    val query = searchQuery.trim()
+                    if (query.isEmpty()) return@filter true
+                    val q = query.lowercase()
+                    listOf(
+                        policy.title,
+                        policy.content,
+                        policy.organization,
+                        policy.category
+                    ).any { field ->
+                        field.lowercase().contains(q)
+                    }
+                }
+        )
     }
     
     val urgentPolicies = filteredPolicies.filter { it.isUrgent }
@@ -324,6 +383,7 @@ fun PolicyListScreen(
         ) {
             // Header Section
             PolicyListHeader(
+                profile = profile,
                 onBack = onNavigateHome,
                 onSearch = { /* TODO: 검색 로직 */ },
                 searchQuery = searchQuery,
@@ -366,7 +426,22 @@ fun PolicyListScreen(
                             }
                         },
                         onApply = {
-                            // TODO: 신청하기 로직
+                            val url = when {
+                                !policy.link1.isNullOrBlank() -> policy.link1
+                                !policy.link2.isNullOrBlank() -> policy.link2
+                                else -> null
+                            }
+
+                            if (url != null) {
+                                runCatching {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                    context.startActivity(intent)
+                                }.onFailure {
+                                    Toast.makeText(context, "링크를 열 수 없습니다.", Toast.LENGTH_SHORT).show()
+                                }
+                            } else {
+                                Toast.makeText(context, "신청 링크가 제공되지 않은 정책입니다.", Toast.LENGTH_SHORT).show()
+                            }
                         },
                         modifier = Modifier.padding(bottom = Spacing.sm)
                     )
@@ -393,7 +468,6 @@ fun PolicyListScreen(
     }
     
     // Notification Dialog
-    val context = LocalContext.current
     val calendarService = remember { CalendarService(context) }
     
     if (showNotificationDialog) {
@@ -594,6 +668,7 @@ private fun CustomNotificationRow(
 
 @Composable
 private fun PolicyListHeader(
+    profile: com.example.app.data.model.UserProfileResponse?,
     onBack: () -> Unit,
     onSearch: () -> Unit,
     searchQuery: String,
@@ -639,7 +714,7 @@ private fun PolicyListHeader(
             Spacer(modifier = Modifier.height(Spacing.lg))
             
             // User Info Card
-            UserInfoCard()
+            UserInfoCard(profile)
             
             Spacer(modifier = Modifier.height(Spacing.md))
             
@@ -662,7 +737,7 @@ private fun PolicyListHeader(
 }
 
 @Composable
-private fun UserInfoCard() {
+private fun UserInfoCard(profile: com.example.app.data.model.UserProfileResponse?) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -712,15 +787,23 @@ private fun UserInfoCard() {
                         )
                     }
                     
+                    val nickname = profile?.nickname ?: "슬기로운 청년 님"
+                    val ageRegionJob = buildString {
+                        profile?.age?.let { append("${it}세 ") }
+                        profile?.region?.let { append(it).append(" 거주 ") }
+                        profile?.jobStatus?.let { append(it) }
+                        if (isEmpty()) append("25세 경기도 수원시 거주 취업준비생")
+                    }
+
                     Column {
                         Text(
-                            text = "슬기로운 청년 님",
+                            text = nickname,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             color = AppColors.TextPrimary
                         )
                         Text(
-                            text = "25세 경기도 수원시 거주 취업준비생",
+                            text = ageRegionJob,
                             fontSize = 12.sp,
                             color = AppColors.TextSecondary
                         )
@@ -753,7 +836,8 @@ private fun UserInfoCard() {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
                 ) {
-                    userInterests.forEach { interest ->
+                    val interests = profile?.interests?.takeIf { it.isNotEmpty() } ?: userInterests
+                    interests.forEach { interest ->
                         InterestTag(
                             text = interest,
                             backgroundColor = AppColors.Purple,

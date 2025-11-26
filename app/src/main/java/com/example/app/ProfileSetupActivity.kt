@@ -583,7 +583,7 @@ fun ProfileSetupScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // 관심분야
+            // 관심분야 (백엔드 policy.category와 동일한 4개 카테고리로 고정)
             InterestSection(
                 selected = interests,
                 onToggle = { interest ->
@@ -1059,7 +1059,7 @@ private fun InterestSection(selected: Set<String>, onToggle: (String) -> Unit) {
             style = MaterialTheme.typography.bodyMedium,
             color = Color(0xFF1A1A1A)
         )
-        val interests = listOf("취업", "창업", "주거", "복지")
+        val interests = listOf("일자리", "주거", "복지문화", "교육")
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)

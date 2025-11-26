@@ -339,9 +339,10 @@ private fun UserInfoCard(modifier: Modifier = Modifier) {
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                InterestTag("취업", AppColors.Purple.copy(alpha = 0.1f), AppColors.Purple)
-                InterestTag("복지", AppColors.BackgroundGradientStart.copy(alpha = 0.1f), AppColors.BackgroundGradientStart)
-                InterestTag("주거", AppColors.Info.copy(alpha = 0.1f), AppColors.Info)
+                // TODO: 실제 사용자 관심사 데이터를 불러와서 표시
+                InterestTag("일자리", AppColors.Purple.copy(alpha = 0.1f), AppColors.Purple)
+                InterestTag("주거", AppColors.BackgroundGradientStart.copy(alpha = 0.1f), AppColors.BackgroundGradientStart)
+                InterestTag("복지문화", AppColors.Info.copy(alpha = 0.1f), AppColors.Info)
             }
         }
     }
