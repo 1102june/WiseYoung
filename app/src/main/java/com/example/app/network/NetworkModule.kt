@@ -10,8 +10,8 @@ object NetworkModule {
     // Base URL 설정
     // 에뮬레이터: 10.0.2.2
     // 실제 기기: PC의 로컬 IP 주소 (예: 192.168.0.100)
-    // private const val BASE_URL = "http://10.0.2.2:8080/"  // 에뮬레이터용
-    private const val BASE_URL = "http://192.168.33.1:8080/"  // 실제 기기용 (PC IP 주소로 변경 필요)
+    //private const val BASE_URL = "http://10.0.2.2:8080/"  // 에뮬레이터용
+     private const val BASE_URL = "http://127.0.0.1:8080/" // 실제 기기용 (PC IP 주소로 변경 필요)
     
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY
