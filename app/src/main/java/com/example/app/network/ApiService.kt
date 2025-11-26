@@ -25,6 +25,15 @@ interface ApiService {
     suspend fun register(@Body request: RegisterRequest): Response<String>
     
     /**
+     * 프로필 조회
+     * GET /auth/profile
+     */
+    @GET("auth/profile")
+    suspend fun getProfile(
+        @Header("Authorization") authorization: String? = null
+    ): Response<ApiResponse<ProfileResponse>>
+    
+    /**
      * 프로필 저장/업데이트
      * POST /auth/profile
      */
