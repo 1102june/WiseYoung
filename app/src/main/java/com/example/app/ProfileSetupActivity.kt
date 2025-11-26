@@ -43,6 +43,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -92,6 +94,7 @@ class ProfileSetupActivity : ComponentActivity() {
             .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
             .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
             .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true)  // 연결 실패 시 자동 재시도
             .build()
     }
     private val auth = FirebaseAuth.getInstance()
@@ -205,6 +208,7 @@ class ProfileSetupActivity : ComponentActivity() {
                 val jsonObject = JSONObject().apply {
                     put("idToken", idToken.token)
                     put("birthDate", payload.birthDate)
+                    put("nickname", payload.nickname)
                     put("gender", payload.gender)
                     put("province", payload.province)
                     put("city", payload.city)
@@ -229,6 +233,7 @@ class ProfileSetupActivity : ComponentActivity() {
                     .addHeader("Content-Type", "application/json")
                     .build()
 
+                Log.d("ProfileSetup", "서버 연결 시도 중...")
                 client.newCall(request).execute().use { response ->
                     val responseBody = response.body?.string() ?: ""
                     Log.d("ProfileSetup", "서버 응답 코드: ${response.code}")
@@ -290,6 +295,7 @@ class ProfileSetupActivity : ComponentActivity() {
                         val firestoreProfile = FirestoreService.UserProfile(
                             userId = currentUser.uid,
                             birthYear = payload.birthDate, // "yyyy-MM-dd" 형식
+                            nickname = payload.nickname,
                             gender = payload.gender,
                             region = payload.province, // province만 저장 (VARCHAR(10) 제약)
                             education = payload.education,
@@ -310,18 +316,71 @@ class ProfileSetupActivity : ComponentActivity() {
                     withContext(Dispatchers.Main) {
                         onResult(isSuccess, message)
                     }
-                }
-            } catch (e: Exception) {
+                }  // use 블록 닫기
+            } catch (e: java.net.UnknownHostException) {
+                    Log.e("ProfileSetup", "호스트를 찾을 수 없음: ${e.message}", e)
+                    withContext(Dispatchers.Main) {
+                        onResult(false, 
+                            "서버를 찾을 수 없습니다.\n\n" +
+                            "🔧 확인 사항:\n" +
+                            "1. 컴퓨터 IP 주소 확인: ipconfig | findstr IPv4\n" +
+                            "2. Config.kt의 IP 주소가 올바른지 확인\n" +
+                            "3. USB 테더링 연결 확인\n" +
+                            "4. Spring Boot 서버 실행 확인"
+                        )
+                    }
+                } catch (e: java.net.ConnectException) {
+                    Log.e("ProfileSetup", "연결 거부: ${e.message}", e)
+                    withContext(Dispatchers.Main) {
+                        onResult(false,
+                            "서버 연결이 거부되었습니다.\n\n" +
+                            "🔧 확인 사항:\n" +
+                            "1. Spring Boot 서버가 실행 중인지 확인\n" +
+                            "2. Windows 방화벽에서 8080 포트 허용 확인\n" +
+                            "3. 서버가 모든 인터페이스에서 수신하는지 확인\n" +
+                            "   (application.yml: server.address 확인)"
+                        )
+                    }
+                } catch (e: java.net.SocketTimeoutException) {
+                    Log.e("ProfileSetup", "연결 타임아웃: ${e.message}", e)
+                    withContext(Dispatchers.Main) {
+                        onResult(false,
+                            "서버 응답 시간이 초과되었습니다.\n\n" +
+                            "🔧 확인 사항:\n" +
+                            "1. 네트워크 연결 상태 확인\n" +
+                            "2. 서버가 정상적으로 실행 중인지 확인\n" +
+                            "3. 잠시 후 다시 시도"
+                        )
+                    }
+                } catch (e: Exception) {
                 Log.e("ProfileSetup", "프로필 저장 실패: ${e.message}", e)
                 withContext(Dispatchers.Main) {
-                    // 네트워크 오류인 경우에만 오프라인 모드로 처리
+                    // 네트워크 오류인 경우 상세한 안내 메시지 제공
                     val errorMessage = when {
-                        e.message?.contains("Unable to resolve host") == true -> 
-                            "서버에 연결할 수 없습니다. 네트워크를 확인해주세요."
+                        e.message?.contains("Unable to resolve host") == true || 
+                        e.message?.contains("Failed to connect") == true ||
+                        e.message?.contains("Connection refused") == true -> 
+                            "서버에 연결할 수 없습니다.\n\n" +
+                            "🔧 확인 사항:\n" +
+                            "1. Spring Boot 서버가 실행 중인지 확인\n" +
+                            "   (http://172.16.2.178:8080 접속 테스트)\n" +
+                            "2. USB 테더링 연결이 활성화되어 있는지 확인\n" +
+                            "3. 컴퓨터 IP 주소 확인:\n" +
+                            "   PowerShell: ipconfig | findstr IPv4\n" +
+                            "4. Windows 방화벽에서 8080 포트 허용 확인\n" +
+                            "5. 앱 재시작 후 다시 시도"
                         e.message?.contains("timeout") == true -> 
-                            "서버 응답 시간이 초과되었습니다."
+                            "서버 응답 시간이 초과되었습니다.\n\n" +
+                            "🔧 확인 사항:\n" +
+                            "1. 네트워크 연결 상태 확인\n" +
+                            "2. 서버가 정상적으로 실행 중인지 확인\n" +
+                            "3. 잠시 후 다시 시도"
+                        e.message?.contains("Network is unreachable") == true ->
+                            "네트워크에 연결할 수 없습니다.\n\n" +
+                            "USB 테더링 연결을 확인해주세요."
                         else -> 
-                            "프로필 저장 실패: ${e.message}"
+                            "프로필 저장 실패: ${e.message}\n\n" +
+                            "네트워크 연결과 서버 상태를 확인해주세요."
                     }
                     onResult(false, errorMessage)
                 }
@@ -346,6 +405,7 @@ class ProfileSetupActivity : ComponentActivity() {
                     // 프로필 정보가 있는 경우 ProfilePayload 생성
                     val payload = ProfilePayload(
                         birthDate = profile.birthYear, // "yyyy-MM-dd" 형식
+                        nickname = profile.nickname ?: "",
                         gender = profile.gender ?: "male",
                         province = profile.region ?: "",
                         city = "", // Firestore에 city 정보가 없음 (province만 저장)
@@ -369,6 +429,7 @@ class ProfileSetupActivity : ComponentActivity() {
 
 data class ProfilePayload(
     val birthDate: String,
+    val nickname: String,
     val gender: String,
     val province: String,
     val city: String,
@@ -390,6 +451,7 @@ fun ProfileSetupScreen(
     val context = LocalContext.current
 
     var birthDate by remember { mutableStateOf<LocalDate?>(null) }
+    var nickname by remember { mutableStateOf("") }
     var gender by remember { mutableStateOf("male") }
     var province by remember { mutableStateOf("") }
     var city by remember { mutableStateOf("") }
@@ -410,6 +472,7 @@ fun ProfileSetupScreen(
                     } catch (e: Exception) {
                         Log.e("ProfileSetup", "생년월일 파싱 실패: ${e.message}")
                     }
+                    nickname = existingProfile.nickname
                     gender = existingProfile.gender
                     province = existingProfile.province
                     city = existingProfile.city
@@ -426,6 +489,7 @@ fun ProfileSetupScreen(
     val provinceDisplayMap = remember { provinceDisplayNames }
 
     val canSubmit = birthDate != null &&
+            nickname.isNotBlank() &&
             province.isNotBlank() &&
             city.isNotBlank() &&
             education.isNotBlank() &&
@@ -450,6 +514,14 @@ fun ProfileSetupScreen(
                 onDateChange = { date ->
                     birthDate = date
                 }
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // 닉네임
+            NicknameSection(
+                nickname = nickname,
+                onNicknameChange = { nickname = it }
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -532,6 +604,7 @@ fun ProfileSetupScreen(
                         onSubmit(
                             ProfilePayload(
                                 birthDate = date.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                                nickname = nickname,
                                 gender = gender,
                                 province = province,
                                 city = city,
@@ -804,6 +877,41 @@ private fun DateSpinner(
             text = label,
             fontSize = 12.sp,
             color = Color(0xFF666666)
+        )
+    }
+}
+
+@Composable
+private fun NicknameSection(
+    nickname: String,
+    onNicknameChange: (String) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "닉네임",
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color(0xFF1A1A1A)
+        )
+        OutlinedTextField(
+            value = nickname,
+            onValueChange = onNicknameChange,
+            placeholder = { Text("닉네임을 입력하세요") },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .background(Color.White, MaterialTheme.shapes.small),
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = Color.White,
+                unfocusedContainerColor = Color.White,
+                disabledContainerColor = Color(0xFFF5F5F5),
+                focusedTextColor = Color.Black,
+                unfocusedTextColor = Color.Black
+            ),
+            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp)
         )
     }
 }

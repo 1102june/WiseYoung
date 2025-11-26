@@ -26,6 +26,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.app.ui.theme.WiseYoungTheme
+import com.example.app.ProfilePreferences
 import com.wiseyoung.app.R
 
 class WelcomeActivity : ComponentActivity() {
@@ -37,6 +38,9 @@ class WelcomeActivity : ComponentActivity() {
             WiseYoungTheme {
                 WelcomeScreen(
                     onNext = {
+                        // 첫 로그인 플래그를 false로 설정 (온보딩을 한 번만 보여줌)
+                        ProfilePreferences.setFirstLogin(this, false)
+                        
                         val intent = Intent(this, AuthActivity::class.java)
                         startActivity(intent)
                         overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)

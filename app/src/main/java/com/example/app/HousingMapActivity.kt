@@ -30,6 +30,8 @@ import com.example.app.ui.theme.AppColors
 import com.example.app.ui.theme.Spacing
 import com.example.app.ui.theme.ThemeWrapper
 import com.example.app.ui.components.BottomNavigationBar
+import com.example.app.service.CalendarService
+import androidx.compose.ui.platform.LocalContext
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.Calendar
@@ -267,13 +269,26 @@ fun HousingMapScreen(
     }
     
     // Notification Dialog
+    val context = LocalContext.current
+    val calendarService = remember { CalendarService(context) }
+    
     if (showNotificationDialog) {
         HousingNotificationDialog(
             notifications = notifications,
             onNotificationsChange = { notifications = it },
             onSave = {
-                selectedHousing?.let {
-                    bookmarkedHousings = bookmarkedHousings + it.name
+                selectedHousing?.let { housing ->
+                    // 북마크 추가
+                    bookmarkedHousings = bookmarkedHousings + housing.name
+                    
+                    // 캘린더에 일정 추가
+                    calendarService.addHousingToCalendar(
+                        title = housing.name,
+                        organization = housing.organization,
+                        deadline = housing.deadline,
+                        housingId = housing.id.toString(),
+                        notificationSettings = notifications
+                    )
                 }
                 showNotificationDialog = false
                 selectedHousing = null

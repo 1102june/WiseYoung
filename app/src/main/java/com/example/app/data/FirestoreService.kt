@@ -40,6 +40,7 @@ object FirestoreService {
     data class UserProfile(
         val userId: String = "", // Firebase UID (user와 1:1 관계)
         val birthYear: String? = null, // "1999-01-01" 형식의 문자열
+        val nickname: String? = null, // 닉네임
         val gender: String? = null, // "male", "female"
         val region: String? = null, // "서울", "경기" 등
         val education: String? = null, // "대학교 재학" 등
@@ -125,6 +126,7 @@ object FirestoreService {
         val profileMap = hashMapOf(
             "userId" to profile.userId,
             "birthYear" to profile.birthYear,
+            "nickname" to (profile.nickname ?: ""),
             "gender" to (profile.gender ?: ""),
             "region" to (profile.region ?: ""),
             "education" to (profile.education ?: ""),
@@ -177,6 +179,7 @@ object FirestoreService {
         return UserProfile(
             userId = document.getString("userId") ?: document.id,
             birthYear = birthYearStr,
+            nickname = document.getString("nickname"),
             gender = document.getString("gender"),
             region = document.getString("region"),
             education = document.getString("education"),

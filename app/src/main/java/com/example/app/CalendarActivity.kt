@@ -29,7 +29,22 @@ import com.example.app.ui.theme.AppColors
 import com.example.app.ui.theme.Spacing
 import com.example.app.ui.theme.ThemeWrapper
 import com.example.app.ui.components.BottomNavigationBar
+import com.example.app.ui.components.CalendarView
+import com.example.app.data.CalendarRepository
+import com.example.app.data.CalendarEvent
+import com.example.app.data.EventType
+import com.example.app.service.CalendarService
+import com.google.firebase.auth.FirebaseAuth
+import com.google.gson.Gson
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.flow.collectAsState
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import java.text.SimpleDateFormat
+import java.time.LocalDate
+import java.time.ZoneId
 import java.util.*
 
 data class CalendarBookmark(
@@ -42,11 +57,15 @@ data class CalendarBookmark(
 )
 
 class CalendarActivity : ComponentActivity() {
+    private val repository by lazy { CalendarRepository(this) }
+    private val auth = FirebaseAuth.getInstance()
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             ThemeWrapper {
                 CalendarScreen(
+                    repository = repository,
                     onNavigateHome = {
                         startActivity(Intent(this, MainActivity::class.java))
                         finish()
@@ -70,32 +89,58 @@ class CalendarActivity : ComponentActivity() {
 
 @Composable
 fun CalendarScreen(
+    repository: CalendarRepository,
     onNavigateHome: () -> Unit,
     onNavigateBookmark: () -> Unit,
     onNavigateProfile: () -> Unit,
     onNavigateChatbot: () -> Unit
 ) {
+    val context = LocalContext.current
+    val calendarService = remember { CalendarService(context) }
+    val auth = FirebaseAuth.getInstance()
+    val currentUser = auth.currentUser
+    val coroutineScope = rememberCoroutineScope()
+    
     var selectedDate by remember { mutableStateOf(Date()) }
     var selectedCategory by remember { mutableStateOf("전체") }
     var deleteDialogOpen by remember { mutableStateOf(false) }
     var notificationDialogOpen by remember { mutableStateOf(false) }
-    var selectedBookmarkId by remember { mutableStateOf<Int?>(null) }
+    var selectedEventId by remember { mutableStateOf<Long?>(null) }
     var editNotifications by remember {
         mutableStateOf(
             NotificationSettings()
         )
     }
     
-    // 임시 북마크 데이터
-    var bookmarks by remember {
-        mutableStateOf<List<CalendarBookmark>>(emptyList())
+    // Room DB에서 일정 가져오기
+    val allEvents by remember {
+        if (currentUser != null) {
+            repository.getEventsByUserId(currentUser.uid)
+                .collectAsState(initial = emptyList())
+        } else {
+            mutableStateOf(emptyList<CalendarEvent>())
+        }
+    }.collectAsState(initial = emptyList())
+    
+    // 선택된 날짜의 일정 필터링
+    val selectedLocalDate = remember(selectedDate) {
+        selectedDate.toInstant().atZone(ZoneId.systemDefault()).toLocalDate()
     }
     
-    val filteredBookmarks = when (selectedCategory) {
-        "전체" -> bookmarks
-        "정책" -> bookmarks.filter { it.type == BookmarkType.POLICY }
-        "임대주택" -> bookmarks.filter { it.type == BookmarkType.HOUSING }
-        else -> bookmarks
+    val eventsForSelectedDate by remember(selectedLocalDate, allEvents) {
+        derivedStateOf {
+            allEvents.filter { it.endDate == selectedLocalDate }
+        }
+    }
+    
+    // 카테고리별 필터링
+    val filteredEvents = remember(allEvents, selectedCategory) {
+        when (selectedCategory) {
+            "전체" -> allEvents
+            "정책" -> allEvents.filter { it.eventType == EventType.POLICY }
+            "임대주택" -> allEvents.filter { it.eventType == EventType.HOUSING }
+            else -> allEvents
+        }
     }
     
     Scaffold(
@@ -131,7 +176,7 @@ fun CalendarScreen(
                 CalendarCard(
                     selectedDate = selectedDate,
                     onDateSelected = { selectedDate = it },
-                    bookmarks = bookmarks,
+                    events = allEvents,
                     modifier = Modifier.padding(bottom = Spacing.lg)
                 )
                 
@@ -151,22 +196,31 @@ fun CalendarScreen(
                     modifier = Modifier.padding(bottom = Spacing.md)
                 )
                 
-                if (filteredBookmarks.isEmpty()) {
+                if (filteredEvents.isEmpty()) {
                     EmptyDeadlineCard(
                         message = "등록된 일정이 없습니다.",
                         modifier = Modifier.padding(top = Spacing.lg)
                     )
                 } else {
-                    filteredBookmarks.forEach { bookmark ->
+                    filteredEvents.forEach { event ->
                         DeadlineCard(
-                            bookmark = bookmark,
+                            event = event,
                             onDelete = {
-                                selectedBookmarkId = bookmark.id
+                                selectedEventId = event.id
                                 deleteDialogOpen = true
                             },
                             onEditNotification = {
-                                selectedBookmarkId = bookmark.id
-                                editNotifications = bookmark.notifications
+                                selectedEventId = event.id
+                                // 알림 설정 파싱
+                                val gson = Gson()
+                                val notifications = try {
+                                    event.notificationSettings?.let {
+                                        gson.fromJson(it, NotificationSettings::class.java)
+                                    } ?: NotificationSettings()
+                                } catch (e: Exception) {
+                                    NotificationSettings()
+                                }
+                                editNotifications = notifications
                                 notificationDialogOpen = true
                             },
                             modifier = Modifier.padding(bottom = Spacing.sm)
@@ -186,11 +240,15 @@ fun CalendarScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        selectedBookmarkId?.let { id ->
-                            bookmarks = bookmarks.filter { it.id != id }
+                        selectedEventId?.let { id ->
+                            // Room DB에서 삭제
+                    coroutineScope.launch {
+                        repository.deleteEventById(id)
+                        calendarService.removeEventFromCalendar(id)
+                    }
                         }
                         deleteDialogOpen = false
-                        selectedBookmarkId = null
+                        selectedEventId = null
                     },
                     colors = ButtonDefaults.textButtonColors(
                         contentColor = Color.Red
@@ -213,21 +271,34 @@ fun CalendarScreen(
             notifications = editNotifications,
             onNotificationsChange = { editNotifications = it },
             onSave = {
-                selectedBookmarkId?.let { id ->
-                    bookmarks = bookmarks.map {
-                        if (it.id == id) {
-                            it.copy(notifications = editNotifications)
-                        } else {
-                            it
+                selectedEventId?.let { id ->
+                    // 알림 설정을 JSON으로 변환하여 업데이트
+                    val gson = Gson()
+                    val notificationJson = gson.toJson(editNotifications)
+                    
+                    coroutineScope.launch {
+                        val event = allEvents.find { it.id == id }
+                        event?.let {
+                            val updatedEvent = it.copy(notificationSettings = notificationJson)
+                            repository.updateEvent(updatedEvent)
+                            
+                            // 기존 알림 취소 후 재스케줄링
+                            calendarService.removeEventFromCalendar(id)
+                            calendarService.scheduleNotifications(
+                                id,
+                                it.title,
+                                it.endDate,
+                                editNotifications
+                            )
                         }
                     }
                 }
                 notificationDialogOpen = false
-                selectedBookmarkId = null
+                selectedEventId = null
             },
             onDismiss = {
                 notificationDialogOpen = false
-                selectedBookmarkId = null
+                selectedEventId = null
             }
         )
     }
@@ -260,9 +331,13 @@ private fun CalendarHeader() {
 private fun CalendarCard(
     selectedDate: Date,
     onDateSelected: (Date) -> Unit,
-    bookmarks: List<CalendarBookmark>,
+    events: List<CalendarEvent>,
     modifier: Modifier = Modifier
 ) {
+    val selectedLocalDate = remember(selectedDate) {
+        selectedDate.toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+    }
+    
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -274,13 +349,17 @@ private fun CalendarCard(
                 .fillMaxWidth()
                 .padding(Spacing.lg)
         ) {
-            // 간단한 날짜 선택기 (나중에 더 복잡한 캘린더로 교체 가능)
-            Text(
-                text = "날짜 선택 기능은 추후 구현 예정",
-                fontSize = 14.sp,
-                color = AppColors.TextSecondary,
-                modifier = Modifier.padding(bottom = Spacing.md)
+            // 달력 UI
+            CalendarView(
+                selectedDate = selectedLocalDate,
+                events = events,
+                onDateSelected = { date ->
+                    val instant = date.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant()
+                    onDateSelected(Date.from(instant))
+                }
             )
+            
+            Spacer(modifier = Modifier.height(Spacing.md))
             
             // 범례
             Column(
@@ -297,7 +376,7 @@ private fun CalendarCard(
                 )
                 LegendItem(
                     color = Color(0xFFFBBF24),
-                    label = "알림 설정일"
+                    label = "오늘"
                 )
             }
         }
@@ -360,13 +439,15 @@ private fun CategoryFilter(
 
 @Composable
 private fun DeadlineCard(
-    bookmark: CalendarBookmark,
+    event: CalendarEvent,
     onDelete: () -> Unit,
     onEditNotification: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val daysLeft = getDaysLeft(bookmark.deadline)
-    val dateFormat = SimpleDateFormat("yyyy.MM.dd", Locale.getDefault())
+    val today = LocalDate.now()
+    val daysLeft = java.time.temporal.ChronoUnit.DAYS.between(today, event.endDate).toInt()
+    val dateFormat = java.time.format.DateTimeFormatter.ofPattern("yyyy.MM.dd")
+    val deadlineStr = event.endDate.format(dateFormat)
     
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -392,7 +473,7 @@ private fun DeadlineCard(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
                             .background(
-                                if (bookmark.type == BookmarkType.POLICY) {
+                                if (event.eventType == EventType.POLICY) {
                                     AppColors.Purple.copy(alpha = 0.1f)
                                 } else {
                                     AppColors.BackgroundGradientStart.copy(alpha = 0.1f)
@@ -401,9 +482,9 @@ private fun DeadlineCard(
                             .padding(horizontal = Spacing.sm, vertical = 4.dp)
                     ) {
                         Text(
-                            text = if (bookmark.type == BookmarkType.POLICY) "정책" else "임대주택",
+                            text = if (event.eventType == EventType.POLICY) "정책" else "임대주택",
                             fontSize = 12.sp,
-                            color = if (bookmark.type == BookmarkType.POLICY) {
+                            color = if (event.eventType == EventType.POLICY) {
                                 AppColors.Purple
                             } else {
                                 AppColors.BackgroundGradientStart
@@ -445,7 +526,7 @@ private fun DeadlineCard(
             }
             
             Text(
-                text = bookmark.title,
+                text = event.title,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 color = AppColors.TextPrimary,
@@ -456,12 +537,12 @@ private fun DeadlineCard(
                 verticalArrangement = Arrangement.spacedBy(Spacing.xs)
             ) {
                 Text(
-                    text = "${if (bookmark.type == BookmarkType.POLICY) "신청마감일" else "접수마감일"}: ${bookmark.deadline}",
+                    text = "${if (event.eventType == EventType.POLICY) "신청마감일" else "접수마감일"}: $deadlineStr",
                     fontSize = 14.sp,
                     color = AppColors.TextSecondary
                 )
                 
-                bookmark.organization?.let {
+                event.organization?.let {
                     Text(
                         text = "기관: $it",
                         fontSize = 14.sp,
@@ -470,28 +551,39 @@ private fun DeadlineCard(
                 }
                 
                 // 알림 태그들
+                val gson = Gson()
+                val notifications = remember(event.notificationSettings) {
+                    try {
+                        event.notificationSettings?.let {
+                            gson.fromJson(it, NotificationSettings::class.java)
+                        } ?: NotificationSettings()
+                    } catch (e: Exception) {
+                        NotificationSettings()
+                    }
+                }
+                
                 Row(
                     modifier = Modifier.padding(top = Spacing.xs),
                     horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (bookmark.notifications.sevenDays) {
+                    if (notifications.sevenDays) {
                         NotificationTag(
-                            text = "7일전 ${bookmark.notifications.sevenDaysTime}",
+                            text = "7일전 ${notifications.sevenDaysTime}",
                             color = AppColors.Info.copy(alpha = 0.1f),
                             textColor = AppColors.Info
                         )
                     }
-                    if (bookmark.notifications.oneDay) {
+                    if (notifications.oneDay) {
                         NotificationTag(
-                            text = "1일전 ${bookmark.notifications.oneDayTime}",
+                            text = "1일전 ${notifications.oneDayTime}",
                             color = AppColors.Success.copy(alpha = 0.1f),
                             textColor = AppColors.Success
                         )
                     }
-                    if (bookmark.notifications.custom) {
+                    if (notifications.custom) {
                         NotificationTag(
-                            text = "${bookmark.notifications.customDays}일전 ${bookmark.notifications.customTime}",
+                            text = "${notifications.customDays}일전 ${notifications.customTime}",
                             color = AppColors.Purple.copy(alpha = 0.1f),
                             textColor = AppColors.Purple
                         )

@@ -23,6 +23,7 @@ import androidx.lifecycle.lifecycleScope
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.example.app.ProfilePreferences
 
 class SplashActivity : ComponentActivity() {
 
@@ -55,6 +56,7 @@ class SplashActivity : ComponentActivity() {
     private fun navigateToNextScreen() {
         val currentUser = auth.currentUser
         val hasCompletedProfile = ProfilePreferences.hasCompletedProfile(this)
+        val isFirstLogin = ProfilePreferences.isFirstLogin(this)
 
         val nextActivity = when {
             // 로그인되어 있고 프로필도 완료된 경우 -> MainActivity
@@ -65,9 +67,13 @@ class SplashActivity : ComponentActivity() {
             currentUser != null && !hasCompletedProfile -> {
                 ProfileSetupActivity::class.java
             }
-            // 로그인되지 않은 경우 -> AuthActivity (WelcomeActivity 제거)
+            // 로그인되지 않은 경우 -> 첫 로그인이면 WelcomeActivity, 아니면 AuthActivity
             else -> {
-                AuthActivity::class.java
+                if (isFirstLogin) {
+                    WelcomeActivity::class.java
+                } else {
+                    AuthActivity::class.java
+                }
             }
         }
 

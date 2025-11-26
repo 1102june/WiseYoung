@@ -30,6 +30,8 @@ import com.example.app.ui.theme.AppColors
 import com.example.app.ui.theme.Spacing
 import com.example.app.ui.theme.ThemeWrapper
 import com.example.app.ui.components.BottomNavigationBar
+import com.example.app.service.CalendarService
+import androidx.compose.ui.platform.LocalContext
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -333,13 +335,26 @@ fun PolicyListScreen(
     }
     
     // Notification Dialog
+    val context = LocalContext.current
+    val calendarService = remember { CalendarService(context) }
+    
     if (showNotificationDialog) {
         PolicyNotificationDialog(
             notifications = notifications,
             onNotificationsChange = { notifications = it },
             onSave = {
-                selectedPolicy?.let {
-                    bookmarkedPolicies = bookmarkedPolicies + it.title
+                selectedPolicy?.let { policy ->
+                    // 북마크 추가
+                    bookmarkedPolicies = bookmarkedPolicies + policy.title
+                    
+                    // 캘린더에 일정 추가
+                    calendarService.addPolicyToCalendar(
+                        title = policy.title,
+                        organization = policy.organization,
+                        deadline = policy.deadline,
+                        policyId = policy.id.toString(),
+                        notificationSettings = notifications
+                    )
                 }
                 showNotificationDialog = false
                 selectedPolicy = null

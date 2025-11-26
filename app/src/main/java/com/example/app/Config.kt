@@ -12,20 +12,29 @@ object Config {
     private const val isDebug = true
     
     // 서버 기본 URL
-    // 🔥 실제 기기 + USB 연결 시:
-    //    1. ADB 포트 포워딩 실행 (Android Studio Terminal):
-    //       C:\Users\USER\AppData\Local\Android\Sdk\platform-tools\adb.exe reverse tcp:8080 tcp:8080
-    //    2. 포트 포워딩 확인: adb reverse --list
-    //    3. 앱 재시작
-    //    → 현재 설정: "http://127.0.0.1:8080" (ADB 포트 포워딩 필요)
+    // 🔥 USB 테더링 사용 시:
+    //    USB 테더링을 사용하면 ADB 포트 포워딩이 불안정할 수 있으므로
+    //    컴퓨터의 실제 IP 주소를 사용하는 것을 권장합니다.
     //
-    // 🔥 ADB 포트 포워딩이 안 될 때 (대안):
-    //    아래 주석을 해제하고 위의 BASE_URL_DEV를 주석 처리
-    //    컴퓨터와 기기가 같은 Wi-Fi 네트워크에 연결되어 있어야 함
+    // 🔥 설정 방법:
+    //    1. 컴퓨터 IP 확인: PowerShell에서 "ipconfig | findstr IPv4" 실행
+    //    2. 아래 BASE_URL_DEV에 컴퓨터 IP 주소 입력
+    //    3. Spring Boot 서버가 모든 인터페이스에서 수신하도록 설정 확인
+    //       (application.yml에서 server.address=0.0.0.0 또는 주석 처리)
+    //
+    // 🔥 ADB 포트 포워딩 사용 (권장):
+    //    USB로 기기를 연결한 후 다음 명령어 실행:
+    //    adb reverse tcp:8080 tcp:8080
+    //    이 방법이 가장 안정적이며, 네트워크 설정과 무관하게 작동합니다.
     private const val BASE_URL_DEV = "http://127.0.0.1:8080"  // USB 연결 시 localhost (ADB 포트 포워딩 필요)
-    // private const val BASE_URL_DEV = "http://172.29.121.3:8080"  // 컴퓨터 IP 사용 (USB 연결 시 대안)
+    
+    // 🔥 USB 테더링 사용 시 (ADB 포트 포워딩이 작동하지 않는 경우):
+    //    아래 주석을 해제하고 컴퓨터의 USB 테더링 네트워크 어댑터 IP 주소 사용
+    //    컴퓨터 IP 확인: PowerShell에서 "ipconfig /all" 실행 후 USB 테더링 어댑터 찾기
+    //    기기 IP 확인: Android 기기 설정 > 네트워크 > USB 테더링에서 확인
+    //    컴퓨터와 기기가 같은 서브넷에 있어야 함 (예: 172.16.5.x)
+    // private const val BASE_URL_DEV = "http://172.16.2.178:8080"  // USB 테더링 사용 시 컴퓨터 IP 주소
     // private const val BASE_URL_DEV = "http://10.0.2.2:8080"  // Android 에뮬레이터 사용 시
-    // private const val BASE_URL_DEV = "http://192.168.x.x:8080"  // Wi-Fi 연결 시 (컴퓨터 IP 주소로 변경)
     private const val BASE_URL_PROD = "https://your-production-server.com"
     
     // 현재 사용할 서버 URL

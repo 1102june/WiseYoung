@@ -3,6 +3,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("com.google.gms.google-services")  // Firebase Plugin
     id("org.jetbrains.kotlin.plugin.compose")
+    id("kotlin-kapt")  // Room 컴파일러를 위한 kapt 플러그인
 }
 
 android {
@@ -80,6 +81,19 @@ android {
 
         // 🔹 Activity result
         implementation("androidx.activity:activity-ktx:1.11.0")
+
+        // 🔹 Room Database
+        val roomVersion = "2.6.1"
+        implementation("androidx.room:room-runtime:$roomVersion")
+        implementation("androidx.room:room-ktx:$roomVersion")
+        annotationProcessor("androidx.room:room-compiler:$roomVersion")
+        kapt("androidx.room:room-compiler:$roomVersion")
+
+        // 🔹 WorkManager (로컬 알림 스케줄링)
+        implementation("androidx.work:work-runtime-ktx:2.9.0")
+
+        // 🔹 Gson (JSON 파싱)
+        implementation("com.google.code.gson:gson:2.10.1")
 
         // 🔹 테스트
         testImplementation(libs.junit)
