@@ -103,6 +103,15 @@ interface ApiService {
     suspend fun getMainPage(
         @Header("X-User-Id") userId: String
     ): Response<ApiResponse<MainPageResponse>>
+
+    /**
+     * 사용자 프로필 조회
+     * GET /api/profile
+     */
+    @GET("api/profile")
+    suspend fun getProfile(
+        @Header("X-User-Id") userId: String
+    ): Response<ApiResponse<UserProfileResponse>>
     
     // ========== 사용자 활동 로그 ==========
     
@@ -124,7 +133,8 @@ interface ApiService {
      */
     @GET("api/policy/active")
     suspend fun getActivePolicies(
-        @Query("userId") userId: String = "test-user"
+        @Query("userId") userId: String = "test-user",
+        @Query("category") category: String? = null
     ): Response<ApiResponse<List<PolicyResponse>>>
     
     /**
