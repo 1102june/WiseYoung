@@ -560,10 +560,10 @@ fun RegisterScreen(
         )
 
         Column(Modifier.fillMaxWidth()) {
-            PwRule(hasMinLength, "8자리 이상")
-            PwRule(hasEng, "영어 포함")
-            PwRule(hasNum, "숫자 포함")
-            PwRule(hasSpecial, "특수문자 포함")
+            RegisterPwRule(hasMinLength, "8자리 이상")
+            RegisterPwRule(hasEng, "영어 포함")
+            RegisterPwRule(hasNum, "숫자 포함")
+            RegisterPwRule(hasSpecial, "특수문자 포함")
         }
 
         Spacer(Modifier.height(12.dp))
@@ -632,7 +632,7 @@ fun RegisterScreen(
 }
 
 @Composable
-fun PwRule(valid: Boolean, text: String) {
+fun RegisterPwRule(valid: Boolean, text: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()

@@ -75,9 +75,22 @@ android {
 
         // 🔹 Google 로그인
         implementation("com.google.android.gms:play-services-auth:21.4.0")
+        
+        // 🔹 카카오맵 SDK v2 (로컬 파일)
+        // 다운로드한 AAR/JAR 파일을 app/libs 폴더에 넣어주세요
+        implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar", "*.aar"))))
 
         // 🔹 OkHttp
         implementation("com.squareup.okhttp3:okhttp:4.9.3")
+        
+        // 🔹 Retrofit
+        implementation("com.squareup.retrofit2:retrofit:2.9.0")
+        implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+        implementation("com.squareup.okhttp3:logging-interceptor:4.9.3")
+
+        // 🔹 Coroutines
+        implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+        implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
 
         // 🔹 Activity result
         implementation("androidx.activity:activity-ktx:1.11.0")

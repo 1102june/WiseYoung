@@ -23,8 +23,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.example.app.data.model.ChatRequest
+import com.example.app.data.model.ChatResponse
+import com.example.app.network.NetworkModule
 import com.example.app.ui.theme.AppColors
 import com.example.app.ui.theme.Spacing
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -68,10 +72,14 @@ fun ChatbotDialog(
 ) {
     if (!isOpen) return
     
+    val auth = FirebaseAuth.getInstance()
+    val userId = auth.currentUser?.uid
+    
     Dialog(onDismissRequest = onClose) {
         ChatbotContent(
             onClose = onClose,
-            context = context
+            context = context,
+            userId = userId
         )
     }
 }
@@ -79,7 +87,8 @@ fun ChatbotDialog(
 @Composable
 private fun ChatbotContent(
     onClose: () -> Unit,
-    context: ChatbotContext
+    context: ChatbotContext,
+    userId: String? = null
 ) {
     var messages by remember(context) {
         mutableStateOf<List<ChatMessage>>(
@@ -194,6 +203,7 @@ private fun ChatbotContent(
                         chip.label,
                         messages,
                         coroutineScope,
+                        userId,
                         onMessagesChange = { messages = it }
                     )
                 }
@@ -211,6 +221,7 @@ private fun ChatbotContent(
                             inputValue,
                             messages,
                             coroutineScope,
+                            userId,
                             onMessagesChange = { messages = it }
                         )
                         inputValue = ""
@@ -426,6 +437,7 @@ private fun handleSend(
     text: String,
     currentMessages: List<ChatMessage>,
     coroutineScope: CoroutineScope,
+    userId: String?,
     onMessagesChange: (List<ChatMessage>) -> Unit
 ) {
     if (text.trim().isEmpty()) return
@@ -439,38 +451,64 @@ private fun handleSend(
     val updatedMessages = currentMessages + userMessage
     onMessagesChange(updatedMessages)
     
-    // Simulate bot response
+    // Gemini API 호출
     coroutineScope.launch {
-        delay(1000)
-        
-        val botResponse = when {
-            text.contains("AI 추천") -> {
-                "나이, 거주지, 관심사를 기반으로 맞춤 정책을 추천해드립니다. 현재 회원님께는 청년 월세 특별지원, 청년 창업 지원금 등이 적합합니다."
+        try {
+            // 대화 ID는 마지막 메시지에서 추출하거나 새로 생성
+            val conversationId = null // 필요시 구현
+            
+            val request = ChatRequest(
+                message = text,
+                userId = userId,
+                conversationId = conversationId
+            )
+            
+            val response = NetworkModule.apiService.chat(userId, request)
+            
+            if (response.isSuccessful && response.body()?.success == true) {
+                val chatResponse = response.body()?.data
+                chatResponse?.let {
+                    val botMessage = ChatMessage(
+                        id = updatedMessages.size + 1,
+                        text = it.response,
+                        sender = MessageSender.BOT
+                    )
+                    
+                    var finalMessages = updatedMessages + botMessage
+                    
+                    // ActionLink가 있으면 추가 메시지로 표시
+                    if (it.actionLinks.isNotEmpty()) {
+                        val linksText = it.actionLinks.joinToString("\n") { link ->
+                            "📌 ${link.title} (${link.type}: ${link.id})"
+                        }
+                        val linkMessage = ChatMessage(
+                            id = finalMessages.size + 1,
+                            text = "관련 정보:\n$linksText",
+                            sender = MessageSender.BOT
+                        )
+                        finalMessages = finalMessages + linkMessage
+                    }
+                    
+                    onMessagesChange(finalMessages)
+                }
+            } else {
+                // API 실패 시 기본 응답
+                val errorMessage = ChatMessage(
+                    id = updatedMessages.size + 1,
+                    text = "죄송합니다. 일시적인 오류가 발생했습니다. 다시 시도해주세요.",
+                    sender = MessageSender.BOT
+                )
+                onMessagesChange(updatedMessages + errorMessage)
             }
-            text.contains("정책 검색") -> {
-                "어떤 분야의 정책을 찾으시나요? 취업지원, 주거지원, 창업지원 중에서 선택하시거나 직접 검색어를 입력해주세요."
-            }
-            text.contains("임대주택") -> {
-                "회원님 근처의 임대주택 정보를 찾아드릴게요. 현재 수원시 인근에 LH 임대주택 2곳, SH 임대주택 1곳이 있습니다."
-            }
-            text.contains("일정") -> {
-                "캘린더에 등록된 일정을 확인하시겠어요? 현재 마감임박 정책 3개가 있습니다."
-            }
-            text.contains("도움말") -> {
-                "Wisebot은 청년정책 추천, 임대주택 검색, 일정 관리를 도와드립니다. 궁금하신 점을 자유롭게 질문해주세요!"
-            }
-            else -> {
-                "\"$text\"에 대한 정보를 찾고 있습니다. 좀 더 구체적으로 말씀해주시면 더 정확한 답변을 드릴 수 있어요!"
-            }
+        } catch (e: Exception) {
+            // 네트워크 오류 시 기본 응답
+            val errorMessage = ChatMessage(
+                id = updatedMessages.size + 1,
+                text = "네트워크 연결을 확인해주세요. 잠시 후 다시 시도해주세요.",
+                sender = MessageSender.BOT
+            )
+            onMessagesChange(updatedMessages + errorMessage)
         }
-        
-        val botMessage = ChatMessage(
-            id = updatedMessages.size + 1,
-            text = botResponse,
-            sender = MessageSender.BOT
-        )
-        
-        onMessagesChange(updatedMessages + botMessage)
     }
 }
 

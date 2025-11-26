@@ -10,8 +10,11 @@ import androidx.compose.ui.Modifier
 import com.example.app.ui.theme.ThemeWrapper
 import com.wiseyoung.app.R
 import com.example.app.FcmTokenService
+import com.google.firebase.auth.FirebaseAuth
 
 class MainActivity : ComponentActivity() {
+    private val auth = FirebaseAuth.getInstance()
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -19,9 +22,12 @@ class MainActivity : ComponentActivity() {
         // FCM 토큰 가져오기 및 서버에 저장
         FcmTokenService.getAndSaveToken()
         
+        val userId = auth.currentUser?.uid
+        
         setContent {
             ThemeWrapper {
                 HomeScreen(
+                    userId = userId,
                     onNavigateNotifications = {
                         val intent = Intent(this, NotificationActivity::class.java)
                         startActivity(intent)

@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import com.example.app.NotificationSettings
 import com.example.app.ui.theme.AppColors
@@ -35,6 +36,11 @@ import androidx.compose.ui.platform.LocalContext
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.Calendar
+import android.view.ViewGroup
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import com.google.firebase.auth.FirebaseAuth
 
 data class ApartmentItem(
     val id: Int,
@@ -113,12 +119,33 @@ data class HousingFilters(
     var housingType: String = "전체"
 )
 
+// 주소에서 지역 추출 함수
+private fun extractRegionFromAddress(address: String): String {
+    if (address.isEmpty()) return ""
+    // 주소에서 첫 번째 공백 이전의 부분을 지역으로 추출
+    // 예: "수원시 팔달구..." -> "수원시"
+    val parts = address.split(" ")
+    if (parts.isNotEmpty()) {
+        val firstPart = parts[0]
+        // "시", "도", "군", "구" 등이 포함된 경우 그대로 반환
+        if (firstPart.contains("시") || firstPart.contains("도") || firstPart.contains("군")) {
+            return firstPart
+        }
+    }
+    return ""
+}
+
 class HousingMapActivity : ComponentActivity() {
+    private val auth = FirebaseAuth.getInstance()
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val userId = auth.currentUser?.uid ?: "test-user"
+        
         setContent {
             ThemeWrapper {
                 HousingMapScreen(
+                    userId = userId,
                     onNavigateHome = {
                         startActivity(Intent(this, MainActivity::class.java))
                         finish()
@@ -146,6 +173,7 @@ class HousingMapActivity : ComponentActivity() {
 
 @Composable
 fun HousingMapScreen(
+    userId: String,
     onNavigateHome: () -> Unit,
     onNavigateCalendar: () -> Unit,
     onNavigateBookmark: () -> Unit,
@@ -158,6 +186,13 @@ fun HousingMapScreen(
     var showFilterDialog by remember { mutableStateOf(false) }
     var selectedHousing by remember { mutableStateOf<ApartmentItem?>(null) }
     var bookmarkedHousings by remember { mutableStateOf(setOf<String>()) }
+    
+    // API 데이터
+    var housingList by remember { mutableStateOf<List<com.example.app.data.model.HousingResponse>>(emptyList()) }
+    var apartmentsList by remember { mutableStateOf<List<ApartmentItem>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
     
     var filters by remember {
         mutableStateOf<HousingFilters>(
@@ -179,7 +214,56 @@ fun HousingMapScreen(
         )
     }
     
-    val filteredApartments = apartments.filter { apt ->
+    // 주택 목록 로드
+    LaunchedEffect(userId) {
+        isLoading = true
+        errorMessage = null
+        try {
+            val response = com.example.app.network.NetworkModule.apiService.getRecommendedHousing(userId, null, null, null, null)
+            if (response.isSuccessful && response.body()?.success == true) {
+                housingList = response.body()?.data ?: emptyList()
+                // HousingResponse를 ApartmentItem으로 변환
+                apartmentsList = housingList.mapIndexed { index, housing ->
+                    ApartmentItem(
+                        id = index + 1,
+                        name = housing.name,
+                        distance = housing.distanceFromUser?.let { "${(it / 1000).toInt()}km" } ?: "거리 정보 없음",
+                        deposit = (housing.deposit ?: 0) / 10000, // 만원 단위
+                        depositDisplay = "${(housing.deposit ?: 0) / 10000}만원",
+                        monthlyRent = (housing.monthlyRent ?: 0) / 10000, // 만원 단위
+                        monthlyRentDisplay = "${(housing.monthlyRent ?: 0) / 10000}만원",
+                        deadline = housing.applicationEnd?.take(10)?.replace("-", ".") ?: "",
+                        address = housing.address ?: "",
+                        area = housing.supplyArea?.toInt() ?: 0,
+                        completionDate = housing.completeDate ?: "",
+                        organization = housing.organization ?: "",
+                        count = 0,
+                        region = extractRegionFromAddress(housing.address ?: ""),
+                        housingType = housing.housingType ?: "",
+                        heatingType = "",
+                        hasElevator = false,
+                        parkingSpaces = 0,
+                        convertibleDeposit = "",
+                        totalUnits = 0
+                    )
+                }
+                // 데이터가 없으면 기본 데이터 사용
+                if (apartmentsList.isEmpty()) {
+                    apartmentsList = apartments
+                }
+            } else {
+                errorMessage = response.body()?.message ?: "주택 목록을 불러올 수 없습니다."
+                apartmentsList = apartments
+            }
+        } catch (e: Exception) {
+            errorMessage = "네트워크 오류: ${e.message}"
+            apartmentsList = apartments
+        } finally {
+            isLoading = false
+        }
+    }
+    
+    val filteredApartments = apartmentsList.filter { apt ->
         if (filters.region != "전체" && apt.region != filters.region) return@filter false
         if (apt.deposit > filters.maxDeposit) return@filter false
         if (apt.monthlyRent > filters.maxMonthlyRent) return@filter false
@@ -363,16 +447,66 @@ private fun MapContainer(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(1f)
-                    .background(AppColors.Border),
-                contentAlignment = Alignment.Center
+                    .background(AppColors.Border)
             ) {
-                // Mock Map Icon
-                Icon(
-                    imageVector = Icons.Default.LocationOn,
-                    contentDescription = "Map",
-                    tint = AppColors.TextTertiary,
-                    modifier = Modifier.size(48.dp)
+                // 카카오맵 SDK v2 MapView
+                // 다운로드한 SDK 파일의 정확한 패키지명에 따라 import를 수정해야 할 수 있습니다.
+                // 일반적으로: com.kakao.vectormap.MapView 또는 com.kakao.maps.MapView
+                var mapView by remember { mutableStateOf<Any?>(null) }
+                
+                AndroidView(
+                    factory = { ctx ->
+                        // 카카오맵 SDK v2 MapView 생성 시도
+                        // 실제 패키지명은 다운로드한 SDK에 따라 다를 수 있습니다
+                        val mapViewInstance = try {
+                            val mapViewClass = Class.forName("com.kakao.vectormap.MapView")
+                            mapViewClass.getConstructor(android.content.Context::class.java)
+                                .newInstance(ctx) as android.view.View
+                        } catch (e: ClassNotFoundException) {
+                            // 다른 패키지명 시도
+                            try {
+                                val mapViewClass = Class.forName("com.kakao.maps.MapView")
+                                mapViewClass.getConstructor(android.content.Context::class.java)
+                                    .newInstance(ctx) as android.view.View
+                            } catch (e2: Exception) {
+                                // SDK를 찾을 수 없는 경우 Mock UI 표시
+                                null
+                            }
+                        }
+                        
+                        if (mapViewInstance != null) {
+                            mapViewInstance.layoutParams = ViewGroup.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.MATCH_PARENT
+                            )
+                            mapView = mapViewInstance
+                            mapViewInstance
+                        } else {
+                            // Mock UI 표시
+                            android.widget.TextView(ctx).apply {
+                                text = "카카오맵 SDK 파일을\napp/libs 폴더에 넣어주세요"
+                                textSize = 12f
+                                gravity = android.view.Gravity.CENTER
+                                setTextColor(android.graphics.Color.GRAY)
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize()
                 )
+                
+                // MapView 생명주기 관리
+                DisposableEffect(mapView) {
+                    onDispose {
+                        mapView?.let {
+                            try {
+                                val onDestroyMethod = it.javaClass.getMethod("onDestroy")
+                                onDestroyMethod.invoke(it)
+                            } catch (e: Exception) {
+                                // 생명주기 메서드가 없는 경우 무시
+                            }
+                        }
+                    }
+                }
                 
                 // Map Controls - Right
                 Column(
