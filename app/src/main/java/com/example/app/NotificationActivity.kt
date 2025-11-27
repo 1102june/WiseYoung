@@ -42,72 +42,8 @@ enum class NotificationIcon {
     BELL, HOME
 }
 
-val notifications = listOf(
-    NotificationItem(
-        id = 1,
-        icon = NotificationIcon.BELL,
-        title = "[청년 월세 한시 특별지원]",
-        subtitle = "마감이 3일 남았어요!",
-        organization = "경기도 수원시",
-        deadline = "2025.03.31"
-    ),
-    NotificationItem(
-        id = 2,
-        icon = NotificationIcon.BELL,
-        title = "[청년 특별지원]",
-        subtitle = "마감이 3일 남았어요!",
-        organization = "고용노동부",
-        deadline = "2025.04.15"
-    ),
-    NotificationItem(
-        id = 3,
-        icon = NotificationIcon.BELL,
-        title = "[청년 자격증 지원금]",
-        subtitle = "마감이 3일 남았어요!",
-        organization = "교육부",
-        deadline = "2025.04.20"
-    ),
-    NotificationItem(
-        id = 4,
-        icon = NotificationIcon.HOME,
-        title = "[AA 아파트 101동]",
-        subtitle = "접수 마감이 7일 남았어요!",
-        organization = "한국토지주택공사(LH)",
-        deadline = "2025.05.15"
-    ),
-    NotificationItem(
-        id = 5,
-        icon = NotificationIcon.HOME,
-        title = "[BB 아파트 103동]",
-        subtitle = "접수 마감이 10일 남았어요!",
-        organization = "SH서울주택도시공사",
-        deadline = "2025.05.20"
-    ),
-    NotificationItem(
-        id = 6,
-        icon = NotificationIcon.BELL,
-        title = "[청년 창업 멘토링]",
-        subtitle = "신규 정책이 등록되었어요!",
-        organization = "서울시",
-        deadline = "2025.07.30"
-    ),
-    NotificationItem(
-        id = 7,
-        icon = NotificationIcon.BELL,
-        title = "[청년 취업 성공패키지]",
-        subtitle = "관심 정책에 업데이트가 있어요!",
-        organization = "고용노동부",
-        deadline = "2025.06.20"
-    ),
-    NotificationItem(
-        id = 8,
-        icon = NotificationIcon.HOME,
-        title = "[CC 아파트 205동]",
-        subtitle = "새로운 임대주택이 등록되었어요!",
-        organization = "경기주택도시공사",
-        deadline = "2025.06.10"
-    )
-)
+// 실제 알림 데이터는 서버/DB 또는 캘린더 알림에서 가져오도록 하고,
+// 여기서는 더미 데이터를 정의하지 않습니다.
 
 class NotificationActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -141,20 +77,20 @@ fun NotificationScreen(
             onCalendar = onNavigateCalendar
         )
         
-        // Notification List
+        // Notification List (현재는 서버 연동 전이므로 빈 상태 표시)
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.md)
+                .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.md),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            notifications.forEach { notification ->
-                NotificationCard(
-                    notification = notification,
-                    onNavigate = onNavigateCalendar,
-                    modifier = Modifier.padding(bottom = Spacing.sm)
-                )
-            }
+            Text(
+                text = "도착한 알림이 없습니다.",
+                fontSize = 14.sp,
+                color = AppColors.TextSecondary
+            )
         }
     }
 }

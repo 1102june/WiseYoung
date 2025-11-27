@@ -76,9 +76,9 @@ android {
         // 🔹 Google 로그인
         implementation("com.google.android.gms:play-services-auth:21.4.0")
         
-        // 🔹 카카오맵 SDK v2 (로컬 파일)
-        // 다운로드한 AAR/JAR 파일을 app/libs 폴더에 넣어주세요
-        implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar", "*.aar"))))
+        // 🔹 카카오맵 SDK v2 (Maven 의존성)
+        // 참고: https://developers.kakao.com/
+        implementation("com.kakao.maps.open:android:2.11.9")
 
         // 🔹 OkHttp
         implementation("com.squareup.okhttp3:okhttp:4.9.3")

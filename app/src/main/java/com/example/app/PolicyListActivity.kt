@@ -290,12 +290,13 @@ fun PolicyListScreen(
                 }
             }
 
-            // 2) 정책 목록 조회
+            // 2) 맞춤 정책 추천 목록 조회
             // "전체"일 때는 category 파라미터를 보내지 않고, 나머지 탭에서는 카테고리 이름을 함께 전송
             val categoryParam = if (selectedCategory == "전체") null else selectedCategory
-            val response = com.example.app.network.NetworkModule.apiService.getActivePolicies(
+            val response = com.example.app.network.NetworkModule.apiService.getRecommendedPolicies(
                 userId = userId,
-                category = categoryParam
+                category = categoryParam,
+                limit = 30
             )
             if (response.isSuccessful && response.body()?.success == true) {
                 val policies = response.body()?.data ?: emptyList()

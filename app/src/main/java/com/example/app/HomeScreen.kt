@@ -56,64 +56,6 @@ data class PolicyRecommendation(
     val deadline: String
 )
 
-val aiRecommendations = listOf(
-    PolicyRecommendation(
-        id = 1,
-        title = "청년지원금",
-        date = "18-25세 2025.4.30",
-        organization = "고용노동부",
-        age = "만 18세 ~ 25세",
-        period = "2025.03.01 ~ 2025.04.30",
-        content = "취업 준비 중인 청년에게 월 50만원의 지원금을 최대 6개월간 지원하는 정책입니다.",
-        applicationMethod = "고용센터 방문 또는 온라인 신청",
-        deadline = "2025.04.30"
-    ),
-    PolicyRecommendation(
-        id = 2,
-        title = "청년 창업 지원금",
-        date = "20-39세 2025.5.15",
-        organization = "중소벤처기업부",
-        age = "만 20세 ~ 39세",
-        period = "2025.04.01 ~ 2025.05.15",
-        content = "창업 초기 기업에게 사업화 자금 및 멘토링을 지원하는 프로그램입니다.",
-        applicationMethod = "K-Startup 홈페이지에서 온라인 신청",
-        deadline = "2025.05.15"
-    ),
-    PolicyRecommendation(
-        id = 3,
-        title = "청년 주거 안정 지원",
-        date = "19-34세 2025.6.30",
-        organization = "국토교통부",
-        age = "만 19세 ~ 34세",
-        period = "2025.05.01 ~ 2025.06.30",
-        content = "청년 전월세 보증금 및 월세를 지원하여 주거 안정을 도모합니다.",
-        applicationMethod = "복지로 홈페이지 또는 주민센터 방문 신청",
-        deadline = "2025.06.30"
-    ),
-    PolicyRecommendation(
-        id = 4,
-        title = "청년 일자리 도약 장려금",
-        date = "18-34세 2025.05.15",
-        organization = "경기도",
-        age = "만 18세 ~ 34세",
-        period = "2025.02.01 ~ 2025.05.15",
-        content = "중소·중견기업에 취업한 청년에게 3년간 최대 1,200만원의 장려금을 지원합니다.",
-        applicationMethod = "경기일자리재단 홈페이지에서 온라인 신청",
-        deadline = "2025.05.15"
-    ),
-    PolicyRecommendation(
-        id = 5,
-        title = "청년 전월세 보증금 대출",
-        date = "19-34세 2025.12.31",
-        organization = "주택도시기금",
-        age = "만 19세 ~ 34세",
-        period = "2025.01.01 ~ 2025.12.31",
-        content = "전월세 보증금 마련이 어려운 청년에게 최대 1억원까지 저금리로 대출해주는 상품입니다.",
-        applicationMethod = "금융기관 방문 또는 주택도시기금 홈페이지 신청",
-        deadline = "2025.12.31"
-    )
-)
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
@@ -156,7 +98,7 @@ fun HomeScreen(
         )
     }
     
-    // 메인 페이지 데이터 로드
+    // 메인 페이지 데이터 로드 (AI 추천 정책은 항상 서버 데이터만 사용)
     LaunchedEffect(userId) {
         if (userId != null) {
             isLoading = true
@@ -170,7 +112,7 @@ fun HomeScreen(
                         aiRecommendationsList = recommendations.mapNotNull { rec ->
                             rec.policy?.let { policy ->
                                 PolicyRecommendation(
-                                    id = rec.recId.toInt(),
+                                    id = rec.recId?.toInt() ?: 0,
                                     title = policy.title,
                                     date = "${policy.ageStart ?: 0}-${policy.ageEnd ?: 0}세 ${policy.applicationEnd?.take(10)?.replace("-", ".") ?: ""}",
                                     organization = policy.region ?: "",
@@ -183,39 +125,24 @@ fun HomeScreen(
                             }
                         }
                     }
-                    // 데이터가 없으면 기본 데이터 사용
-                    if (aiRecommendationsList.isEmpty()) {
-                        aiRecommendationsList = aiRecommendations
-                    }
                 } else {
                     errorMessage = response.body()?.message ?: "데이터를 불러올 수 없습니다."
-                    // 에러 시 기본 데이터 사용
-                    aiRecommendationsList = aiRecommendations
                 }
             } catch (e: Exception) {
                 errorMessage = "네트워크 오류: ${e.message}"
-                // 에러 시 기본 데이터 사용
-                aiRecommendationsList = aiRecommendations
             } finally {
                 isLoading = false
             }
         } else {
-            // userId가 없으면 기본 데이터 사용
-            aiRecommendationsList = aiRecommendations
+            // userId가 없으면 추천 데이터를 불러올 수 없음
             isLoading = false
         }
     }
     
-    if (aiRecommendationsList.isEmpty() && !isLoading) {
-        aiRecommendationsList = aiRecommendations
-    }
-    
-    val currentPolicy = if (aiRecommendationsList.isNotEmpty()) {
-        aiRecommendationsList[currentIndex % aiRecommendationsList.size]
-    } else {
-        aiRecommendations[0]
-    }
-    val isBookmarked = bookmarkedPolicies.contains(currentPolicy.title)
+    val currentPolicy = aiRecommendationsList.getOrNull(
+        if (aiRecommendationsList.isNotEmpty()) currentIndex % aiRecommendationsList.size else 0
+    )
+    val isBookmarked = currentPolicy?.let { bookmarkedPolicies.contains(it.title) } ?: false
     
     // 시스템 뒤로가기 버튼 처리
     BackHandler(onBack = onBack)
@@ -285,55 +212,67 @@ fun HomeScreen(
                     )
                     
                     // 슬라이드 카드
-                    PolicyCard(
-                        policy = currentPolicy,
-                        isExpanded = isExpanded,
-                        isTransitioning = isTransitioning,
-                        isBookmarked = isBookmarked,
-                        currentIndex = currentIndex,
-                        totalCount = aiRecommendationsList.size,
-                        onToggleExpanded = { isExpanded = !isExpanded },
-                        onPrevious = {
-                            if (aiRecommendationsList.isNotEmpty()) {
+                    if (currentPolicy != null) {
+                        PolicyCard(
+                            policy = currentPolicy,
+                            isExpanded = isExpanded,
+                            isTransitioning = isTransitioning,
+                            isBookmarked = isBookmarked,
+                            currentIndex = currentIndex,
+                            totalCount = aiRecommendationsList.size,
+                            onToggleExpanded = { isExpanded = !isExpanded },
+                            onPrevious = {
+                                if (aiRecommendationsList.isNotEmpty()) {
+                                    isTransitioning = true
+                                    coroutineScope.launch {
+                                        delay(300)
+                                        currentIndex = (currentIndex - 1 + aiRecommendationsList.size) % aiRecommendationsList.size
+                                        isTransitioning = false
+                                    }
+                                }
+                            },
+                            onNext = {
+                                if (aiRecommendationsList.isNotEmpty()) {
+                                    isTransitioning = true
+                                    coroutineScope.launch {
+                                        delay(300)
+                                        currentIndex = (currentIndex + 1) % aiRecommendationsList.size
+                                        isTransitioning = false
+                                    }
+                                }
+                            },
+                            onIndicatorClick = { index ->
                                 isTransitioning = true
                                 coroutineScope.launch {
                                     delay(300)
-                                    currentIndex = (currentIndex - 1 + aiRecommendationsList.size) % aiRecommendationsList.size
+                                    currentIndex = index
                                     isTransitioning = false
                                 }
-                            }
-                        },
-                        onNext = {
-                            if (aiRecommendationsList.isNotEmpty()) {
-                                isTransitioning = true
-                                coroutineScope.launch {
-                                    delay(300)
-                                    currentIndex = (currentIndex + 1) % aiRecommendationsList.size
-                                    isTransitioning = false
+                            },
+                            onHeartClick = {
+                                if (!isBookmarked) {
+                                    selectedPolicy = currentPolicy
+                                    showNotificationDialog = true
+                                } else {
+                                    // 북마크 제거 (로컬 상태)
+                                    bookmarkedPolicies = bookmarkedPolicies - currentPolicy.title
+                                    // SharedPreferences에서도 제거
+                                    BookmarkPreferences.removeBookmark(
+                                        context,
+                                        currentPolicy.title,
+                                        BookmarkType.POLICY
+                                    )
                                 }
-                            }
-                        },
-                        onIndicatorClick = { index ->
-                            isTransitioning = true
-                            coroutineScope.launch {
-                                delay(300)
-                                currentIndex = index
-                                isTransitioning = false
-                            }
-                        },
-                        onHeartClick = {
-                            if (!isBookmarked) {
-                                selectedPolicy = currentPolicy
-                                showNotificationDialog = true
-                            } else {
-                                // 북마크 제거 (로컬 상태)
-                                bookmarkedPolicies = bookmarkedPolicies - currentPolicy.title
-                                // SharedPreferences에서도 제거
-                                BookmarkPreferences.removeBookmark(context, currentPolicy.title, BookmarkType.POLICY)
-                            }
-                        },
-                        onApply = {}
-                    )
+                            },
+                            onApply = {}
+                        )
+                    } else {
+                        Text(
+                            text = "현재 추천할 정책이 없습니다.",
+                            fontSize = 14.sp,
+                            color = AppColors.TextSecondary
+                        )
+                    }
                 }
                 
                 Spacer(modifier = Modifier.height(Spacing.lg))

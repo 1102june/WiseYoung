@@ -136,6 +136,17 @@ interface ApiService {
         @Query("userId") userId: String = "test-user",
         @Query("category") category: String? = null
     ): Response<ApiResponse<List<PolicyResponse>>>
+
+    /**
+     * 맞춤 정책 추천 목록 조회
+     * GET /api/policy/recommended
+     */
+    @GET("api/policy/recommended")
+    suspend fun getRecommendedPolicies(
+        @Query("userId") userId: String = "test-user",
+        @Query("category") category: String? = null,
+        @Query("limit") limit: Int? = null
+    ): Response<ApiResponse<List<PolicyResponse>>>
     
     /**
      * 전체 정책 목록 조회

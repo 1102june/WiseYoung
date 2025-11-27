@@ -189,11 +189,9 @@ class LoginActivity : ComponentActivity() {
             return
         }
 
-        currentUser.getIdToken(true).addOnSuccessListener { tokenResult ->
-            val idToken = tokenResult.token ?: run {
-                navigateAfterLogin(isGoogleLogin)
-                return@addOnSuccessListener
-            }
+        currentUser.getIdToken(true).addOnSuccessListener { _ ->
+            // Firebase UID를 그대로 백엔드에 전달하여 프로필 존재 여부 확인
+            val uid = currentUser.uid
 
             val client = OkHttpClient.Builder()
                 .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
@@ -201,10 +199,13 @@ class LoginActivity : ComponentActivity() {
                 .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
                 .build()
 
+            // 백엔드의 /api/profile 엔드포인트는 X-User-Id 헤더를 사용하므로,
+            // Firebase UID를 그대로 전달한다. (주의: /auth/profile 이 아닌 /api/profile 사용)
+            val profileUrl = "${Config.BASE_URL}/api/profile"
             val request = Request.Builder()
-                .url(Config.getUrl(Config.Api.PROFILE))
+                .url(profileUrl)
                 .get()
-                .addHeader("Authorization", "Bearer $idToken")
+                .addHeader("X-User-Id", uid)
                 .build()
 
             client.newCall(request).enqueue(object : Callback {
@@ -217,15 +218,22 @@ class LoginActivity : ComponentActivity() {
 
                 override fun onResponse(call: Call, response: Response) {
                     runOnUiThread {
+                        // 서버 응답 결과에 따라 로컬 플래그를 업데이트하되,
+                        // 이미 완료된 프로필(true)은 에러 때문에 다시 false로 덮어쓰지 않도록 보호
+                        val alreadyCompleted = ProfilePreferences.hasCompletedProfile(this@LoginActivity)
+
                         if (response.isSuccessful) {
                             // 서버에 프로필이 있으면 완료 표시
                             ProfilePreferences.setProfileCompleted(this@LoginActivity, true)
-                            navigateAfterLogin(isGoogleLogin)
                         } else {
-                            // 프로필이 없으면 미완료 표시
-                            ProfilePreferences.setProfileCompleted(this@LoginActivity, false)
-                            navigateAfterLogin(isGoogleLogin)
+                            // 아직 프로필 완료가 아닌 사용자에 한해서만 "미완료"로 유지/설정
+                            // (이미 완료된 사용자는 에러 때문에 다시 프로필 화면으로 보내지 않음)
+                            if (!alreadyCompleted) {
+                                ProfilePreferences.setProfileCompleted(this@LoginActivity, false)
+                            }
                         }
+
+                        navigateAfterLogin(isGoogleLogin)
                     }
                 }
             })

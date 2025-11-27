@@ -37,10 +37,9 @@ import java.text.SimpleDateFormat
 import java.util.*
 import java.util.Calendar
 import android.view.ViewGroup
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.mutableStateOf
 import com.google.firebase.auth.FirebaseAuth
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 
 data class ApartmentItem(
     val id: Int,
@@ -63,53 +62,6 @@ data class ApartmentItem(
     val parkingSpaces: Int,
     val convertibleDeposit: String,
     val totalUnits: Int
-)
-
-val apartments = listOf(
-    ApartmentItem(
-        id = 1,
-        name = "AA 아파트 101동",
-        distance = "500m",
-        deposit = 10000,
-        depositDisplay = "1억",
-        monthlyRent = 50,
-        monthlyRentDisplay = "50만원",
-        deadline = "2025.05.15",
-        address = "수원시 팔달구 월 15동로 분당로",
-        area = 59,
-        completionDate = "2021.01",
-        organization = "한국토지주택공사(LH)",
-        count = 12,
-        region = "수원시",
-        housingType = "국민임대",
-        heatingType = "개별난방",
-        hasElevator = true,
-        parkingSpaces = 150,
-        convertibleDeposit = "5천만원",
-        totalUnits = 200
-    ),
-    ApartmentItem(
-        id = 2,
-        name = "BB 아파트 103동",
-        distance = "750m",
-        deposit = 12000,
-        depositDisplay = "1.2억",
-        monthlyRent = 60,
-        monthlyRentDisplay = "60만원",
-        deadline = "2025.05.20",
-        address = "수원시 팔달구 월 25동로 분당로",
-        area = 46,
-        completionDate = "2020.08",
-        organization = "SH서울주택도시공사",
-        count = 8,
-        region = "수원시",
-        housingType = "행복주택",
-        heatingType = "지역난방",
-        hasElevator = true,
-        parkingSpaces = 100,
-        convertibleDeposit = "4천만원",
-        totalUnits = 150
-    )
 )
 
 data class HousingFilters(
@@ -229,45 +181,51 @@ fun HousingMapScreen(
         isLoading = true
         errorMessage = null
         try {
-            val response = com.example.app.network.NetworkModule.apiService.getRecommendedHousing(userId, null, null, null, null)
-            if (response.isSuccessful && response.body()?.success == true) {
-                housingList = response.body()?.data ?: emptyList()
-                // HousingResponse를 ApartmentItem으로 변환
-                apartmentsList = housingList.mapIndexed { index, housing ->
-                    ApartmentItem(
-                        id = index + 1,
-                        name = housing.name,
-                        distance = housing.distanceFromUser?.let { "${(it / 1000).toInt()}km" } ?: "거리 정보 없음",
-                        deposit = (housing.deposit ?: 0) / 10000, // 만원 단위
-                        depositDisplay = "${(housing.deposit ?: 0) / 10000}만원",
-                        monthlyRent = (housing.monthlyRent ?: 0) / 10000, // 만원 단위
-                        monthlyRentDisplay = "${(housing.monthlyRent ?: 0) / 10000}만원",
-                        deadline = housing.applicationEnd?.take(10)?.replace("-", ".") ?: "",
-                        address = housing.address ?: "",
-                        area = housing.supplyArea?.toInt() ?: 0,
-                        completionDate = housing.completeDate ?: "",
-                        organization = housing.organization ?: "",
-                        count = 0,
-                        region = extractRegionFromAddress(housing.address ?: ""),
-                        housingType = housing.housingType ?: "",
-                        heatingType = "",
-                        hasElevator = false,
-                        parkingSpaces = 0,
-                        convertibleDeposit = "",
-                        totalUnits = 0
-                    )
-                }
-                // 데이터가 없으면 기본 데이터 사용
-                if (apartmentsList.isEmpty()) {
-                    apartmentsList = apartments
-                }
+            // 사용자 프로필/지역을 고려한 맞춤 임대주택 추천 목록 조회
+            val recommendedResponse = com.example.app.network.NetworkModule.apiService
+                .getRecommendedHousing(
+                    userId = userId,
+                    userIdParam = null,
+                    lat = null,
+                    lon = null,
+                    radius = null,
+                    limit = 50
+                )
+
+            if (recommendedResponse.isSuccessful && recommendedResponse.body()?.success == true) {
+                housingList = recommendedResponse.body()?.data ?: emptyList()
             } else {
-                errorMessage = response.body()?.message ?: "주택 목록을 불러올 수 없습니다."
-                apartmentsList = apartments
+                errorMessage = recommendedResponse.body()?.message ?: "주택 목록을 불러올 수 없습니다."
+                housingList = emptyList()
+            }
+
+            // HousingResponse를 ApartmentItem으로 변환
+            apartmentsList = housingList.mapIndexed { index, housing ->
+                ApartmentItem(
+                    id = index + 1,
+                    name = housing.name,
+                    distance = housing.distanceFromUser?.let { "${(it / 1000).toInt()}km" } ?: "거리 정보 없음",
+                    deposit = (housing.deposit ?: 0) / 10000, // 만원 단위
+                    depositDisplay = "${(housing.deposit ?: 0) / 10000}만원",
+                    monthlyRent = (housing.monthlyRent ?: 0) / 10000, // 만원 단위
+                    monthlyRentDisplay = "${(housing.monthlyRent ?: 0) / 10000}만원",
+                    deadline = housing.applicationEnd?.take(10)?.replace("-", ".") ?: "",
+                    address = housing.address ?: "",
+                    area = housing.supplyArea?.toInt() ?: 0,
+                    completionDate = housing.completeDate ?: "",
+                    organization = housing.organization ?: "",
+                    count = 0,
+                    region = extractRegionFromAddress(housing.address ?: ""),
+                    housingType = housing.housingType ?: "",
+                    heatingType = "",
+                    hasElevator = false,
+                    parkingSpaces = 0,
+                    convertibleDeposit = "",
+                    totalUnits = 0
+                )
             }
         } catch (e: Exception) {
             errorMessage = "네트워크 오류: ${e.message}"
-            apartmentsList = apartments
         } finally {
             isLoading = false
         }
@@ -302,20 +260,22 @@ fun HousingMapScreen(
             // Header
             HousingMapHeader(onBack = onNavigateHome)
             
-            Column(
+            LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
                     .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.md)
             ) {
-                // Map Container
-                MapContainer(
-                    onFilterClick = { showFilterDialog = true },
-                    modifier = Modifier.padding(bottom = Spacing.md)
-                )
-                
-                // Apartment List
-                filteredApartments.forEach { apartment ->
+                item {
+                    // Map Container
+                    MapContainer(
+                        onFilterClick = { showFilterDialog = true },
+                        totalCount = filteredApartments.size,
+                        regionLabel = filters.region.takeUnless { it == "전체" },
+                        modifier = Modifier.padding(bottom = Spacing.md)
+                    )
+                }
+
+                items(filteredApartments) { apartment ->
                     ApartmentCard(
                         apartment = apartment,
                         isBookmarked = bookmarkedHousings.contains(apartment.name),
@@ -464,6 +424,8 @@ private fun HousingMapHeader(onBack: () -> Unit) {
 @Composable
 private fun MapContainer(
     onFilterClick: () -> Unit,
+    totalCount: Int,
+    regionLabel: String?,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -480,60 +442,58 @@ private fun MapContainer(
                     .aspectRatio(1f)
                     .background(AppColors.Border)
             ) {
-                // 카카오맵 SDK v2 MapView
-                // 다운로드한 SDK 파일의 정확한 패키지명에 따라 import를 수정해야 할 수 있습니다.
-                // 일반적으로: com.kakao.vectormap.MapView 또는 com.kakao.maps.MapView
-                var mapView by remember { mutableStateOf<Any?>(null) }
-                
+                // 카카오맵 SDK MapView를 리플렉션으로 생성 (패키지 변경에 덜 의존)
+                var mapView by remember { mutableStateOf<android.view.View?>(null) }
+
                 AndroidView(
                     factory = { ctx ->
-                        // 카카오맵 SDK v2 MapView 생성 시도
-                        // 실제 패키지명은 다운로드한 SDK에 따라 다를 수 있습니다
-                        val mapViewInstance = try {
-                            val mapViewClass = Class.forName("com.kakao.vectormap.MapView")
-                            mapViewClass.getConstructor(android.content.Context::class.java)
-                                .newInstance(ctx) as android.view.View
-                        } catch (e: ClassNotFoundException) {
-                            // 다른 패키지명 시도
+                        // 대표적인 Kakao MapView 클래스 경로들을 순서대로 시도
+                        val candidates = listOf(
+                            "com.kakao.maps.open.MapView",
+                            "com.kakao.vectormap.MapView",
+                            "net.daum.mf.map.api.MapView"
+                        )
+
+                        val viewInstance = candidates.firstNotNullOfOrNull { className ->
                             try {
-                                val mapViewClass = Class.forName("com.kakao.maps.MapView")
-                                mapViewClass.getConstructor(android.content.Context::class.java)
+                                val clazz = Class.forName(className)
+                                clazz.getConstructor(android.content.Context::class.java)
                                     .newInstance(ctx) as android.view.View
-                            } catch (e2: Exception) {
-                                // SDK를 찾을 수 없는 경우 Mock UI 표시
+                            } catch (_: Exception) {
                                 null
                             }
                         }
-                        
-                        if (mapViewInstance != null) {
-                            mapViewInstance.layoutParams = ViewGroup.LayoutParams(
+
+                        if (viewInstance != null) {
+                            viewInstance.layoutParams = ViewGroup.LayoutParams(
                                 ViewGroup.LayoutParams.MATCH_PARENT,
                                 ViewGroup.LayoutParams.MATCH_PARENT
                             )
-                            mapView = mapViewInstance
-                            mapViewInstance
+                            mapView = viewInstance
+                            viewInstance
                         } else {
-                            // Mock UI 표시
+                            // SDK를 못 찾으면 안내 텍스트 표시
                             android.widget.TextView(ctx).apply {
-                                text = "카카오맵 SDK 파일을\napp/libs 폴더에 넣어주세요"
+                                text = "카카오맵 SDK 설정 전입니다.\n지도는 곧 연결될 예정이에요."
                                 textSize = 12f
                                 gravity = android.view.Gravity.CENTER
-                                setTextColor(android.graphics.Color.GRAY)
+                                setBackgroundColor(android.graphics.Color.LTGRAY)
+                                setTextColor(android.graphics.Color.DKGRAY)
                             }
                         }
                     },
                     modifier = Modifier.fillMaxSize()
                 )
-                
-                // MapView 생명주기 관리
+
+                // MapView 생명주기 정리 (있을 경우만)
                 DisposableEffect(mapView) {
                     onDispose {
-                        mapView?.let {
+                        mapView?.let { view ->
                             try {
-                                val onDestroyMethod = it.javaClass.getMethod("onDestroy")
-                                onDestroyMethod.invoke(it)
-                            } catch (e: Exception) {
-                                // 생명주기 메서드가 없는 경우 무시
+                                val onDestroy = view.javaClass.methods
+                                    .firstOrNull { it.name == "onDestroy" && it.parameterCount == 0 }
+                                onDestroy?.invoke(view)
+                            } catch (_: Exception) {
                             }
                         }
                     }
@@ -589,60 +549,34 @@ private fun MapContainer(
                     }
                 }
                 
-                // Location Markers
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .offset(x = (-60).dp, y = (-40).dp)
-                ) {
-                    LocationMarker(count = 12)
+                // Location Marker (동적으로 전체 개수 표시)
+                if (totalCount > 0) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                    ) {
+                        LocationMarker(count = totalCount)
+                    }
                 }
-                
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .offset(x = 60.dp, y = 40.dp)
-                ) {
-                    LocationMarker(count = 8)
+
+                // Location Label (선택된 지역 기준 동적 텍스트)
+                regionLabel?.let { label ->
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .offset(y = (-40).dp),
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color.White,
+                        shadowElevation = 2.dp
+                    ) {
+                        Text(
+                            text = "$label 주변 임대주택",
+                            fontSize = 12.sp,
+                            color = AppColors.TextSecondary,
+                            modifier = Modifier.padding(horizontal = Spacing.sm, vertical = 4.dp)
+                        )
+                    }
                 }
-                
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .offset(x = 0.dp, y = 60.dp)
-                ) {
-                    LocationMarker(count = 18)
-                }
-                
-                // Location Label
-                Surface(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .offset(y = (-40).dp),
-                    shape = RoundedCornerShape(8.dp),
-                    color = Color.White,
-                    shadowElevation = 2.dp
-                ) {
-                    Text(
-                        text = "지도영역",
-                        fontSize = 12.sp,
-                        color = AppColors.TextSecondary,
-                        modifier = Modifier.padding(horizontal = Spacing.sm, vertical = 4.dp)
-                    )
-                }
-            }
-            
-            // Location Info
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = Color.White
-            ) {
-                Text(
-                    text = "경기도 수원시 경복궁과 2구역",
-                    fontSize = 14.sp,
-                    color = AppColors.TextSecondary,
-                    modifier = Modifier.padding(Spacing.md)
-                )
             }
         }
     }
