@@ -11,21 +11,42 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
-// 다크 테마 색상 스키마
+// 다크 테마 색상 스키마 - Material Design 3 가이드라인 준수
 private val DarkColorScheme = darkColorScheme(
-    primary = Color(0xFF3A8AD8),  // 다크 버전 라이트 블루 (#3A8AD8) - 강력 추천
-    secondary = Color(0xFF8D87FF),  // 서브 컬러 - 그레이/퍼플그레이 다크 버전 (#8D87FF)
-    tertiary = Color(0xFFFF833A),  // 포인트 오렌지 톤 다운 버전 (#FF833A)
-    background = Color(0xFF121212),  // 배경 (#121212)
-    surface = Color(0xFF1A1C20),  // 카드/서브배경 (#1A1C20)
-    surfaceVariant = Color(0xFF1F2126),  // 서브배경 변형 (#1F2126)
-    onPrimary = Color.White,
-    onSecondary = Color.White,
+    primary = Color(0xFF6EBBFF),  // 다크 모드용 #59abf7 계열 (밝게 조정)
+    primaryContainer = Color(0xFF1E3A5F),  // Primary Container
+    onPrimary = Color(0xFF0D1A2A),  // 다크 배경 위의 텍스트
+    onPrimaryContainer = Color(0xFFD0E7FF),  // Primary Container 텍스트
+    
+    secondary = Color(0xFF8AA4FF),  // 서브 컬러 - 블루 계열
+    secondaryContainer = Color(0xFF2A3A5F),
+    onSecondary = Color(0xFF0D1A2A),
+    onSecondaryContainer = Color(0xFFD0E7FF),
+    
+    tertiary = Color(0xFFFF833A),  // 포인트 오렌지
+    tertiaryContainer = Color(0xFF5A2A0F),
     onTertiary = Color.White,
-    onBackground = Color(0xFFEDEDED),  // 메인 텍스트 (#EDEDED)
-    onSurface = Color(0xFFEDEDED),  // 메인 텍스트 (#EDEDED)
-    outline = Color(0xFF2A2A2A),
-    outlineVariant = Color(0xFFA5A5A5)  // 서브 텍스트 (#A5A5A5)
+    onTertiaryContainer = Color(0xFFFFD0B0),
+    
+    error = Color(0xFFFFB4AB),
+    errorContainer = Color(0xFF93000A),
+    onError = Color(0xFF690005),
+    onErrorContainer = Color(0xFFFFDAD6),
+    
+    background = Color(0xFF121212),  // Material Design 3 다크 배경
+    onBackground = Color(0xFFE4E4E4),  // 다크 배경 위의 텍스트
+    
+    surface = Color(0xFF1E1E1E),  // Material Design 3 다크 서페이스
+    onSurface = Color(0xFFE4E4E4),
+    surfaceVariant = Color(0xFF2C2C2C),  // 서페이스 변형
+    onSurfaceVariant = Color(0xFFC4C4C4),
+    
+    outline = Color(0xFF444444),  // 테두리
+    outlineVariant = Color(0xFF333333),  // 테두리 변형
+    
+    inverseSurface = Color(0xFFE4E4E4),
+    inverseOnSurface = Color(0xFF121212),
+    inversePrimary = Color(0xFF59ABF7)  // 역 Primary
 )
 
 // 다크블루 테마 색상 스키마 (프리미엄/고급 UX 모드)
@@ -92,7 +113,7 @@ fun WiseYoungTheme(
     val colorScheme = when (themeMode) {
         ThemeMode.LIGHT -> LightColorScheme
         ThemeMode.DARK -> DarkColorScheme
-        ThemeMode.DARK_BLUE -> DarkBlueColorScheme
+        ThemeMode.DARK_BLUE -> DarkColorScheme  // 다크블루 제거됨 - 다크로 처리
     }
 
     MaterialTheme(

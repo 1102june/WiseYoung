@@ -33,7 +33,7 @@
             android:name="com.kakao.maps.open.AppKey"
             android:value="a6d711e7786442c3aaf2b5596af9ae04" />
 
-        <!-- SplashActivity -->
+        <!-- SplashActivity (LAUNCHER) -->
         <activity
             android:name="com.wiseyoung.app.SplashActivity"
             android:exported="true"
@@ -47,8 +47,9 @@
         <!-- WelcomeActivity -->
         <activity
             android:name="com.wiseyoung.app.WelcomeActivity"
-            android:exported="true"
+            android:exported="false"
             android:theme="@style/Theme.WiseYoung" />
+
 
         <!-- AuthActivity (로그인 / 회원가입 화면) -->
         <activity

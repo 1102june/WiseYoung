@@ -12,6 +12,10 @@ data class BookmarkResponse(
     val contentType: String,
     val contentId: String,
     val isActive: String,
-    val createdAt: String
+    val createdAt: String,
+    // 클라이언트에서 필요한 추가 정보
+    val title: String? = null,
+    val deadline: String? = null,
+    val organization: String? = null
 )
 

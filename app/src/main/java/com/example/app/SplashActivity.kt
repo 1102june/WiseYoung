@@ -42,9 +42,9 @@ class SplashActivity : ComponentActivity() {
             }
         }
 
-        // 1초 후 자동 이동
+        // 1.5초 후 자동 이동
         lifecycleScope.launch {
-            delay(1000)
+            delay(1500)
             navigateToNextScreen()
         }
     }
@@ -89,7 +89,7 @@ fun SplashScreen(onNext: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF79659))  // #f79659 배경색
+            .background(Color.White)  // 흰색 배경
             .padding(horizontal = 32.dp),
         contentAlignment = Alignment.Center
     ) {

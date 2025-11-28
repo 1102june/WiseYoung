@@ -31,6 +31,12 @@ import com.example.app.ui.components.ElevatedCard
 import com.example.app.ui.components.PrimaryButton
 import com.example.app.ui.components.SecondaryButton
 import androidx.compose.ui.platform.LocalContext
+import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.LaunchedEffect
+import com.example.app.network.NetworkModule
+import com.example.app.data.model.BookmarkResponse
+import android.util.Log
 
 // 북마크 데이터 모델
 data class BookmarkItem(
@@ -57,11 +63,16 @@ enum class BookmarkType {
 }
 
 class BookmarkActivity : ComponentActivity() {
+    private val auth = FirebaseAuth.getInstance()
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val userId = auth.currentUser?.uid ?: "test-user"
+        
         setContent {
             ThemeWrapper {
                 BookmarkScreen(
+                    userId = userId,
                     onNavigateHome = {
                         startActivity(Intent(this, MainActivity::class.java))
                         finish()
@@ -85,26 +96,105 @@ class BookmarkActivity : ComponentActivity() {
 
 @Composable
 fun BookmarkScreen(
+    userId: String,
     onNavigateHome: () -> Unit,
     onNavigateCalendar: () -> Unit,
     onNavigateProfile: () -> Unit,
     onNavigateChatbot: () -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var activeTab by remember { mutableStateOf("policy") }
     var expandedCardId by remember { mutableStateOf<Int?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
     
-    // SharedPreferences에서 북마크 불러오기
+    // 북마크 상태 (서버 + 로컬 병합)
     var bookmarks by remember {
-        mutableStateOf(BookmarkPreferences.getBookmarks(context))
+        mutableStateOf<List<BookmarkItem>>(emptyList())
+    }
+    
+    // 서버에서 북마크 가져오기
+    LaunchedEffect(userId) {
+        isLoading = true
+        try {
+            // 정책 북마크 가져오기
+            val policyResponse = NetworkModule.apiService.getBookmarks(
+                userId = userId,
+                contentType = "policy"
+            )
+            
+            // 임대주택 북마크 가져오기
+            val housingResponse = NetworkModule.apiService.getBookmarks(
+                userId = userId,
+                contentType = "housing"
+            )
+            
+            val serverBookmarks = mutableListOf<BookmarkItem>()
+            
+            // 정책 북마크 변환
+            if (policyResponse.isSuccessful && policyResponse.body()?.success == true) {
+                val policyBookmarks = policyResponse.body()?.data ?: emptyList()
+                policyBookmarks.forEach { bookmarkResponse ->
+                    // BookmarkResponse를 BookmarkItem으로 변환
+                    // contentId를 사용하여 정책 상세 정보를 가져와야 하지만,
+                    // 일단 기본 정보만 사용
+                    serverBookmarks.add(
+                        BookmarkItem(
+                            id = bookmarkResponse.bookmarkId,
+                            type = BookmarkType.POLICY,
+                            title = bookmarkResponse.title ?: "정책 ${bookmarkResponse.contentId}",
+                            organization = bookmarkResponse.organization,
+                            deadline = bookmarkResponse.deadline ?: ""
+                        )
+                    )
+                }
+            }
+            
+            // 임대주택 북마크 변환
+            if (housingResponse.isSuccessful && housingResponse.body()?.success == true) {
+                val housingBookmarks = housingResponse.body()?.data ?: emptyList()
+                housingBookmarks.forEach { bookmarkResponse ->
+                    serverBookmarks.add(
+                        BookmarkItem(
+                            id = bookmarkResponse.bookmarkId,
+                            type = BookmarkType.HOUSING,
+                            title = bookmarkResponse.title ?: "임대주택 ${bookmarkResponse.contentId}",
+                            organization = bookmarkResponse.organization,
+                            deadline = bookmarkResponse.deadline ?: ""
+                        )
+                    )
+                }
+            }
+            
+            // 로컬 북마크와 병합 (서버 북마크 우선)
+            val localBookmarks = BookmarkPreferences.getBookmarks(context)
+            val localBookmarkTitles = serverBookmarks.map { it.title }.toSet()
+            val mergedBookmarks = serverBookmarks + localBookmarks.filter { 
+                !localBookmarkTitles.contains(it.title) 
+            }
+            
+            bookmarks = mergedBookmarks
+            Log.d("BookmarkActivity", "서버에서 북마크 가져오기 성공: ${bookmarks.size}개")
+        } catch (e: Exception) {
+            Log.e("BookmarkActivity", "서버에서 북마크 가져오기 실패: ${e.message}", e)
+            // 실패 시 로컬 북마크만 사용
+            bookmarks = BookmarkPreferences.getBookmarks(context)
+        } finally {
+            isLoading = false
+        }
     }
     
     // SharedPreferences 변경 감지하여 북마크 새로고침
     androidx.compose.runtime.DisposableEffect(Unit) {
         val prefs = context.getSharedPreferences(BookmarkPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
         val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
-            // SharedPreferences 리스너는 메인 스레드에서 실행되므로 안전하게 상태 업데이트 가능
-            bookmarks = BookmarkPreferences.getBookmarks(context)
+            // 로컬 북마크 변경 시 서버 북마크와 병합
+            val localBookmarks = BookmarkPreferences.getBookmarks(context)
+            val serverBookmarkTitles = bookmarks.filter { it.id > 0 }.map { it.title }.toSet()
+            val mergedBookmarks = bookmarks.filter { it.id > 0 } + localBookmarks.filter { 
+                !serverBookmarkTitles.contains(it.title) 
+            }
+            bookmarks = mergedBookmarks
         }
         prefs.registerOnSharedPreferenceChangeListener(listener)
         
@@ -166,6 +256,20 @@ fun BookmarkScreen(
                                         expandedCardId = if (expandedCardId == bookmark.id) null else bookmark.id
                                     },
                                     onRemoveBookmark = {
+                                        // 서버 북마크인 경우 서버에 삭제 요청
+                                        if (bookmark.id > 0) {
+                                            scope.launch {
+                                                try {
+                                                    NetworkModule.apiService.deleteBookmark(
+                                                        userId = userId,
+                                                        bookmarkId = bookmark.id
+                                                    )
+                                                    Log.d("BookmarkActivity", "서버 북마크 삭제 성공: ${bookmark.id}")
+                                                } catch (e: Exception) {
+                                                    Log.e("BookmarkActivity", "서버 북마크 삭제 실패: ${e.message}", e)
+                                                }
+                                            }
+                                        }
                                         // SharedPreferences에서 제거
                                         BookmarkPreferences.removeBookmark(context, bookmark.title, bookmark.type)
                                         // 로컬 상태 업데이트
@@ -195,6 +299,20 @@ fun BookmarkScreen(
                                         expandedCardId = if (expandedCardId == bookmark.id) null else bookmark.id
                                     },
                                     onRemoveBookmark = {
+                                        // 서버 북마크인 경우 서버에 삭제 요청
+                                        if (bookmark.id > 0) {
+                                            scope.launch {
+                                                try {
+                                                    NetworkModule.apiService.deleteBookmark(
+                                                        userId = userId,
+                                                        bookmarkId = bookmark.id
+                                                    )
+                                                    Log.d("BookmarkActivity", "서버 북마크 삭제 성공: ${bookmark.id}")
+                                                } catch (e: Exception) {
+                                                    Log.e("BookmarkActivity", "서버 북마크 삭제 실패: ${e.message}", e)
+                                                }
+                                            }
+                                        }
                                         // SharedPreferences에서 제거
                                         BookmarkPreferences.removeBookmark(context, bookmark.title, bookmark.type)
                                         // 로컬 상태 업데이트

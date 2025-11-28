@@ -301,8 +301,8 @@ private fun MessageBubble(message: ChatMessage) {
                         Modifier.background(
                             brush = Brush.horizontalGradient(
                                 colors = listOf(
-                                    AppColors.Purple,
-                                    AppColors.BackgroundGradientStart
+                                    AppColors.LightBlue,  // 메인 컬러 #59abf7
+                                    Color(0xFF6EBBFF)  // 연한 블루 계열로 통일
                                 )
                             ),
                             shape = RoundedCornerShape(16.dp)
@@ -401,8 +401,8 @@ private fun ChatbotInput(
                     .background(
                         brush = Brush.horizontalGradient(
                             colors = listOf(
-                                AppColors.Purple,
-                                AppColors.BackgroundGradientStart
+                                AppColors.LightBlue,  // 메인 컬러 #59abf7
+                                Color(0xFF6EBBFF)  // 연한 블루 계열로 통일
                             )
                         ),
                         shape = CircleShape

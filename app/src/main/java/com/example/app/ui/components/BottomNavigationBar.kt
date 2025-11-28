@@ -39,7 +39,7 @@ fun BottomNavigationBar(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = navigationBarsPadding.calculateBottomPadding() + 8.dp)
+                .padding(bottom = (navigationBarsPadding.calculateBottomPadding() - 8.dp).coerceAtLeast(0.dp))  // 0.3cm(8dp) 낮춤
         ) {
             // 챗봇 아이콘이 잘리지 않도록 상단 패딩 추가
             Spacer(modifier = Modifier.height(16.dp))
@@ -81,8 +81,8 @@ fun BottomNavigationBar(
                         .background(
                             brush = Brush.horizontalGradient(
                                 colors = listOf(
-                                    AppColors.LightBlue,  // 라이트 블루 (메인 컬러)
-                                    AppColors.Orange  // 오렌지 (포인트 컬러)
+                                    AppColors.LightBlue,  // 메인 컬러 #59abf7
+                                    Color(0xFF6EBBFF)  // 연한 블루 계열로 통일
                                 )
                             )
                         )

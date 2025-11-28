@@ -527,7 +527,7 @@ private fun ThemeSettingCard(
                 )
             }
             
-            // Theme Selection (3개 버튼)
+            // Theme Selection (2개 버튼 - 라이트, 다크만)
             Surface(
                 shape = RoundedCornerShape(20.dp),
                 color = AppColors.Border
@@ -545,11 +545,6 @@ private fun ThemeSettingCard(
                         text = "다크",
                         isSelected = themeMode == ThemeMode.DARK,
                         onClick = { onThemeModeChange(ThemeMode.DARK) }
-                    )
-                    ThemeToggleButton(
-                        text = "다크블루",
-                        isSelected = themeMode == ThemeMode.DARK_BLUE,
-                        onClick = { onThemeModeChange(ThemeMode.DARK_BLUE) }
                     )
                 }
             }
