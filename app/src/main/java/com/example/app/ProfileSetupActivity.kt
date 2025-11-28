@@ -67,6 +67,8 @@ import androidx.lifecycle.lifecycleScope
 import com.example.app.Config
 import com.example.app.DeviceInfo
 import com.example.app.data.FirestoreService
+import com.example.app.data.model.ProfileRequest
+import com.example.app.network.NetworkModule
 import com.example.app.ui.theme.ThemeWrapper
 import com.wiseyoung.app.R
 import com.google.firebase.auth.FirebaseAuth
@@ -205,84 +207,35 @@ class ProfileSetupActivity : ComponentActivity() {
                 val appVersion = DeviceInfo.getAppVersion(this@ProfileSetupActivity)
                 val deviceId = DeviceInfo.getDeviceId(this@ProfileSetupActivity)
 
-                val jsonObject = JSONObject().apply {
-                    put("idToken", idToken.token)
-                    put("birthDate", payload.birthDate)
-                    put("nickname", payload.nickname)
-                    put("gender", payload.gender)
-                    put("province", payload.province)
-                    put("city", payload.city)
-                    put("education", payload.education)
-                    put("employment", payload.employment)
-                    // interests를 콤마로 구분된 문자열로 변환하여 category 필드로 전송
-                    put("category", payload.interests.joinToString(","))
-                    put("appVersion", appVersion)
-                    put("deviceId", deviceId)
-                }
+                val request = ProfileRequest(
+                    idToken = idToken.token!!,
+                    birthDate = payload.birthDate,
+                    nickname = payload.nickname,
+                    gender = payload.gender,
+                    province = payload.province,
+                    city = payload.city,
+                    education = payload.education,
+                    employment = payload.employment,
+                    interests = payload.interests,
+                    appVersion = appVersion,
+                    deviceId = deviceId
+                )
 
-                val requestBody = jsonObject.toString()
-                    .toRequestBody("application/json".toMediaType())
-
-                val url = Config.getUrl(Config.Api.PROFILE)
-                Log.d("ProfileSetup", "프로필 저장 요청 URL: $url")
-                Log.d("ProfileSetup", "요청 본문: ${jsonObject.toString()}")
-
-                val request = Request.Builder()
-                    .url(url)
-                    .post(requestBody)
-                    .addHeader("Content-Type", "application/json")
-                    .build()
-
-                Log.d("ProfileSetup", "서버 연결 시도 중...")
-                Log.d("ProfileSetup", "요청 URL: $url")
-                Log.d("ProfileSetup", "Config.BASE_URL: ${Config.BASE_URL}")
-                Log.d("ProfileSetup", "요청 헤더: ${request.headers}")
+                Log.d("ProfileSetup", "프로필 저장 요청: \$request")
                 
                 try {
-                    client.newCall(request).execute().use { response ->
-                        val responseBody = response.body?.string() ?: ""
-                        Log.d("ProfileSetup", "서버 응답 코드: ${response.code}")
-                        Log.d("ProfileSetup", "서버 응답 헤더: ${response.headers}")
-                        Log.d("ProfileSetup", "서버 응답 본문: $responseBody")
+                    val response = NetworkModule.apiService.saveProfile(request)
+                    val isSuccess = response.isSuccessful && response.body()?.success == true
+                    val message = response.body()?.message ?: if (isSuccess) "프로필이 저장되었습니다." else "서버 오류: \${response.code()}"
 
-                        val message = try {
-                        val jsonResponse = JSONObject(responseBody)
-                        if (response.isSuccessful) {
-                            // 성공 응답 파싱
-                            jsonResponse.optString("message", "프로필이 저장되었습니다.")
-                        } else {
-                            // 에러 응답 파싱
-                            jsonResponse.optString("message", "서버 오류: ${response.code}")
-                        }
-                    } catch (e: Exception) {
-                        // JSON 파싱 실패 시 기본 메시지
-                        if (response.isSuccessful) {
-                            "프로필이 저장되었습니다."
-                        } else {
-                            "서버 오류: ${response.code} - $responseBody"
-                        }
-                    }
-                    
-                    // ApiResponse의 success 필드도 확인
-                    val isSuccess = try {
-                        val jsonResponse = JSONObject(responseBody)
-                        jsonResponse.optBoolean("success", response.isSuccessful)
-                    } catch (e: Exception) {
-                        response.isSuccessful
-                    }
-                    
-                    // 서버 저장 성공 시 Firestore에도 저장
                     if (isSuccess && currentUser != null) {
-                        val appVersion = DeviceInfo.getAppVersion(this@ProfileSetupActivity)
-                        val deviceId = DeviceInfo.getDeviceId(this@ProfileSetupActivity)
-                        
-                        // User 정보 업데이트
+                        // Firestore 저장 로직 (기존 유지)
                         val firestoreUser = FirestoreService.User(
                             userId = currentUser.uid,
                             email = currentUser.email ?: "",
                             emailVerified = currentUser.isEmailVerified,
                             passwordHash = "",
-                            loginType = "GOOGLE", // 또는 "EMAIL"
+                            loginType = "GOOGLE",
                             osType = "ANDROID",
                             appVersion = appVersion,
                             deviceId = deviceId,
@@ -293,189 +246,46 @@ class ProfileSetupActivity : ComponentActivity() {
                             user = firestoreUser,
                             onSuccess = {},
                             onFailure = { exception ->
-                                Log.e("ProfileSetup", "Firestore User 저장 실패: ${exception.message}")
+                                Log.e("ProfileSetup", "Firestore User 저장 실패: \${exception.message}")
                             }
                         )
                         
-                        // UserProfile 정보 저장
                         val firestoreProfile = FirestoreService.UserProfile(
                             userId = currentUser.uid,
-                            birthYear = payload.birthDate, // "yyyy-MM-dd" 형식
+                            birthYear = payload.birthDate,
                             nickname = payload.nickname,
                             gender = payload.gender,
-                            region = payload.province, // province만 저장 (VARCHAR(10) 제약)
+                            region = payload.province,
                             education = payload.education,
                             jobStatus = payload.employment
                         )
                         
                         FirestoreService.saveUserProfile(
                             profile = firestoreProfile,
-                            onSuccess = {
-                                Log.d("ProfileSetup", "Firestore 프로필 저장 성공")
-                            },
-                            onFailure = { exception ->
-                                Log.e("ProfileSetup", "Firestore 프로필 저장 실패: ${exception.message}")
-                            }
+                            onSuccess = { Log.d("ProfileSetup", "Firestore 프로필 저장 성공") },
+                            onFailure = { exception -> Log.e("ProfileSetup", "Firestore 프로필 저장 실패: \${exception.message}") }
                         )
                     }
                     
-                        withContext(Dispatchers.Main) {
-                            onResult(isSuccess, message)
-                        }
-                    }  // use 블록 닫기
-                } catch (e: java.net.SocketTimeoutException) {
-                    Log.e("ProfileSetup", "연결 타임아웃: ${e.message}", e)
                     withContext(Dispatchers.Main) {
-                        onResult(false,
-                            "서버 응답 시간이 초과되었습니다.\n\n" +
-                            "🔧 확인 사항:\n" +
-                            "1. 네트워크 연결 상태 확인\n" +
-                            "2. 서버가 정상적으로 실행 중인지 확인\n" +
-                            "3. Config.kt의 BASE_URL이 올바른지 확인\n" +
-                            "   현재 URL: $url\n" +
-                            "4. USB 테더링 사용 시 컴퓨터 IP 주소 사용 확인\n" +
-                            "5. 잠시 후 다시 시도"
-                        )
-                    }
-                } catch (e: java.io.IOException) {
-                    Log.e("ProfileSetup", "IO 오류: ${e.message}", e)
-                    withContext(Dispatchers.Main) {
-                        val currentUrl = Config.BASE_URL
-                        val isLocalhost = currentUrl.contains("127.0.0.1") || currentUrl.contains("localhost")
-                        
-                        val errorMsg = when {
-                            e.message?.contains("Unable to resolve host") == true || 
-                            e.message?.contains("Failed to connect") == true -> {
-                                if (isLocalhost) {
-                                    "서버 연결 실패\n\n" +
-                                    "⚠️ 현재 설정: $currentUrl\n\n" +
-                                    "🔧 USB 연결 시 해결 방법:\n\n" +
-                                    "1️⃣ ADB 포트 포워딩 설정 (권장)\n" +
-                                    "   Android Studio의 Terminal에서 실행:\n" +
-                                    "   adb reverse tcp:8080 tcp:8080\n\n" +
-                                    "   또는 PowerShell에서:\n" +
-                                    "   cd \$env:LOCALAPPDATA\\Android\\Sdk\\platform-tools\n" +
-                                    "   .\\adb.exe reverse tcp:8080 tcp:8080\n\n" +
-                                    "2️⃣ USB 테더링 IP 사용\n" +
-                                    "   PowerShell: ipconfig | findstr IPv4\n" +
-                                    "   Config.kt 36번 줄 주석 해제 후 IP 변경\n\n" +
-                                    "3️⃣ Spring Boot 서버 실행 확인"
-                                } else {
-                                    "서버를 찾을 수 없습니다.\n\n" +
-                                    "🔧 확인 사항:\n" +
-                                    "1. Config.kt의 BASE_URL 확인: $currentUrl\n" +
-                                    "2. USB 테더링 사용 시 컴퓨터 IP 주소 사용:\n" +
-                                    "   PowerShell: ipconfig | findstr IPv4\n" +
-                                    "3. Spring Boot 서버 실행 확인"
-                                }
-                            }
-                            e.message?.contains("Connection refused") == true -> 
-                                "서버 연결이 거부되었습니다.\n\n" +
-                                "🔧 확인 사항:\n" +
-                                "1. Spring Boot 서버가 실행 중인지 확인\n" +
-                                "2. 서버가 모든 인터페이스에서 수신하는지 확인\n" +
-                                "   (application.yml: server.address=0.0.0.0)\n" +
-                                "3. Windows 방화벽에서 8080 포트 허용 확인\n" +
-                                "4. 현재 URL: $currentUrl"
-                            e.message?.contains("Network is unreachable") == true -> 
-                                "네트워크에 연결할 수 없습니다.\n\n" +
-                                "🔧 확인 사항:\n" +
-                                "1. USB 테더링 연결 확인\n" +
-                                "2. ADB 포트 포워딩: adb reverse tcp:8080 tcp:8080\n" +
-                                "3. 또는 Config.kt의 BASE_URL을 컴퓨터 IP로 변경"
-                            else -> {
-                                val baseMsg = "네트워크 오류: ${e.message}\n\n"
-                                if (isLocalhost) {
-                                    baseMsg +
-                                    "⚠️ 현재 설정: $currentUrl\n\n" +
-                                    "🔧 USB 연결 시 해결 방법:\n\n" +
-                                    "1️⃣ ADB 포트 포워딩 설정\n" +
-                                    "   Android Studio Terminal:\n" +
-                                    "   adb reverse tcp:8080 tcp:8080\n\n" +
-                                    "   또는 PowerShell:\n" +
-                                    "   cd \$env:LOCALAPPDATA\\Android\\Sdk\\platform-tools\n" +
-                                    "   .\\adb.exe reverse tcp:8080 tcp:8080\n\n" +
-                                    "2️⃣ USB 테더링 IP 사용\n" +
-                                    "   Config.kt에서 BASE_URL을 컴퓨터 IP로 변경\n\n" +
-                                    "3️⃣ Spring Boot 서버 실행 확인"
-                                } else {
-                                    baseMsg +
-                                    "🔧 확인 사항:\n" +
-                                    "1. 서버 URL: $url\n" +
-                                    "2. USB 테더링 연결 확인\n" +
-                                    "3. Spring Boot 서버 실행 확인"
-                                }
-                            }
-                        }
-                        onResult(false, errorMsg)
-                    }
-                }
-            } catch (e: java.net.UnknownHostException) {
-                    Log.e("ProfileSetup", "호스트를 찾을 수 없음: ${e.message}", e)
-                    withContext(Dispatchers.Main) {
-                        onResult(false, 
-                            "서버를 찾을 수 없습니다.\n\n" +
-                            "🔧 확인 사항:\n" +
-                            "1. 컴퓨터 IP 주소 확인: ipconfig | findstr IPv4\n" +
-                            "2. Config.kt의 IP 주소가 올바른지 확인\n" +
-                            "3. USB 테더링 연결 확인\n" +
-                            "4. Spring Boot 서버 실행 확인"
-                        )
-                    }
-                } catch (e: java.net.ConnectException) {
-                    Log.e("ProfileSetup", "연결 거부: ${e.message}", e)
-                    withContext(Dispatchers.Main) {
-                        onResult(false,
-                            "서버 연결이 거부되었습니다.\n\n" +
-                            "🔧 확인 사항:\n" +
-                            "1. Spring Boot 서버가 실행 중인지 확인\n" +
-                            "2. Windows 방화벽에서 8080 포트 허용 확인\n" +
-                            "3. 서버가 모든 인터페이스에서 수신하는지 확인\n" +
-                            "   (application.yml: server.address 확인)"
-                        )
-                    }
-                } catch (e: java.net.SocketTimeoutException) {
-                    Log.e("ProfileSetup", "연결 타임아웃: ${e.message}", e)
-                    withContext(Dispatchers.Main) {
-                        onResult(false,
-                            "서버 응답 시간이 초과되었습니다.\n\n" +
-                            "🔧 확인 사항:\n" +
-                            "1. 네트워크 연결 상태 확인\n" +
-                            "2. 서버가 정상적으로 실행 중인지 확인\n" +
-                            "3. 잠시 후 다시 시도"
-                        )
+                        onResult(isSuccess, message)
                     }
                 } catch (e: Exception) {
-                Log.e("ProfileSetup", "프로필 저장 실패: ${e.message}", e)
-                withContext(Dispatchers.Main) {
-                    // 네트워크 오류인 경우 상세한 안내 메시지 제공
-                    val errorMessage = when {
-                        e.message?.contains("Unable to resolve host") == true || 
-                        e.message?.contains("Failed to connect") == true ||
-                        e.message?.contains("Connection refused") == true -> 
-                            "서버에 연결할 수 없습니다.\n\n" +
-                            "🔧 확인 사항:\n" +
-                            "1. Spring Boot 서버가 실행 중인지 확인\n" +
-                            "   (http://172.16.2.178:8080 접속 테스트)\n" +
-                            "2. USB 테더링 연결이 활성화되어 있는지 확인\n" +
-                            "3. 컴퓨터 IP 주소 확인:\n" +
-                            "   PowerShell: ipconfig | findstr IPv4\n" +
-                            "4. Windows 방화벽에서 8080 포트 허용 확인\n" +
-                            "5. 앱 재시작 후 다시 시도"
-                        e.message?.contains("timeout") == true -> 
-                            "서버 응답 시간이 초과되었습니다.\n\n" +
-                            "🔧 확인 사항:\n" +
-                            "1. 네트워크 연결 상태 확인\n" +
-                            "2. 서버가 정상적으로 실행 중인지 확인\n" +
-                            "3. 잠시 후 다시 시도"
-                        e.message?.contains("Network is unreachable") == true ->
-                            "네트워크에 연결할 수 없습니다.\n\n" +
-                            "USB 테더링 연결을 확인해주세요."
-                        else -> 
-                            "프로필 저장 실패: ${e.message}\n\n" +
-                            "네트워크 연결과 서버 상태를 확인해주세요."
+                    Log.e("ProfileSetup", "프로필 저장 실패: \${e.message}", e)
+                    withContext(Dispatchers.Main) {
+                        val errorMessage = when {
+                             e is java.net.SocketTimeoutException -> "서버 응답 시간이 초과되었습니다."
+                             e.message?.contains("Failed to connect") == true -> "서버에 연결할 수 없습니다. (Connection Failed)"
+                             else -> "프로필 저장 실패: \${e.message}"
+                        }
+                        onResult(false, errorMessage)
                     }
-                    onResult(false, errorMessage)
+                }
+            } catch (e: Exception) {
+                // 최상위 예외 처리 추가
+                Log.e("ProfileSetup", "예상치 못한 오류: \${e.message}", e)
+                withContext(Dispatchers.Main) {
+                    onResult(false, "예상치 못한 오류가 발생했습니다: \${e.message}")
                 }
             }
         }

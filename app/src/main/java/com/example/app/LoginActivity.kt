@@ -222,8 +222,31 @@ class LoginActivity : ComponentActivity() {
                 
                 runOnUiThread {
                     if (response.isSuccessful) {
-                        android.util.Log.d("LoginActivity", "로그인 성공 - 프로필 확인 시작")
+                        android.util.Log.d("LoginActivity", "✅ 로그인 서버 응답 성공 (코드: ${response.code})")
                         try {
+                            // 응답 본문 파싱하여 확인
+                            if (responseBody.isNotBlank()) {
+                                try {
+                                    val jsonResponse = org.json.JSONObject(responseBody)
+                                    val success = jsonResponse.optBoolean("success", false)
+                                    val message = jsonResponse.optString("message", "")
+                                    android.util.Log.d("LoginActivity", "서버 응답 파싱 - success: $success, message: $message")
+                                    
+                                    if (!success) {
+                                        android.util.Log.w("LoginActivity", "서버 응답에서 success가 false입니다: $message")
+                                        Toast.makeText(
+                                            this@LoginActivity,
+                                            "로그인 실패: $message",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                        return@runOnUiThread
+                                    }
+                                } catch (e: Exception) {
+                                    android.util.Log.w("LoginActivity", "응답 본문 파싱 실패 (계속 진행): ${e.message}")
+                                }
+                            }
+                            
+                            android.util.Log.d("LoginActivity", "프로필 확인 시작")
                             // FCM 토큰 저장
                             FcmTokenService.getAndSaveToken()
                             // 서버에서 프로필 확인 후 네비게이션
@@ -234,7 +257,7 @@ class LoginActivity : ComponentActivity() {
                             navigateAfterLogin(isGoogleLogin = false)
                         }
                     } else {
-                        android.util.Log.e("LoginActivity", "로그인 서버 오류: ${response.code} - $responseBody")
+                        android.util.Log.e("LoginActivity", "❌ 로그인 서버 오류: ${response.code} - $responseBody")
                         val errorMsg = try {
                             val jsonResponse = org.json.JSONObject(responseBody)
                             jsonResponse.optString("message", "서버 오류: ${response.code}")

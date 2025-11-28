@@ -373,17 +373,28 @@ fun RegisterScreen(
 
         /* 이메일 중복 확인 결과 표시 */
         if (isEmailChecked) {
-            if (isEmailDuplicate) {
-                Text(
-                    "✘ 이미 사용 중인 이메일 주소입니다.",
-                    color = Color.Red,
-                    style = MaterialTheme.typography.bodySmall
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(
+                            if (!isEmailDuplicate) Color(0xFF10B981) else Color(0xFF9CA3AF)
+                        )
                 )
-            } else {
                 Text(
-                    "✔ 사용 가능한 이메일 주소입니다.",
-                    color = Color(0xFF4CAF50),
-                    style = MaterialTheme.typography.bodySmall
+                    text = if (!isEmailDuplicate) "사용 가능한 이메일 주소입니다" else "이미 사용 중인 이메일 주소입니다",
+                    color = if (!isEmailDuplicate) Color(0xFF1A1A1A) else Color(0xFF666666),
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontSize = 12.sp,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Normal
+                    )
                 )
             }
         }

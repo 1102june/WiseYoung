@@ -217,5 +217,60 @@ interface ApiService {
         @Header("X-User-Id") userId: String,
         @Query("maxRecommendations") maxRecommendations: Int = 10
     ): Response<ApiResponse<Unit>>
+
+    // ========== 북마크 ==========
+
+    /**
+     * 북마크 추가
+     * POST /api/bookmarks
+     */
+    @POST("api/bookmarks")
+    suspend fun addBookmark(
+        @Header("X-User-Id") userId: String? = null,
+        @Body request: BookmarkRequest
+    ): Response<ApiResponse<BookmarkResponse>>
+
+    /**
+     * 북마크 삭제
+     * DELETE /api/bookmarks/{bookmarkId}
+     */
+    @DELETE("api/bookmarks/{bookmarkId}")
+    suspend fun deleteBookmark(
+        @Header("X-User-Id") userId: String? = null,
+        @Path("bookmarkId") bookmarkId: Int
+    ): Response<ApiResponse<Unit>>
+
+    /**
+     * 북마크 목록 조회
+     * GET /api/bookmarks
+     */
+    @GET("api/bookmarks")
+    suspend fun getBookmarks(
+        @Header("X-User-Id") userId: String,
+        @Query("contentType") contentType: String? = null
+    ): Response<ApiResponse<List<BookmarkResponse>>>
+
+    // ========== 캘린더 ==========
+
+    /**
+     * 일정 추가 (알림 설정 시)
+     * POST /api/calendar
+     */
+    @POST("api/calendar")
+    suspend fun addCalendarEvent(
+        @Header("X-User-Id") userId: String? = null,
+        @Body request: CalendarEventRequest
+    ): Response<ApiResponse<CalendarEventResponse>>
+
+    /**
+     * 일정 조회
+     * GET /api/calendar
+     */
+    @GET("api/calendar")
+    suspend fun getCalendarEvents(
+        @Header("X-User-Id") userId: String,
+        @Query("year") year: Int,
+        @Query("month") month: Int
+    ): Response<ApiResponse<List<CalendarEventResponse>>>
 }
 

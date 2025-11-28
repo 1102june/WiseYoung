@@ -2,6 +2,7 @@ package com.example.app.data.model
 
 data class ProfileRequest(
     val idToken: String,
+    val nickname: String? = null, // 닉네임
     val birthDate: String? = null, // "1999-01-01" 형식
     val gender: String? = null, // "male" or "female"
     val province: String? = null, // "강원"

@@ -234,6 +234,39 @@ fun HousingListScreen(
                             housingId = housing.housingId,
                             notificationSettings = notifications
                         )
+                        
+                        // 서버에 캘린더 일정 저장
+                        scope.launch {
+                            try {
+                                NetworkModule.apiService.addCalendarEvent(
+                                    userId = userId,
+                                    request = com.example.app.data.model.CalendarEventRequest(
+                                        userId = userId,
+                                        title = housing.name,
+                                        eventType = "housing",
+                                        endDate = deadline.replace(".", "-")
+                                    )
+                                )
+                            } catch (e: Exception) {
+                                // ignore
+                            }
+                        }
+                    }
+                    
+                    // 서버에 북마크 저장
+                    scope.launch {
+                        try {
+                            NetworkModule.apiService.addBookmark(
+                                userId = userId,
+                                request = com.example.app.data.model.BookmarkRequest(
+                                    userId = userId,
+                                    contentType = "housing",
+                                    contentId = housing.housingId
+                                )
+                            )
+                        } catch (e: Exception) {
+                            // ignore
+                        }
                     }
 
                     // 로컬 북마크 저장

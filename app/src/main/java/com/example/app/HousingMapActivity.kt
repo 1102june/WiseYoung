@@ -36,12 +36,12 @@ import androidx.compose.ui.platform.LocalContext
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.Calendar
-import android.view.ViewGroup
-import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import com.kakao.vectormap.MapView
 import com.kakao.vectormap.KakaoMapSdk
+import com.google.firebase.auth.FirebaseAuth
 
 data class ApartmentItem(
     val id: Int,
@@ -438,96 +438,105 @@ fun HousingMapScreen(
                 modifier = Modifier.padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.md)
             )
             
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = Spacing.screenHorizontal)
-            ) {
-                if (activeTab == "housing") {
-                    item {
-                        // Map Container
-                        MapContainer(
-                            onFilterClick = { showFilterDialog = true },
-                            totalCount = filteredApartments.size,
-                            regionLabel = filters.region.takeUnless { it == "전체" },
-                            modifier = Modifier.padding(bottom = Spacing.md)
-                        )
-                    }
+            when (activeTab) {
+                "housing" -> {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = Spacing.screenHorizontal)
+                    ) {
+                        item {
+                            // Map Container
+                            MapContainer(
+                                onFilterClick = { showFilterDialog = true },
+                                totalCount = filteredApartments.size,
+                                regionLabel = filters.region.takeUnless { it == "전체" },
+                                modifier = Modifier.padding(bottom = Spacing.md)
+                            )
+                        }
 
-                    items(filteredApartments) { apartment ->
-                        ApartmentCard(
-                            apartment = apartment,
-                            isBookmarked = bookmarkedHousings.contains(apartment.name),
-                            onHeartClick = {
-                                if (!bookmarkedHousings.contains(apartment.name)) {
-                                    selectedHousing = apartment
-                                    showNotificationDialog = true
-                                } else {
-                                    // 북마크 제거 (로컬 상태)
-                                    bookmarkedHousings = bookmarkedHousings - apartment.name
-                                    // SharedPreferences에서도 제거
-                                    BookmarkPreferences.removeBookmark(context, apartment.name, BookmarkType.HOUSING)
-                                }
-                            },
-                            onDetailClick = {
-                                selectedApartment = apartment
-                                showDetailDialog = true
-                            },
-                            modifier = Modifier.padding(bottom = Spacing.sm)
-                        )
-                    }
-                } else {
-                    item {
-                        // Filter Button for Announcements
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = Spacing.md),
-                            horizontalArrangement = Arrangement.End
-                        ) {
-                            Button(
-                                onClick = { showFilterDialog = true },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color.White
-                                ),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, AppColors.Border)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Tune,
-                                    contentDescription = "Filter",
-                                    modifier = Modifier.size(20.dp),
-                                    tint = AppColors.TextSecondary
-                                )
-                                Spacer(modifier = Modifier.width(Spacing.xs))
-                                Text(
-                                    text = "필터",
-                                    fontSize = 12.sp,
-                                    color = AppColors.TextSecondary
-                                )
-                            }
+                        items(filteredApartments) { apartment ->
+                            ApartmentCard(
+                                apartment = apartment,
+                                isBookmarked = bookmarkedHousings.contains(apartment.name),
+                                onHeartClick = {
+                                    if (!bookmarkedHousings.contains(apartment.name)) {
+                                        selectedHousing = apartment
+                                        showNotificationDialog = true
+                                    } else {
+                                        // 북마크 제거 (로컬 상태)
+                                        bookmarkedHousings = bookmarkedHousings - apartment.name
+                                        // SharedPreferences에서도 제거
+                                        BookmarkPreferences.removeBookmark(context, apartment.name, BookmarkType.HOUSING)
+                                    }
+                                },
+                                onDetailClick = {
+                                    selectedApartment = apartment
+                                    showDetailDialog = true
+                                },
+                                modifier = Modifier.padding(bottom = Spacing.sm)
+                            )
                         }
                     }
-                    
-                    items(filteredAnnouncements) { announcement ->
-                        AnnouncementCard(
-                            announcement = announcement,
-                            isBookmarked = bookmarkedHousings.contains(announcement.title),
-                            onHeartClick = {
-                                if (!bookmarkedHousings.contains(announcement.title)) {
-                                    selectedHousing = announcement
-                                    showNotificationDialog = true
-                                } else {
-                                    // 북마크 제거
-                                    bookmarkedHousings = bookmarkedHousings - announcement.title
-                                    BookmarkPreferences.removeBookmark(context, announcement.title, BookmarkType.HOUSING)
+                }
+                "announcement" -> {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = Spacing.screenHorizontal)
+                    ) {
+                        item {
+                            // Filter Button for Announcements
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = Spacing.md),
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                Button(
+                                    onClick = { showFilterDialog = true },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color.White
+                                    ),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, AppColors.Border)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Tune,
+                                        contentDescription = "Filter",
+                                        modifier = Modifier.size(20.dp),
+                                        tint = AppColors.TextSecondary
+                                    )
+                                    Spacer(modifier = Modifier.width(Spacing.xs))
+                                    Text(
+                                        text = "필터",
+                                        fontSize = 12.sp,
+                                        color = AppColors.TextSecondary
+                                    )
                                 }
-                            },
-                            onDetailClick = {
-                                selectedApartment = announcement
-                                showDetailDialog = true
-                            },
-                            modifier = Modifier.padding(bottom = Spacing.sm)
-                        )
+                            }
+                        }
+                        
+                        items(filteredAnnouncements) { announcement ->
+                            AnnouncementCard(
+                                announcement = announcement,
+                                isBookmarked = bookmarkedHousings.contains(announcement.title),
+                                onHeartClick = {
+                                    if (!bookmarkedHousings.contains(announcement.title)) {
+                                        selectedHousing = announcement
+                                        showNotificationDialog = true
+                                    } else {
+                                        // 북마크 제거
+                                        bookmarkedHousings = bookmarkedHousings - announcement.title
+                                        BookmarkPreferences.removeBookmark(context, announcement.title, BookmarkType.HOUSING)
+                                    }
+                                },
+                                onDetailClick = {
+                                    selectedApartment = announcement
+                                    showDetailDialog = true
+                                },
+                                modifier = Modifier.padding(bottom = Spacing.sm)
+                            )
+                        }
                     }
                 }
             }
@@ -619,6 +628,31 @@ fun HousingMapScreen(
                                 deadline = housing.deadline
                             )
                             BookmarkPreferences.addBookmark(context, bookmark)
+                            
+                            // 서버에 북마크 및 캘린더 일정 저장 (ApartmentItem)
+                            scope.launch {
+                                try {
+                                    com.example.app.network.NetworkModule.apiService.addBookmark(
+                                        userId = userId,
+                                        request = com.example.app.data.model.BookmarkRequest(
+                                            userId = userId,
+                                            contentType = "housing",
+                                            contentId = housing.id.toString()
+                                        )
+                                    )
+                                    com.example.app.network.NetworkModule.apiService.addCalendarEvent(
+                                        userId = userId,
+                                        request = com.example.app.data.model.CalendarEventRequest(
+                                            userId = userId,
+                                            title = housing.name,
+                                            eventType = "housing",
+                                            endDate = housing.deadline.replace(".", "-")
+                                        )
+                                    )
+                                } catch (e: Exception) {
+                                    android.util.Log.e("HousingMapActivity", "서버 저장 실패", e)
+                                }
+                            }
                             calendarService.addHousingToCalendar(
                                 title = housing.name,
                                 organization = housing.organization,
@@ -643,6 +677,31 @@ fun HousingMapScreen(
                                 deadline = housing.deadline
                             )
                             BookmarkPreferences.addBookmark(context, bookmark)
+                            
+                            // 서버에 북마크 및 캘린더 일정 저장 (Announcement)
+                            scope.launch {
+                                try {
+                                    com.example.app.network.NetworkModule.apiService.addBookmark(
+                                        userId = userId,
+                                        request = com.example.app.data.model.BookmarkRequest(
+                                            userId = userId,
+                                            contentType = "housing",
+                                            contentId = housing.id.toString()
+                                        )
+                                    )
+                                    com.example.app.network.NetworkModule.apiService.addCalendarEvent(
+                                        userId = userId,
+                                        request = com.example.app.data.model.CalendarEventRequest(
+                                            userId = userId,
+                                            title = housing.title,
+                                            eventType = "housing",
+                                            endDate = housing.deadline.replace(".", "-")
+                                        )
+                                    )
+                                } catch (e: Exception) {
+                                    android.util.Log.e("HousingMapActivity", "서버 저장 실패", e)
+                                }
+                            }
                             calendarService.addHousingToCalendar(
                                 title = housing.title,
                                 organization = housing.organization,
@@ -955,7 +1014,7 @@ private fun TabButton(
                             colors = listOf(AppColors.Purple, AppColors.BackgroundGradientStart)
                         )
                     } else {
-                        Brush.horizontalGradient(colors = listOf(Color.Transparent))
+                        Brush.horizontalGradient(colors = listOf(Color.Transparent, Color.Transparent))
                     }
                 )
                 .padding(vertical = Spacing.md, horizontal = Spacing.md)

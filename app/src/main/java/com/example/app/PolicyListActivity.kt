@@ -37,6 +37,7 @@ import com.example.app.ui.theme.ThemeWrapper
 import com.google.firebase.auth.FirebaseAuth
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlinx.coroutines.launch
 
 data class PolicyItem(
     val id: Int,
@@ -479,6 +480,31 @@ fun PolicyListScreen(
                 selectedPolicy?.let { policy ->
                     // 북마크 추가
                     bookmarkedPolicies = bookmarkedPolicies + policy.title
+                    
+                    // 서버에 북마크 및 캘린더 일정 저장
+                    scope.launch {
+                        try {
+                            com.example.app.network.NetworkModule.apiService.addBookmark(
+                                userId = userId,
+                                request = com.example.app.data.model.BookmarkRequest(
+                                    userId = userId,
+                                    contentType = "policy",
+                                    contentId = policy.id.toString()
+                                )
+                            )
+                            com.example.app.network.NetworkModule.apiService.addCalendarEvent(
+                                userId = userId,
+                                request = com.example.app.data.model.CalendarEventRequest(
+                                    userId = userId,
+                                    title = policy.title,
+                                    eventType = "policy",
+                                    endDate = policy.deadline.replace(".", "-")
+                                )
+                            )
+                        } catch (e: Exception) {
+                            // ignore
+                        }
+                    }
                     
                     // 캘린더에 일정 추가
                     calendarService.addPolicyToCalendar(
