@@ -60,7 +60,7 @@ fun WelcomeScreen(onNext: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(Color.White)  // 검은색 -> 흰색 배경
             .padding(horizontal = 32.dp, vertical = 64.dp)
             .pointerInput(Unit) {
                 detectHorizontalDragGestures(
@@ -86,44 +86,33 @@ fun WelcomeScreen(onNext: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // WY 로고 (원형)
-            Box(
-                modifier = Modifier
-                    .size(128.dp)
-                    .clip(CircleShape)
-                    .background(Color.White),
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.wy_logo),
-                    contentDescription = "WY Logo",
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp), // 패딩을 추가하여 로고가 잘리지 않도록
-                    contentScale = ContentScale.Fit // Crop 대신 Fit 사용
-                )
-            }
+            // WY 로고 - 크게 표시 (원형 박스 제거)
+            Image(
+                painter = painterResource(id = R.drawable.wy_logo),
+                contentDescription = "WY Logo",
+                modifier = Modifier.size(280.dp)  // 200.dp -> 280.dp로 더 크게
+            )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(48.dp))
 
-            // 메시지
+            // 메시지 - 검은색 텍스트
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
                     text = "슬기로운 청년생활에\n오신것을 환영합니다!",
-                    color = Color(0xFF1A1A1A),
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Normal,
+                    color = Color(0xFF1A1A1A),  // 검은색 텍스트
+                    fontSize = 20.sp,  // 18.sp -> 20.sp로 조금 더 크게
+                    fontWeight = FontWeight.Bold,  // Normal -> Bold
                     textAlign = TextAlign.Center,
-                    lineHeight = 24.sp
+                    lineHeight = 28.sp
                 )
 
                 Text(
                     text = "청년의 내일을 슬기롭게",
-                    color = Color(0xFF666666),
-                    fontSize = 14.sp,
+                    color = Color(0xFF1A1A1A),  // 666666 -> 1A1A1A (더 진한 검은색)
+                    fontSize = 16.sp,  // 14.sp -> 16.sp로 조금 더 크게
                     textAlign = TextAlign.Center
                 )
             }

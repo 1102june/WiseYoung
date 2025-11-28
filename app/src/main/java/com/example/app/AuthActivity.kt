@@ -49,11 +49,11 @@ fun AuthScreen(onLogin: () -> Unit, onRegister: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // WY 로고
+        // WY 로고 - 크게 표시
         Image(
             painter = painterResource(id = R.drawable.wy_logo),
             contentDescription = "WY Logo",
-            modifier = Modifier.size(100.dp)
+            modifier = Modifier.size(180.dp)  // 100.dp -> 180.dp로 크게 변경
         )
 
         Spacer(modifier = Modifier.height(32.dp))

@@ -234,12 +234,18 @@ class ProfileSetupActivity : ComponentActivity() {
                     .build()
 
                 Log.d("ProfileSetup", "서버 연결 시도 중...")
-                client.newCall(request).execute().use { response ->
-                    val responseBody = response.body?.string() ?: ""
-                    Log.d("ProfileSetup", "서버 응답 코드: ${response.code}")
-                    Log.d("ProfileSetup", "서버 응답 본문: $responseBody")
+                Log.d("ProfileSetup", "요청 URL: $url")
+                Log.d("ProfileSetup", "Config.BASE_URL: ${Config.BASE_URL}")
+                Log.d("ProfileSetup", "요청 헤더: ${request.headers}")
+                
+                try {
+                    client.newCall(request).execute().use { response ->
+                        val responseBody = response.body?.string() ?: ""
+                        Log.d("ProfileSetup", "서버 응답 코드: ${response.code}")
+                        Log.d("ProfileSetup", "서버 응답 헤더: ${response.headers}")
+                        Log.d("ProfileSetup", "서버 응답 본문: $responseBody")
 
-                    val message = try {
+                        val message = try {
                         val jsonResponse = JSONObject(responseBody)
                         if (response.isSuccessful) {
                             // 성공 응답 파싱
@@ -313,10 +319,97 @@ class ProfileSetupActivity : ComponentActivity() {
                         )
                     }
                     
+                        withContext(Dispatchers.Main) {
+                            onResult(isSuccess, message)
+                        }
+                    }  // use 블록 닫기
+                } catch (e: java.net.SocketTimeoutException) {
+                    Log.e("ProfileSetup", "연결 타임아웃: ${e.message}", e)
                     withContext(Dispatchers.Main) {
-                        onResult(isSuccess, message)
+                        onResult(false,
+                            "서버 응답 시간이 초과되었습니다.\n\n" +
+                            "🔧 확인 사항:\n" +
+                            "1. 네트워크 연결 상태 확인\n" +
+                            "2. 서버가 정상적으로 실행 중인지 확인\n" +
+                            "3. Config.kt의 BASE_URL이 올바른지 확인\n" +
+                            "   현재 URL: $url\n" +
+                            "4. USB 테더링 사용 시 컴퓨터 IP 주소 사용 확인\n" +
+                            "5. 잠시 후 다시 시도"
+                        )
                     }
-                }  // use 블록 닫기
+                } catch (e: java.io.IOException) {
+                    Log.e("ProfileSetup", "IO 오류: ${e.message}", e)
+                    withContext(Dispatchers.Main) {
+                        val currentUrl = Config.BASE_URL
+                        val isLocalhost = currentUrl.contains("127.0.0.1") || currentUrl.contains("localhost")
+                        
+                        val errorMsg = when {
+                            e.message?.contains("Unable to resolve host") == true || 
+                            e.message?.contains("Failed to connect") == true -> {
+                                if (isLocalhost) {
+                                    "서버 연결 실패\n\n" +
+                                    "⚠️ 현재 설정: $currentUrl\n\n" +
+                                    "🔧 USB 연결 시 해결 방법:\n\n" +
+                                    "1️⃣ ADB 포트 포워딩 설정 (권장)\n" +
+                                    "   Android Studio의 Terminal에서 실행:\n" +
+                                    "   adb reverse tcp:8080 tcp:8080\n\n" +
+                                    "   또는 PowerShell에서:\n" +
+                                    "   cd \$env:LOCALAPPDATA\\Android\\Sdk\\platform-tools\n" +
+                                    "   .\\adb.exe reverse tcp:8080 tcp:8080\n\n" +
+                                    "2️⃣ USB 테더링 IP 사용\n" +
+                                    "   PowerShell: ipconfig | findstr IPv4\n" +
+                                    "   Config.kt 36번 줄 주석 해제 후 IP 변경\n\n" +
+                                    "3️⃣ Spring Boot 서버 실행 확인"
+                                } else {
+                                    "서버를 찾을 수 없습니다.\n\n" +
+                                    "🔧 확인 사항:\n" +
+                                    "1. Config.kt의 BASE_URL 확인: $currentUrl\n" +
+                                    "2. USB 테더링 사용 시 컴퓨터 IP 주소 사용:\n" +
+                                    "   PowerShell: ipconfig | findstr IPv4\n" +
+                                    "3. Spring Boot 서버 실행 확인"
+                                }
+                            }
+                            e.message?.contains("Connection refused") == true -> 
+                                "서버 연결이 거부되었습니다.\n\n" +
+                                "🔧 확인 사항:\n" +
+                                "1. Spring Boot 서버가 실행 중인지 확인\n" +
+                                "2. 서버가 모든 인터페이스에서 수신하는지 확인\n" +
+                                "   (application.yml: server.address=0.0.0.0)\n" +
+                                "3. Windows 방화벽에서 8080 포트 허용 확인\n" +
+                                "4. 현재 URL: $currentUrl"
+                            e.message?.contains("Network is unreachable") == true -> 
+                                "네트워크에 연결할 수 없습니다.\n\n" +
+                                "🔧 확인 사항:\n" +
+                                "1. USB 테더링 연결 확인\n" +
+                                "2. ADB 포트 포워딩: adb reverse tcp:8080 tcp:8080\n" +
+                                "3. 또는 Config.kt의 BASE_URL을 컴퓨터 IP로 변경"
+                            else -> {
+                                val baseMsg = "네트워크 오류: ${e.message}\n\n"
+                                if (isLocalhost) {
+                                    baseMsg +
+                                    "⚠️ 현재 설정: $currentUrl\n\n" +
+                                    "🔧 USB 연결 시 해결 방법:\n\n" +
+                                    "1️⃣ ADB 포트 포워딩 설정\n" +
+                                    "   Android Studio Terminal:\n" +
+                                    "   adb reverse tcp:8080 tcp:8080\n\n" +
+                                    "   또는 PowerShell:\n" +
+                                    "   cd \$env:LOCALAPPDATA\\Android\\Sdk\\platform-tools\n" +
+                                    "   .\\adb.exe reverse tcp:8080 tcp:8080\n\n" +
+                                    "2️⃣ USB 테더링 IP 사용\n" +
+                                    "   Config.kt에서 BASE_URL을 컴퓨터 IP로 변경\n\n" +
+                                    "3️⃣ Spring Boot 서버 실행 확인"
+                                } else {
+                                    baseMsg +
+                                    "🔧 확인 사항:\n" +
+                                    "1. 서버 URL: $url\n" +
+                                    "2. USB 테더링 연결 확인\n" +
+                                    "3. Spring Boot 서버 실행 확인"
+                                }
+                            }
+                        }
+                        onResult(false, errorMsg)
+                    }
+                }
             } catch (e: java.net.UnknownHostException) {
                     Log.e("ProfileSetup", "호스트를 찾을 수 없음: ${e.message}", e)
                     withContext(Dispatchers.Main) {
@@ -1060,52 +1153,94 @@ private fun InterestSection(selected: Set<String>, onToggle: (String) -> Unit) {
             color = Color(0xFF1A1A1A)
         )
         val interests = listOf("일자리", "주거", "복지문화", "교육")
+        // 여러 줄로 배치: 2개씩 한 줄에 배치
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // 첫 번째 줄: 일자리, 주거
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                InterestButton(
+                    interest = interests[0],
+                    isSelected = selected.contains(interests[0]),
+                    onToggle = { onToggle(interests[0]) }
+                )
+                if (interests.size > 1) {
+                    InterestButton(
+                        interest = interests[1],
+                        isSelected = selected.contains(interests[1]),
+                        onToggle = { onToggle(interests[1]) }
+                    )
+                }
+            }
+            // 두 번째 줄: 복지문화, 교육
+            if (interests.size > 2) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-            interests.forEach { interest ->
-                InterestButton(
-                    interest = interest,
-                    isSelected = selected.contains(interest),
-                    onToggle = { onToggle(interest) }
-                )
+                    InterestButton(
+                        interest = interests[2],
+                        isSelected = selected.contains(interests[2]),
+                        onToggle = { onToggle(interests[2]) }
+                    )
+                    if (interests.size > 3) {
+                        InterestButton(
+                            interest = interests[3],
+                            isSelected = selected.contains(interests[3]),
+                            onToggle = { onToggle(interests[3]) }
+                        )
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun RowScope.InterestButton(
+private fun InterestButton(
     interest: String,
     isSelected: Boolean,
     onToggle: () -> Unit
 ) {
     if (isSelected) {
-                        Button(
+        Button(
             onClick = onToggle,
             modifier = Modifier
-                .weight(1f)
-                .height(48.dp),
-                            colors = ButtonDefaults.buttonColors(
+                .heightIn(min = 56.dp),  // 최소 높이를 56.dp로 증가
+            colors = ButtonDefaults.buttonColors(
                 containerColor = Color(0xFF59ABF7),  // 라이트 블루 (메인 컬러)
                 contentColor = Color.White
-                            )
-                        ) {
-                            Text(interest)
-                        }
+            ),
+            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)  // 패딩 추가
+        ) {
+            Text(
+                text = interest,
+                fontSize = 13.sp,  // 텍스트 크기를 약간 줄임
+                textAlign = TextAlign.Center,
+                maxLines = 2  // 최대 2줄까지 표시
+            )
+        }
     } else {
         OutlinedButton(
             onClick = onToggle,
             modifier = Modifier
-                .weight(1f)
-                .height(48.dp),
+                .heightIn(min = 56.dp),  // 최소 높이를 56.dp로 증가
             colors = ButtonDefaults.outlinedButtonColors(
                 contentColor = Color(0xFF59ABF7)  // 라이트 블루 (메인 컬러)
             ),
-            border = BorderStroke(2.dp, Color(0xFF59ABF7))  // 라이트 블루 테두리
+            border = BorderStroke(2.dp, Color(0xFF59ABF7)),  // 라이트 블루 테두리
+            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)  // 패딩 추가
         ) {
-            Text(interest)
+            Text(
+                text = interest,
+                fontSize = 13.sp,  // 텍스트 크기를 약간 줄임
+                textAlign = TextAlign.Center,
+                maxLines = 2  // 최대 2줄까지 표시
+            )
         }
     }
 }

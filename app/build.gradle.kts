@@ -100,7 +100,6 @@ android {
         implementation("androidx.room:room-runtime:$roomVersion")
         implementation("androidx.room:room-ktx:$roomVersion")
         annotationProcessor("androidx.room:room-compiler:$roomVersion")
-        kapt("androidx.room:room-compiler:$roomVersion")
 
         // 🔹 WorkManager (로컬 알림 스케줄링)
         implementation("androidx.work:work-runtime-ktx:2.9.0")

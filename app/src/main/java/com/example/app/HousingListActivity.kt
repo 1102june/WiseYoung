@@ -15,9 +15,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.app.NotificationSettings
 import com.example.app.data.model.HousingResponse
 import com.example.app.network.NetworkModule
+import com.example.app.service.CalendarService
+import com.example.app.ui.theme.AppColors
+import com.example.app.ui.theme.Spacing
 import com.example.app.ui.theme.WiseYoungTheme
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
@@ -54,7 +61,23 @@ fun HousingListScreen(
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showRecommended by remember { mutableStateOf(false) }
+    var showNotificationDialog by remember { mutableStateOf(false) }
+    var selectedHousing by remember { mutableStateOf<HousingResponse?>(null) }
+    var notifications by remember {
+        mutableStateOf(
+            NotificationSettings(
+                sevenDays = true,
+                sevenDaysTime = "09:00",
+                oneDay = true,
+                oneDayTime = "09:00",
+                custom = false,
+                customDays = 3,
+                customTime = "09:00"
+            )
+        )
+    }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     
     // 주택 목록 로드
     fun loadHousing() {
@@ -161,17 +184,92 @@ fun HousingListScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(housingList) { housing ->
-                    HousingCard(housing = housing, userId = userId)
+                    HousingCard(
+                        housing = housing,
+                        userId = userId,
+                        onBookmarkClick = {
+                            if (!housing.isBookmarked) {
+                                selectedHousing = housing
+                                showNotificationDialog = true
+                            }
+                        }
+                    )
                 }
             }
         }
+    }
+    
+    // Notification Dialog
+    val calendarService = remember { CalendarService(context) }
+    
+    if (showNotificationDialog && selectedHousing != null) {
+        HousingNotificationDialog(
+            notifications = notifications,
+            onNotificationsChange = { notifications = it },
+            onSave = {
+                selectedHousing?.let { housing ->
+                    // 북마크 추가
+                    scope.launch {
+                        try {
+                            NetworkModule.apiService.logActivity(
+                                userId,
+                                com.example.app.data.model.UserActivityRequest(
+                                    activityType = "BOOKMARK",
+                                    contentType = "housing",
+                                    contentId = housing.housingId
+                                )
+                            )
+                        } catch (e: Exception) {
+                            // 로그 실패는 무시
+                        }
+                    }
+                    
+                    // 캘린더에 일정 추가
+                    val deadline = housing.applicationEnd ?: housing.applicationStart ?: ""
+                    if (deadline.isNotEmpty()) {
+                        calendarService.addHousingToCalendar(
+                            title = housing.name,
+                            organization = housing.organization,
+                            deadline = deadline,
+                            housingId = housing.housingId,
+                            notificationSettings = notifications
+                        )
+                    }
+
+                    // 로컬 북마크 저장
+                    com.wiseyoung.app.BookmarkPreferences.addBookmark(
+                        context,
+                        com.wiseyoung.app.BookmarkItem(
+                            id = housing.housingId.hashCode(), // Int ID 생성
+                            type = com.wiseyoung.app.BookmarkType.HOUSING,
+                            title = housing.name,
+                            organization = housing.organization,
+                            address = housing.address,
+                            deposit = housing.deposit?.let { "${it / 10000}만원" },
+                            monthlyRent = housing.monthlyRent?.let { "${it / 10000}만원" },
+                            area = housing.supplyArea?.let { "${it}㎡" },
+                            completionDate = housing.completeDate,
+                            distance = housing.distanceFromUser?.let { "${(it / 1000).toInt()}km" },
+                            deadline = deadline
+                        )
+                    )
+                }
+                showNotificationDialog = false
+                selectedHousing = null
+            },
+            onDismiss = {
+                showNotificationDialog = false
+                selectedHousing = null
+            }
+        )
     }
 }
 
 @Composable
 fun HousingCard(
     housing: HousingResponse,
-    userId: String
+    userId: String,
+    onBookmarkClick: () -> Unit = {}
 ) {
     var isBookmarked by remember { mutableStateOf(housing.isBookmarked) }
     val scope = rememberCoroutineScope()
@@ -232,20 +330,25 @@ fun HousingCard(
                 }
                 IconButton(
                     onClick = {
-                        isBookmarked = !isBookmarked
-                        // TODO: 북마크 API 호출
-                        scope.launch {
-                            try {
-                                NetworkModule.apiService.logActivity(
-                                    userId,
-                                    com.example.app.data.model.UserActivityRequest(
-                                        activityType = if (isBookmarked) "BOOKMARK" else "UNBOOKMARK",
-                                        contentType = "housing",
-                                        contentId = housing.housingId
+                        if (!isBookmarked) {
+                            // 좋아요 추가 시 알림 설정 다이얼로그 표시
+                            onBookmarkClick()
+                        } else {
+                            // 좋아요 해제
+                            isBookmarked = false
+                            scope.launch {
+                                try {
+                                    NetworkModule.apiService.logActivity(
+                                        userId,
+                                        com.example.app.data.model.UserActivityRequest(
+                                            activityType = "UNBOOKMARK",
+                                            contentType = "housing",
+                                            contentId = housing.housingId
+                                        )
                                     )
-                                )
-                            } catch (e: Exception) {
-                                // 로그 실패는 무시
+                                } catch (e: Exception) {
+                                    // 로그 실패는 무시
+                                }
                             }
                         }
                     }
@@ -328,6 +431,169 @@ fun HousingCard(
                     text = "신청 마감: $endDate",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HousingNotificationDialog(
+    notifications: NotificationSettings,
+    onNotificationsChange: (NotificationSettings) -> Unit,
+    onSave: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    var localNotifications by remember { mutableStateOf(notifications) }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("알림 설정") },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(Spacing.md)
+            ) {
+                NotificationSettingRow(
+                    label = "7일전 알림",
+                    enabled = localNotifications.sevenDays,
+                    time = localNotifications.sevenDaysTime,
+                    onEnabledChange = {
+                        localNotifications = localNotifications.copy(sevenDays = it)
+                    },
+                    onTimeChange = {
+                        localNotifications = localNotifications.copy(sevenDaysTime = it)
+                    }
+                )
+                
+                NotificationSettingRow(
+                    label = "1일전 알림",
+                    enabled = localNotifications.oneDay,
+                    time = localNotifications.oneDayTime,
+                    onEnabledChange = {
+                        localNotifications = localNotifications.copy(oneDay = it)
+                    },
+                    onTimeChange = {
+                        localNotifications = localNotifications.copy(oneDayTime = it)
+                    }
+                )
+                
+                CustomNotificationRow(
+                    enabled = localNotifications.custom,
+                    days = localNotifications.customDays,
+                    time = localNotifications.customTime,
+                    onEnabledChange = {
+                        localNotifications = localNotifications.copy(custom = it)
+                    },
+                    onDaysChange = {
+                        localNotifications = localNotifications.copy(customDays = it)
+                    },
+                    onTimeChange = {
+                        localNotifications = localNotifications.copy(customTime = it)
+                    }
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onNotificationsChange(localNotifications)
+                    onSave()
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = AppColors.TextPrimary
+                )
+            ) {
+                Text("저장하기", color = Color.White)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("취소")
+            }
+        }
+    )
+}
+
+@Composable
+private fun NotificationSettingRow(
+    label: String,
+    enabled: Boolean,
+    time: String,
+    onEnabledChange: (Boolean) -> Unit,
+    onTimeChange: (String) -> Unit
+) {
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(label, fontSize = 14.sp)
+            Switch(
+                checked = enabled,
+                onCheckedChange = onEnabledChange
+            )
+        }
+        
+        if (enabled) {
+            OutlinedTextField(
+                value = time,
+                onValueChange = onTimeChange,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = Spacing.md, top = Spacing.sm),
+                label = { Text("시간") },
+                placeholder = { Text("09:00") }
+            )
+        }
+    }
+}
+
+@Composable
+private fun CustomNotificationRow(
+    enabled: Boolean,
+    days: Int,
+    time: String,
+    onEnabledChange: (Boolean) -> Unit,
+    onDaysChange: (Int) -> Unit,
+    onTimeChange: (String) -> Unit
+) {
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("사용자 지정 알림", fontSize = 14.sp)
+            Switch(
+                checked = enabled,
+                onCheckedChange = onEnabledChange
+            )
+        }
+        
+        if (enabled) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = Spacing.md, top = Spacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+            ) {
+                OutlinedTextField(
+                    value = days.toString(),
+                    onValueChange = { onDaysChange(it.toIntOrNull() ?: 0) },
+                    modifier = Modifier.width(80.dp),
+                    label = { Text("일") }
+                )
+                Text("일 전", fontSize = 14.sp)
+                Spacer(modifier = Modifier.weight(1f))
+                OutlinedTextField(
+                    value = time,
+                    onValueChange = onTimeChange,
+                    modifier = Modifier.width(120.dp),
+                    label = { Text("시간") },
+                    placeholder = { Text("09:00") }
                 )
             }
         }

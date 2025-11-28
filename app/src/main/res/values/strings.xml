@@ -1,11 +1,45 @@
 <resources>
     <string name="app_name">WiseYoung</string>
-    <string name="wy_logo_desc">WY 로고 이미지</string>
-    <string name="welcome_title">슬기로운 청년생활에 오신 것을 환영합니다!</string>
-    <string name="welcome_subtitle">청년의 내일을 슬기롭게</string>
-    <string name="next_button_text">다음</string>
+    <string name="default_notification_channel_id">default_channel</string>
+    
+    <!-- Auth -->
     <string name="login">로그인</string>
     <string name="register">회원가입</string>
-    <!-- Google Sign-In Web Client ID (google-services.json의 oauth_client client_type 3) -->
-    <string name="default_web_client_id">609597104515-hhhv4g5tckho264n2jv2mpnqtie0qf48.apps.googleusercontent.com</string>
+    
+    <!-- Welcome -->
+    <string name="wy_logo_desc">WiseYoung 로고</string>
+    <string name="welcome_title">WiseYoung에 오신 것을 환영합니다</string>
+    <string name="welcome_subtitle">청년을 위한 모든 정책과 주거 정보를 한눈에</string>
+    <string name="next_button_text">시작하기</string>
+    
+    <!-- Common -->
+    <string name="email">이메일</string>
+    <string name="password">비밀번호</string>
+    <string name="confirm_password">비밀번호 확인</string>
+    <string name="nickname">닉네임</string>
+    <string name="birth_date">생년월일</string>
+    <string name="gender">성별</string>
+    <string name="male">남성</string>
+    <string name="female">여성</string>
+    <string name="phone_number">전화번호</string>
+    <string name="address">주소</string>
+    <string name="detail_address">상세주소</string>
+    <string name="submit">제출</string>
+    <string name="cancel">취소</string>
+    <string name="ok">확인</string>
+    <string name="yes">예</string>
+    <string name="no">아니오</string>
+    <string name="search">검색</string>
+    <string name="filter">필터</string>
+    <string name="notification">알림</string>
+    <string name="settings">설정</string>
+    <string name="profile">프로필</string>
+    <string name="logout">로그아웃</string>
+    <string name="delete_account">회원탈퇴</string>
+    <string name="bookmark">북마크</string>
+    <string name="home">홈</string>
+    <string name="policy">정책</string>
+    <string name="housing">주거</string>
+    <string name="community">커뮤니티</string>
+    <string name="chat">채팅</string>
 </resources>

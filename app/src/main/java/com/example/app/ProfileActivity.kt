@@ -33,8 +33,13 @@ import com.example.app.ui.theme.ThemeMode
 import com.example.app.ui.theme.ThemePreferences
 import com.example.app.ui.components.BottomNavigationBar
 import androidx.compose.ui.platform.LocalContext
+import com.example.app.data.model.ProfileResponse
+import com.example.app.network.NetworkModule
+import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.launch
 
 class ProfileActivity : ComponentActivity() {
+    private val auth = FirebaseAuth.getInstance()
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -79,10 +84,48 @@ fun ProfileScreen(
     onThemeModeChange: (ThemeMode) -> Unit
 ) {
     val context = LocalContext.current
+    val auth = FirebaseAuth.getInstance()
+    val scope = rememberCoroutineScope()
     var themeMode by remember { mutableStateOf(ThemePreferences.getThemeMode(context)) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var deletePassword by remember { mutableStateOf("") }
+    var profile by remember { mutableStateOf<ProfileResponse?>(null) }
+    var isLoadingProfile by remember { mutableStateOf(true) }
+    
+    // 프로필 정보 불러오기
+    LaunchedEffect(Unit) {
+        val currentUser = auth.currentUser
+        if (currentUser != null) {
+            currentUser.getIdToken(true).addOnSuccessListener { tokenResult ->
+                val idToken = tokenResult.token
+                if (idToken != null) {
+                    scope.launch {
+                        try {
+                            val response = NetworkModule.apiService.getProfile("Bearer $idToken")
+                            if (response.isSuccessful && response.body()?.success == true) {
+                                profile = response.body()?.data
+                            } else {
+                                val errorCode = response.code()
+                                android.util.Log.e("ProfileActivity", "프로필 조회 실패: $errorCode")
+                            }
+                        } catch (e: Exception) {
+                            android.util.Log.e("ProfileActivity", "프로필 조회 오류: ${e.message}", e)
+                        } finally {
+                            isLoadingProfile = false
+                        }
+                    }
+                } else {
+                    isLoadingProfile = false
+                }
+            }.addOnFailureListener {
+                android.util.Log.e("ProfileActivity", "ID Token 발급 실패: ${it.message}", it)
+                isLoadingProfile = false
+            }
+        } else {
+            isLoadingProfile = false
+        }
+    }
     
     // ThemePreferences 변경 감지하여 themeMode 상태 업데이트 (ThemeWrapper와 동기화)
     androidx.compose.runtime.DisposableEffect(Unit) {
@@ -129,6 +172,8 @@ fun ProfileScreen(
             ) {
                 // User Info Card
                 UserInfoCard(
+                    profile = profile,
+                    isLoading = isLoadingProfile,
                     modifier = Modifier.padding(bottom = Spacing.md)
                 )
                 
@@ -260,7 +305,11 @@ private fun ProfileHeader() {
 }
 
 @Composable
-private fun UserInfoCard(modifier: Modifier = Modifier) {
+private fun UserInfoCard(
+    profile: ProfileResponse?,
+    isLoading: Boolean,
+    modifier: Modifier = Modifier
+) {
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -272,79 +321,146 @@ private fun UserInfoCard(modifier: Modifier = Modifier) {
                 .fillMaxWidth()
                 .padding(Spacing.lg)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Profile Image
+            if (isLoading) {
                 Box(
-                    modifier = Modifier
-                        .size(80.dp)
-                        .clip(CircleShape)
-                        .background(AppColors.Border),
+                    modifier = Modifier.fillMaxWidth(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = "Profile",
-                        tint = AppColors.TextSecondary,
-                        modifier = Modifier.size(40.dp)
-                    )
+                    CircularProgressIndicator()
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Profile Image
+                    Box(
+                        modifier = Modifier
+                            .size(80.dp)
+                            .clip(CircleShape)
+                            .background(AppColors.Border),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = "Profile",
+                            tint = AppColors.TextSecondary,
+                            modifier = Modifier.size(40.dp)
+                        )
+                    }
+                    
+                    // User Info
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = profile?.nickname?.let { "$it 님" } ?: "사용자 님",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = AppColors.TextPrimary
+                        )
+                        // 나이 계산 (생년월일에서)
+                        profile?.birthDate?.let { birthDate ->
+                            val age = try {
+                                val birthYear = birthDate.substring(0, 4).toInt()
+                                val currentYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+                                currentYear - birthYear + 1
+                            } catch (e: Exception) {
+                                null
+                            }
+                            age?.let {
+                                Text(
+                                    text = "${it}세",
+                                    fontSize = 14.sp,
+                                    color = AppColors.TextSecondary
+                                )
+                            }
+                        }
+                        // 지역 정보
+                        if (profile?.province != null && profile?.city != null) {
+                            Text(
+                                text = "${profile.province} ${profile.city} 거주",
+                                fontSize = 14.sp,
+                                color = AppColors.TextSecondary
+                            )
+                        }
+                        // 직업 상태
+                        profile?.employment?.let { employment ->
+                            Text(
+                                text = employment,
+                                fontSize = 14.sp,
+                                color = AppColors.TextSecondary
+                            )
+                        }
+                    }
                 }
                 
-                // User Info
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(
-                        text = "슬기로운 청년 님",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = AppColors.TextPrimary
+                // Interest Tags
+                if (profile?.interests != null && profile.interests.isNotEmpty()) {
+                    Divider(
+                        modifier = Modifier.padding(vertical = Spacing.md),
+                        color = AppColors.Border
                     )
+                    
                     Text(
-                        text = "25세",
+                        text = "관심선택 목록",
                         fontSize = 14.sp,
-                        color = AppColors.TextSecondary
+                        color = AppColors.TextTertiary,
+                        modifier = Modifier.padding(bottom = Spacing.sm)
                     )
-                    Text(
-                        text = "경기도 수원시 거주",
-                        fontSize = 14.sp,
-                        color = AppColors.TextSecondary
-                    )
-                    Text(
-                        text = "재학중",
-                        fontSize = 14.sp,
-                        color = AppColors.TextSecondary
-                    )
+                    
+                    // 관심사 태그를 여러 줄로 표시
+                    // 간단한 방법: Row를 여러 개 사용 (2개씩 한 줄에 배치)
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(Spacing.xs)
+                    ) {
+                        profile.interests.chunked(2).forEach { row ->
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                row.forEach { interest ->
+                                    InterestTag(
+                                        text = interest,
+                                        backgroundColor = getInterestTagColor(interest),
+                                        textColor = getInterestTagTextColor(interest)
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
-            
-            // Interest Tags
-            Divider(
-                modifier = Modifier.padding(vertical = Spacing.md),
-                color = AppColors.Border
-            )
-            
-            Text(
-                text = "관심선택 목록",
-                fontSize = 14.sp,
-                color = AppColors.TextTertiary,
-                modifier = Modifier.padding(bottom = Spacing.sm)
-            )
-            
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                // TODO: 실제 사용자 관심사 데이터를 불러와서 표시
-                InterestTag("일자리", AppColors.Purple.copy(alpha = 0.1f), AppColors.Purple)
-                InterestTag("주거", AppColors.BackgroundGradientStart.copy(alpha = 0.1f), AppColors.BackgroundGradientStart)
-                InterestTag("복지문화", AppColors.Info.copy(alpha = 0.1f), AppColors.Info)
-            }
         }
+    }
+}
+
+// 관심사 태그 색상 매핑
+@Composable
+private fun getInterestTagColor(interest: String): Color {
+    return when {
+        interest.contains("일자리") || interest.contains("취업") || interest.contains("창업") -> 
+            AppColors.Purple.copy(alpha = 0.1f)
+        interest.contains("주거") || interest.contains("주택") || interest.contains("임대") -> 
+            AppColors.BackgroundGradientStart.copy(alpha = 0.1f)
+        interest.contains("복지") || interest.contains("문화") -> 
+            AppColors.Info.copy(alpha = 0.1f)
+        else -> AppColors.Border.copy(alpha = 0.3f)
+    }
+}
+
+@Composable
+private fun getInterestTagTextColor(interest: String): Color {
+    return when {
+        interest.contains("일자리") || interest.contains("취업") || interest.contains("창업") -> 
+            AppColors.Purple
+        interest.contains("주거") || interest.contains("주택") || interest.contains("임대") -> 
+            AppColors.BackgroundGradientStart
+        interest.contains("복지") || interest.contains("문화") -> 
+            AppColors.Info
+        else -> AppColors.TextPrimary
     }
 }
 

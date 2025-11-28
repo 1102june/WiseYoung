@@ -54,10 +54,11 @@ class LoginActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Google Sign-In 설정
+        // Google Sign-In 설정 (네트워크 타임아웃 개선)
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestIdToken(getString(R.string.default_web_client_id))
             .requestEmail()
+            .requestProfile()
             .build()
         googleSignInClient = GoogleSignIn.getClient(this, gso)
 
@@ -93,8 +94,10 @@ class LoginActivity : ComponentActivity() {
             firebaseAuthWithGoogle(account)
         } catch (e: ApiException) {
             val errorMessage = when (e.statusCode) {
-                com.google.android.gms.common.api.CommonStatusCodes.NETWORK_ERROR -> 
-                    "네트워크 연결을 확인해주세요. 인터넷 연결이 필요합니다."
+                com.google.android.gms.common.api.CommonStatusCodes.NETWORK_ERROR -> {
+                    // 네트워크 오류 시 재시도 안내
+                    "네트워크 연결을 확인해주세요. 인터넷 연결이 필요합니다.\n잠시 후 다시 시도해주세요."
+                }
                 com.google.android.gms.common.api.CommonStatusCodes.INTERNAL_ERROR -> 
                     "Google 로그인 중 오류가 발생했습니다. 다시 시도해주세요."
                 com.google.android.gms.common.api.CommonStatusCodes.INVALID_ACCOUNT -> 
@@ -103,80 +106,160 @@ class LoginActivity : ComponentActivity() {
                     "Google 로그인이 필요합니다."
                 12501 -> // GoogleSignInStatusCodes.SIGN_IN_CANCELLED
                     "Google 로그인이 취소되었습니다."
+                7 -> // CommonStatusCodes.TIMEOUT
+                    "연결 시간이 초과되었습니다. 네트워크 상태를 확인하고 다시 시도해주세요."
+                8 -> // CommonStatusCodes.INTERRUPTED
+                    "연결이 중단되었습니다. 다시 시도해주세요."
                 else -> "Google 로그인 실패: ${e.message} (코드: ${e.statusCode})"
             }
             Toast.makeText(this, errorMessage, Toast.LENGTH_LONG).show()
-            android.util.Log.e("LoginActivity", "Google 로그인 실패: ${e.statusCode} - ${e.message}")
+            android.util.Log.e("LoginActivity", "Google 로그인 실패: ${e.statusCode} - ${e.message}", e)
         } catch (e: Exception) {
-            Toast.makeText(this, "Google 로그인 중 오류가 발생했습니다: ${e.message}", Toast.LENGTH_LONG).show()
+            val errorMsg = when {
+                e.message?.contains("IOException", ignoreCase = true) == true -> 
+                    "네트워크 연결 오류가 발생했습니다. 인터넷 연결을 확인하고 다시 시도해주세요."
+                e.message?.contains("Connectivity", ignoreCase = true) == true -> 
+                    "연결 오류가 발생했습니다. 네트워크 상태를 확인해주세요."
+                else -> "Google 로그인 중 오류가 발생했습니다: ${e.message}"
+            }
+            Toast.makeText(this, errorMsg, Toast.LENGTH_LONG).show()
             android.util.Log.e("LoginActivity", "Google 로그인 예외: ${e.message}", e)
         }
     }
 
     private fun loginUser(email: String, password: String) {
         val trimmedPassword = password.trim()
+        android.util.Log.d("LoginActivity", "이메일 로그인 시도: $email")
         
         auth.signInWithEmailAndPassword(email, trimmedPassword)
             .addOnSuccessListener { result ->
-                val user = result.user ?: return@addOnSuccessListener
+                val user = result.user ?: run {
+                    android.util.Log.e("LoginActivity", "로그인 성공했지만 user가 null")
+                    Toast.makeText(
+                        this,
+                        "로그인 오류: 사용자 정보를 가져올 수 없습니다.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    return@addOnSuccessListener
+                }
+                android.util.Log.d("LoginActivity", "Firebase 로그인 성공: ${user.uid}")
 
                 // Firebase 이메일 인증 체크 제거 (Gmail SMTP 사용)
                 user.getIdToken(true)
                     .addOnSuccessListener { token ->
+                        android.util.Log.d("LoginActivity", "ID Token 발급 성공")
                         sendIdTokenToServer(token.token ?: "", trimmedPassword)
                     }
+                    .addOnFailureListener { e ->
+                        android.util.Log.e("LoginActivity", "ID Token 발급 실패: ${e.message}", e)
+                        Toast.makeText(
+                            this,
+                            "인증 토큰 발급 실패: ${e.message}",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
             }
-            .addOnFailureListener {
+            .addOnFailureListener { e ->
+                android.util.Log.e("LoginActivity", "Firebase 로그인 실패: ${e.message}", e)
+                val errorMessage = when {
+                    e.message?.contains("password", ignoreCase = true) == true -> 
+                        "비밀번호가 올바르지 않습니다."
+                    e.message?.contains("user", ignoreCase = true) == true && 
+                    e.message?.contains("not found", ignoreCase = true) == true -> 
+                        "등록되지 않은 이메일입니다."
+                    e.message?.contains("network", ignoreCase = true) == true -> 
+                        "네트워크 연결을 확인해주세요."
+                    else -> "로그인 실패: ${e.message}"
+                }
                 Toast.makeText(
                     this,
-                    "로그인 실패: ${it.message}",
-                    Toast.LENGTH_SHORT
+                    errorMessage,
+                    Toast.LENGTH_LONG
                 ).show()
             }
     }
 
     private fun sendIdTokenToServer(idToken: String, password: String) {
-        val client = OkHttpClient.Builder()
-            .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-            .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-            .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-            .build()
-        val json = """{"idToken": "$idToken", "password": "$password"}"""
-        val body = RequestBody.create("application/json".toMediaType(), json)
+        try {
+            val client = OkHttpClient.Builder()
+                .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+            val json = """{"idToken": "$idToken", "password": "$password"}"""
+            val body = RequestBody.create("application/json; charset=utf-8".toMediaType(), json)
 
-        val request = Request.Builder()
-            .url(Config.getUrl(Config.Api.LOGIN))
-            .post(body)
-            .build()
+            val request = Request.Builder()
+                .url(Config.getUrl(Config.Api.LOGIN))
+                .post(body)
+                .build()
 
-        client.newCall(request).enqueue(object : Callback {
+            client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: java.io.IOException) {
                 runOnUiThread {
+                    android.util.Log.e("LoginActivity", "서버 연결 실패: ${e.message}", e)
+                    val errorMsg = when {
+                        e.message?.contains("Unable to resolve host") == true -> 
+                            "서버를 찾을 수 없습니다.\nConfig.kt의 BASE_URL을 확인해주세요."
+                        e.message?.contains("Connection refused") == true -> 
+                            "서버 연결이 거부되었습니다.\nSpring Boot 서버가 실행 중인지 확인해주세요."
+                        e.message?.contains("timeout") == true -> 
+                            "서버 응답 시간이 초과되었습니다.\n네트워크 연결을 확인해주세요."
+                        else -> "서버 연결 실패: ${e.message}"
+                    }
                     Toast.makeText(
                         this@LoginActivity,
-                        "서버 연결 실패: ${e.message}",
-                        Toast.LENGTH_SHORT
+                        errorMsg,
+                        Toast.LENGTH_LONG
                     ).show()
                 }
             }
 
             override fun onResponse(call: Call, response: Response) {
+                val responseBody = response.body?.string() ?: ""
+                android.util.Log.d("LoginActivity", "로그인 서버 응답 코드: ${response.code}")
+                android.util.Log.d("LoginActivity", "로그인 서버 응답 본문: $responseBody")
+                
                 runOnUiThread {
                     if (response.isSuccessful) {
-                        // FCM 토큰 저장
-                        FcmTokenService.getAndSaveToken()
-                        // 서버에서 프로필 확인 후 네비게이션
-                        checkProfileAndNavigate(isGoogleLogin = false)
+                        android.util.Log.d("LoginActivity", "로그인 성공 - 프로필 확인 시작")
+                        try {
+                            // FCM 토큰 저장
+                            FcmTokenService.getAndSaveToken()
+                            // 서버에서 프로필 확인 후 네비게이션
+                            checkProfileAndNavigate(isGoogleLogin = false)
+                        } catch (e: Exception) {
+                            android.util.Log.e("LoginActivity", "프로필 확인 중 오류: ${e.message}", e)
+                            // 오류 발생 시 기본 네비게이션
+                            navigateAfterLogin(isGoogleLogin = false)
+                        }
                     } else {
+                        android.util.Log.e("LoginActivity", "로그인 서버 오류: ${response.code} - $responseBody")
+                        val errorMsg = try {
+                            val jsonResponse = org.json.JSONObject(responseBody)
+                            jsonResponse.optString("message", "서버 오류: ${response.code}")
+                        } catch (e: Exception) {
+                            "서버 오류: ${response.code} - $responseBody"
+                        }
                         Toast.makeText(
                             this@LoginActivity,
-                            "서버 오류: ${response.message}",
-                            Toast.LENGTH_SHORT
+                            errorMsg,
+                            Toast.LENGTH_LONG
                         ).show()
                     }
                 }
             }
         })
+        } catch (e: Exception) {
+            android.util.Log.e("LoginActivity", "서버 요청 생성 실패: ${e.message}", e)
+            runOnUiThread {
+                Toast.makeText(
+                    this@LoginActivity,
+                    "로그인 요청 생성 실패: ${e.message}",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
     }
 
     /**
@@ -184,14 +267,18 @@ class LoginActivity : ComponentActivity() {
      * 이메일/Google 로그인 모두: 서버에 프로필이 있으면 MainActivity, 없으면 ProfileSetupActivity로 이동
      */
     private fun checkProfileAndNavigate(isGoogleLogin: Boolean = false) {
-        val currentUser = auth.currentUser ?: run {
-            navigateAfterLogin(isGoogleLogin)
-            return
-        }
+        try {
+            val currentUser = auth.currentUser ?: run {
+                navigateAfterLogin(isGoogleLogin)
+                return
+            }
 
-        currentUser.getIdToken(true).addOnSuccessListener { _ ->
-            // Firebase UID를 그대로 백엔드에 전달하여 프로필 존재 여부 확인
-            val uid = currentUser.uid
+            currentUser.getIdToken(true).addOnSuccessListener { tokenResult ->
+            val idToken = tokenResult.token ?: run {
+                android.util.Log.e("LoginActivity", "ID Token이 null입니다")
+                navigateAfterLogin(isGoogleLogin)
+                return@addOnSuccessListener
+            }
 
             val client = OkHttpClient.Builder()
                 .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
@@ -199,13 +286,12 @@ class LoginActivity : ComponentActivity() {
                 .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
                 .build()
 
-            // 백엔드의 /api/profile 엔드포인트는 X-User-Id 헤더를 사용하므로,
-            // Firebase UID를 그대로 전달한다. (주의: /auth/profile 이 아닌 /api/profile 사용)
-            val profileUrl = "${Config.BASE_URL}/api/profile"
+            // 백엔드의 /auth/profile 엔드포인트 사용 (Authorization 헤더 필요)
+            val profileUrl = "${Config.BASE_URL}${Config.Api.PROFILE}"
             val request = Request.Builder()
                 .url(profileUrl)
                 .get()
-                .addHeader("X-User-Id", uid)
+                .addHeader("Authorization", "Bearer $idToken")
                 .build()
 
             client.newCall(request).enqueue(object : Callback {
@@ -218,27 +304,81 @@ class LoginActivity : ComponentActivity() {
 
                 override fun onResponse(call: Call, response: Response) {
                     runOnUiThread {
-                        // 서버 응답 결과에 따라 로컬 플래그를 업데이트하되,
-                        // 이미 완료된 프로필(true)은 에러 때문에 다시 false로 덮어쓰지 않도록 보호
-                        val alreadyCompleted = ProfilePreferences.hasCompletedProfile(this@LoginActivity)
-
-                        if (response.isSuccessful) {
-                            // 서버에 프로필이 있으면 완료 표시
-                            ProfilePreferences.setProfileCompleted(this@LoginActivity, true)
-                        } else {
-                            // 아직 프로필 완료가 아닌 사용자에 한해서만 "미완료"로 유지/설정
-                            // (이미 완료된 사용자는 에러 때문에 다시 프로필 화면으로 보내지 않음)
-                            if (!alreadyCompleted) {
-                                ProfilePreferences.setProfileCompleted(this@LoginActivity, false)
+                        val responseBody = response.body?.string() ?: ""
+                        android.util.Log.d("LoginActivity", "프로필 확인 응답 코드: ${response.code}")
+                        android.util.Log.d("LoginActivity", "프로필 확인 응답 본문: $responseBody")
+                        
+                        // 서버 응답 결과에 따라 로컬 플래그를 업데이트
+                        val hasProfile = try {
+                            if (response.isSuccessful && responseBody.isNotBlank()) {
+                                // JSON 응답 파싱하여 프로필 데이터 확인
+                                val jsonResponse = org.json.JSONObject(responseBody)
+                                val success = jsonResponse.optBoolean("success", false)
+                                val message = jsonResponse.optString("message", "")
+                                val data = jsonResponse.optJSONObject("data")
+                                
+                                android.util.Log.d("LoginActivity", "파싱 결과 - success: $success, message: $message")
+                                android.util.Log.d("LoginActivity", "파싱 결과 - data: $data")
+                                
+                                if (success && data != null) {
+                                    // data 객체가 있고, 필수 필드가 있는지 확인
+                                    val hasNickname = data.has("nickname") && data.optString("nickname").isNotBlank()
+                                    android.util.Log.d("LoginActivity", "프로필 데이터 확인 - nickname 존재: $hasNickname")
+                                    
+                                    // nickname이 있으면 프로필이 있다고 판단
+                                    if (hasNickname) {
+                                        android.util.Log.d("LoginActivity", "✅ 서버에 프로필이 있음 - MainActivity로 이동")
+                                        true
+                                    } else {
+                                        android.util.Log.d("LoginActivity", "❌ 프로필 데이터에 nickname이 없음")
+                                        false
+                                    }
+                                } else {
+                                    android.util.Log.d("LoginActivity", "❌ success가 false이거나 data가 null")
+                                    false
+                                }
+                            } else {
+                                android.util.Log.d("LoginActivity", "❌ 응답이 실패했거나 본문이 비어있음 - code: ${response.code}")
+                                false
                             }
+                        } catch (e: Exception) {
+                            android.util.Log.e("LoginActivity", "프로필 응답 파싱 실패: ${e.message}", e)
+                            android.util.Log.e("LoginActivity", "응답 본문: $responseBody")
+                            false
                         }
 
-                        navigateAfterLogin(isGoogleLogin)
+                        if (hasProfile) {
+                            // 서버에 프로필이 있으면 완료 표시하고 바로 MainActivity로 이동
+                            ProfilePreferences.setProfileCompleted(this@LoginActivity, true)
+                            android.util.Log.d("LoginActivity", "프로필 완료 플래그 설정 완료 - MainActivity로 이동")
+                            val intent = Intent(this@LoginActivity, MainActivity::class.java)
+                            startActivity(intent)
+                            overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
+                            finish()
+                        } else {
+                            // 프로필이 없으면 ProfileSetupActivity로 이동
+                            ProfilePreferences.setProfileCompleted(this@LoginActivity, false)
+                            android.util.Log.d("LoginActivity", "프로필 없음 플래그 설정 - ProfileSetupActivity로 이동")
+                            navigateAfterLogin(isGoogleLogin)
+                        }
                     }
                 }
             })
-        }.addOnFailureListener {
-            navigateAfterLogin(isGoogleLogin)
+        }.addOnFailureListener { e ->
+            android.util.Log.e("LoginActivity", "ID Token 발급 실패: ${e.message}", e)
+            try {
+                navigateAfterLogin(isGoogleLogin)
+            } catch (ex: Exception) {
+                android.util.Log.e("LoginActivity", "네비게이션 중 오류: ${ex.message}", ex)
+            }
+        }
+        } catch (e: Exception) {
+            android.util.Log.e("LoginActivity", "프로필 확인 함수 실행 중 오류: ${e.message}", e)
+            try {
+                navigateAfterLogin(isGoogleLogin)
+            } catch (ex: Exception) {
+                android.util.Log.e("LoginActivity", "네비게이션 중 오류: ${ex.message}", ex)
+            }
         }
     }
 
@@ -247,22 +387,34 @@ class LoginActivity : ComponentActivity() {
      * 이메일/Google 로그인 모두: 프로필 완료 여부에 따라 MainActivity 또는 ProfileSetupActivity로 이동
      */
     private fun navigateAfterLogin(isGoogleLogin: Boolean = false) {
-        val hasCompletedProfile = ProfilePreferences.hasCompletedProfile(this)
-        val nextActivity = if (!hasCompletedProfile) {
-            // 프로필이 미완료인 경우 프로필 입력 화면으로
-            ProfileSetupActivity::class.java
-        } else {
-            // 프로필이 완료된 경우 MainActivity로 바로 이동
-            MainActivity::class.java
+        try {
+            val hasCompletedProfile = ProfilePreferences.hasCompletedProfile(this)
+            val nextActivity = if (!hasCompletedProfile) {
+                // 프로필이 미완료인 경우 프로필 입력 화면으로
+                ProfileSetupActivity::class.java
+            } else {
+                // 프로필이 완료된 경우 MainActivity로 바로 이동
+                MainActivity::class.java
+            }
+            val intent = Intent(this, nextActivity)
+            if (isGoogleLogin) {
+                // Google 로그인에서 온 경우 플래그 전달
+                intent.putExtra("from_google_login", true)
+            }
+            startActivity(intent)
+            overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
+            finish()
+        } catch (e: Exception) {
+            android.util.Log.e("LoginActivity", "네비게이션 중 오류: ${e.message}", e)
+            // 오류 발생 시 기본적으로 ProfileSetupActivity로 이동
+            try {
+                val intent = Intent(this, ProfileSetupActivity::class.java)
+                startActivity(intent)
+                finish()
+            } catch (ex: Exception) {
+                android.util.Log.e("LoginActivity", "기본 네비게이션도 실패: ${ex.message}", ex)
+            }
         }
-        val intent = Intent(this, nextActivity)
-        if (isGoogleLogin) {
-            // Google 로그인에서 온 경우 플래그 전달
-            intent.putExtra("from_google_login", true)
-        }
-        startActivity(intent)
-        overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
-        finish()
     }
 
     /**
@@ -277,31 +429,58 @@ class LoginActivity : ComponentActivity() {
      * Google 계정으로 Firebase 인증
      */
     private fun firebaseAuthWithGoogle(acct: GoogleSignInAccount) {
-        val credential = GoogleAuthProvider.getCredential(acct.idToken, null)
+        val idToken = acct.idToken
+        if (idToken == null) {
+            Toast.makeText(
+                this,
+                "Google 로그인 토큰을 가져올 수 없습니다. 다시 시도해주세요.",
+                Toast.LENGTH_LONG
+            ).show()
+            android.util.Log.e("LoginActivity", "GoogleSignInAccount idToken is null")
+            return
+        }
+        
+        val credential = GoogleAuthProvider.getCredential(idToken, null)
         auth.signInWithCredential(credential)
             .addOnSuccessListener { result ->
                 val user = result.user ?: return@addOnSuccessListener
                 
-                // 서버에 ID Token 전송
+                // 서버에 ID Token 전송 (재시도 로직 포함)
                 user.getIdToken(true)
                     .addOnSuccessListener { token ->
                         // Google 로그인 성공 시 서버에 전송 후 프로필 입력 화면으로 이동
                         sendIdTokenToServerForGoogleLogin(token.token ?: "")
                     }
-                    .addOnFailureListener {
+                    .addOnFailureListener { e ->
+                        val errorMsg = when {
+                            e.message?.contains("network", ignoreCase = true) == true -> 
+                                "네트워크 오류로 토큰을 가져올 수 없습니다. 인터넷 연결을 확인해주세요."
+                            e.message?.contains("timeout", ignoreCase = true) == true -> 
+                                "연결 시간이 초과되었습니다. 다시 시도해주세요."
+                            else -> "토큰 발급 실패: ${e.message}"
+                        }
                         Toast.makeText(
                             this,
-                            "토큰 발급 실패: ${it.message}",
-                            Toast.LENGTH_SHORT
+                            errorMsg,
+                            Toast.LENGTH_LONG
                         ).show()
+                        android.util.Log.e("LoginActivity", "토큰 발급 실패", e)
                     }
             }
-            .addOnFailureListener {
+            .addOnFailureListener { e ->
+                val errorMsg = when {
+                    e.message?.contains("network", ignoreCase = true) == true -> 
+                        "네트워크 오류로 Google 로그인에 실패했습니다. 인터넷 연결을 확인해주세요."
+                    e.message?.contains("timeout", ignoreCase = true) == true -> 
+                        "연결 시간이 초과되었습니다. 다시 시도해주세요."
+                    else -> "Google 로그인 실패: ${e.message}"
+                }
                 Toast.makeText(
                     this,
-                    "Google 로그인 실패: ${it.message}",
-                    Toast.LENGTH_SHORT
+                    errorMsg,
+                    Toast.LENGTH_LONG
                 ).show()
+                android.util.Log.e("LoginActivity", "Google 로그인 실패", e)
             }
     }
 
@@ -310,34 +489,57 @@ class LoginActivity : ComponentActivity() {
      * Google 로그인은 비밀번호가 없으므로 password 필드 없이 전송
      */
     private fun sendIdTokenToServerForGoogleLogin(idToken: String) {
-        val client = OkHttpClient.Builder()
-            .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-            .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-            .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-            .build()
-        val json = """{"idToken": "$idToken"}"""
-        val body = RequestBody.create("application/json".toMediaType(), json)
+        try {
+            val client = OkHttpClient.Builder()
+                .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+            val json = """{"idToken": "$idToken"}"""
+            val body = RequestBody.create("application/json; charset=utf-8".toMediaType(), json)
 
-        val request = Request.Builder()
-            .url(Config.getUrl(Config.Api.LOGIN))
-            .post(body)
-            .build()
+            val request = Request.Builder()
+                .url(Config.getUrl(Config.Api.LOGIN))
+                .post(body)
+                .build()
 
-        client.newCall(request).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                runOnUiThread {
-                    // 서버 연결 실패해도 Google 로그인은 성공했으므로 프로필 확인 시도
+            client.newCall(request).enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    runOnUiThread {
+                        android.util.Log.e("LoginActivity", "Google 로그인 서버 연결 실패: ${e.message}", e)
+                        try {
+                            // 서버 연결 실패해도 Google 로그인은 성공했으므로 프로필 확인 시도
+                            checkProfileAndNavigate(isGoogleLogin = true)
+                        } catch (ex: Exception) {
+                            android.util.Log.e("LoginActivity", "프로필 확인 중 오류: ${ex.message}", ex)
+                            navigateAfterLogin(isGoogleLogin = true)
+                        }
+                    }
+                }
+
+                override fun onResponse(call: Call, response: Response) {
+                    runOnUiThread {
+                        try {
+                            // Google 로그인 성공 시 서버에서 프로필 확인 후 네비게이션
+                            checkProfileAndNavigate(isGoogleLogin = true)
+                        } catch (e: Exception) {
+                            android.util.Log.e("LoginActivity", "프로필 확인 중 오류: ${e.message}", e)
+                            navigateAfterLogin(isGoogleLogin = true)
+                        }
+                    }
+                }
+            })
+        } catch (e: Exception) {
+            android.util.Log.e("LoginActivity", "Google 로그인 서버 요청 생성 실패: ${e.message}", e)
+            runOnUiThread {
+                try {
                     checkProfileAndNavigate(isGoogleLogin = true)
+                } catch (ex: Exception) {
+                    android.util.Log.e("LoginActivity", "프로필 확인 중 오류: ${ex.message}", ex)
+                    navigateAfterLogin(isGoogleLogin = true)
                 }
             }
-
-            override fun onResponse(call: Call, response: Response) {
-                runOnUiThread {
-                    // Google 로그인 성공 시 서버에서 프로필 확인 후 네비게이션
-                    checkProfileAndNavigate(isGoogleLogin = true)
-                }
-            }
-        })
+        }
     }
 }
 

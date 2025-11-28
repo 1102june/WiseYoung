@@ -90,9 +90,9 @@ fun BookmarkScreen(
     onNavigateProfile: () -> Unit,
     onNavigateChatbot: () -> Unit
 ) {
+    val context = LocalContext.current
     var activeTab by remember { mutableStateOf("policy") }
     var expandedCardId by remember { mutableStateOf<Int?>(null) }
-    val context = LocalContext.current
     
     // SharedPreferences에서 북마크 불러오기
     var bookmarks by remember {
@@ -174,6 +174,7 @@ fun BookmarkScreen(
                                     onApply = {
                                         // TODO: 신청하기 로직
                                     },
+                                    onNavigateCalendar = onNavigateCalendar,
                                     modifier = Modifier.padding(bottom = Spacing.sm)
                                 )
                             }
@@ -202,6 +203,7 @@ fun BookmarkScreen(
                                     onApply = {
                                         // TODO: 신청하기 로직
                                     },
+                                    onNavigateCalendar = onNavigateCalendar,
                                     modifier = Modifier.padding(bottom = Spacing.sm)
                                 )
                             }
@@ -227,7 +229,7 @@ private fun BookmarkHeader() {
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "북마크",
+                text = "좋아요",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = AppColors.TextPrimary
@@ -334,6 +336,7 @@ private fun PolicyBookmarkCard(
     onToggleExpand: () -> Unit,
     onRemoveBookmark: () -> Unit,
     onApply: () -> Unit,
+    onNavigateCalendar: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
@@ -451,6 +454,7 @@ private fun HousingBookmarkCard(
     onToggleExpand: () -> Unit,
     onRemoveBookmark: () -> Unit,
     onApply: () -> Unit,
+    onNavigateCalendar: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
@@ -541,10 +545,21 @@ private fun HousingBookmarkCard(
         Spacer(modifier = Modifier.height(Spacing.sm))
         
         if (!isExpanded) {
-            PrimaryButton(
-                text = "상세보기",
-                onClick = onToggleExpand
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+            ) {
+                SecondaryButton(
+                    text = "캘린더",
+                    onClick = onNavigateCalendar,
+                    modifier = Modifier.weight(1f)
+                )
+                PrimaryButton(
+                    text = "상세보기",
+                    onClick = onToggleExpand,
+                    modifier = Modifier.weight(1f)
+                )
+            }
         } else {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -553,6 +568,12 @@ private fun HousingBookmarkCard(
                 SecondaryButton(
                     text = "닫기",
                     onClick = onToggleExpand,
+                    modifier = Modifier.weight(1f)
+                )
+                
+                SecondaryButton(
+                    text = "캘린더",
+                    onClick = onNavigateCalendar,
                     modifier = Modifier.weight(1f)
                 )
                 
