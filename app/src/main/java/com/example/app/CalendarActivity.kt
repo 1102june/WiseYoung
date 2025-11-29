@@ -12,6 +12,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -38,6 +41,7 @@ import com.example.app.service.CalendarService
 import com.google.firebase.auth.FirebaseAuth
 import com.google.gson.Gson
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -372,11 +376,11 @@ private fun CalendarCard(
                 verticalArrangement = Arrangement.spacedBy(Spacing.sm)
             ) {
                 LegendItem(
-                    color = AppColors.Purple,
+                    color = Color(0xFF59ABF7),
                     label = "청년정책 마감일"
                 )
                 LegendItem(
-                    color = AppColors.BackgroundGradientStart,
+                    color = Color(0xFF10B981),
                     label = "임대주택 마감일"
                 )
                 LegendItem(
@@ -762,14 +766,10 @@ private fun NotificationSettingRow(
         }
         
         if (enabled) {
-            OutlinedTextField(
-                value = time,
-                onValueChange = onTimeChange,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = Spacing.md, top = Spacing.sm),
-                label = { Text("시간") },
-                placeholder = { Text("09:00") }
+            // 시간 선택기 (Wheel Picker 스타일)
+            TimePickerSection(
+                time = time,
+                onTimeChange = onTimeChange
             )
         }
     }
@@ -798,32 +798,187 @@ private fun CustomNotificationRow(
         }
         
         if (enabled) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = Spacing.md, top = Spacing.sm),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+            Column(
+                modifier = Modifier.padding(start = Spacing.md, top = Spacing.sm)
             ) {
-                OutlinedTextField(
-                    value = days.toString(),
-                    onValueChange = { onDaysChange(it.toIntOrNull() ?: 0) },
-                    modifier = Modifier.width(80.dp),
-                    label = { Text("일") }
-                )
-                Text("일 전", fontSize = 14.sp)
+                // 일 수 선택
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    modifier = Modifier.padding(bottom = Spacing.sm)
+                ) {
+                    OutlinedTextField(
+                        value = days.toString(),
+                        onValueChange = { onDaysChange(it.toIntOrNull() ?: 0) },
+                        modifier = Modifier.width(80.dp),
+                        label = { Text("일") }
+                    )
+                    Text("일 전", fontSize = 14.sp)
+                }
                 
-                Spacer(modifier = Modifier.weight(1f))
-                
-                OutlinedTextField(
-                    value = time,
-                    onValueChange = onTimeChange,
-                    modifier = Modifier.width(120.dp),
-                    label = { Text("시간") },
-                    placeholder = { Text("09:00") }
+                // 시간 선택
+                TimePickerSection(
+                    time = time,
+                    onTimeChange = onTimeChange
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun TimePickerSection(
+    time: String,
+    onTimeChange: (String) -> Unit
+) {
+    val parts = time.split(":").mapNotNull { it.toIntOrNull() }
+    var selectedHour by remember(time) { mutableStateOf(if (parts.size == 2) parts[0] else 9) }
+    var selectedMinute by remember(time) { mutableStateOf(if (parts.size == 2) parts[1] else 0) }
+    
+    // 값 변경 시 부모에게 알림
+    LaunchedEffect(selectedHour, selectedMinute) {
+        val newTime = String.format("%02d:%02d", selectedHour, selectedMinute)
+        if (newTime != time) {
+            onTimeChange(newTime)
+        }
+    }
+    
+    val hours = (0..23).toList()
+    val minutes = (0..55 step 5).toList() // 5분 단위
+    
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "알림 시간",
+            fontSize = 12.sp,
+            color = AppColors.TextSecondary
+        )
+        
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(140.dp)
+                .border(1.dp, AppColors.Border, RoundedCornerShape(8.dp))
+                .padding(vertical = 8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 시
+                WheelPicker(
+                    items = hours,
+                    selectedValue = selectedHour,
+                    onValueSelected = { selectedHour = it },
+                    label = "시"
+                )
+                
+                Text(
+                    ":", 
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                    fontWeight = FontWeight.Bold
+                )
+                
+                // 분
+                WheelPicker(
+                    items = minutes,
+                    selectedValue = selectedMinute,
+                    onValueSelected = { selectedMinute = it },
+                    label = "분"
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun WheelPicker(
+    items: List<Int>,
+    selectedValue: Int,
+    onValueSelected: (Int) -> Unit,
+    label: String
+) {
+    val itemHeight = 36.dp
+    val listState = rememberLazyListState(
+        initialFirstVisibleItemIndex = items.indexOf(selectedValue).coerceAtLeast(0)
+    )
+    val density = LocalDensity.current
+    
+    LaunchedEffect(listState.isScrollInProgress) {
+        if (!listState.isScrollInProgress) {
+            // 스크롤 멈춤 - 스냅
+            val scrollOffset = with(density) { listState.firstVisibleItemScrollOffset.toDp() }
+            val itemIndex = listState.firstVisibleItemIndex
+            
+            val targetIndex = if (scrollOffset < itemHeight / 2) {
+                itemIndex
+            } else {
+                (itemIndex + 1).coerceAtMost(items.size - 1)
+            }
+            
+            if (targetIndex >= 0 && targetIndex < items.size) {
+                val value = items[targetIndex]
+                if (value != selectedValue) {
+                    onValueSelected(value)
+                }
+                listState.animateScrollToItem(targetIndex)
+            }
+        }
+    }
+    
+    // 선택된 값이 외부에서 변경되면 스크롤 이동
+    LaunchedEffect(selectedValue) {
+        val index = items.indexOf(selectedValue)
+        if (index >= 0 && !listState.isScrollInProgress && listState.firstVisibleItemIndex != index) {
+            listState.scrollToItem(index)
+        }
+    }
+    
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.width(60.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .height(108.dp) // 3개 항목 보이도록
+                .fillMaxWidth()
+        ) {
+            // 선택 강조 표시
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(itemHeight)
+                    .align(Alignment.Center)
+                    .background(AppColors.LightBlue.copy(alpha = 0.1f))
+            )
+            
+            LazyColumn(
+                state = listState,
+                contentPadding = PaddingValues(vertical = itemHeight), // 위아래 여백으로 중앙 정렬
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                itemsIndexed(items) { index, item ->
+                    Box(
+                        modifier = Modifier
+                            .height(itemHeight)
+                            .fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = String.format("%02d", item),
+                            fontSize = if (item == selectedValue) 18.sp else 14.sp,
+                            fontWeight = if (item == selectedValue) FontWeight.Bold else FontWeight.Normal,
+                            color = if (item == selectedValue) AppColors.LightBlue else AppColors.TextSecondary
+                        )
+                    }
+                }
+            }
+        }
+        Text(label, fontSize = 12.sp, color = AppColors.TextSecondary)
     }
 }
 

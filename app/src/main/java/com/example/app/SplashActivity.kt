@@ -59,21 +59,21 @@ class SplashActivity : ComponentActivity() {
         val isFirstLogin = ProfilePreferences.isFirstLogin(this)
 
         val nextActivity = when {
-            // 로그인되어 있고 프로필도 완료된 경우 -> MainActivity
+            // 1. 최초 실행(또는 재설치 후)이면 온보딩 화면으로 이동
+            isFirstLogin -> {
+                WelcomeActivity::class.java
+            }
+            // 2. 로그인되어 있고 프로필도 완료된 경우 -> MainActivity
             currentUser != null && hasCompletedProfile -> {
                 MainActivity::class.java
             }
-            // 로그인되어 있지만 프로필이 미완료인 경우 -> ProfileSetupActivity
+            // 3. 로그인되어 있지만 프로필이 미완료인 경우 -> ProfileSetupActivity
             currentUser != null && !hasCompletedProfile -> {
                 ProfileSetupActivity::class.java
             }
-            // 로그인되지 않은 경우 -> 첫 로그인이면 WelcomeActivity, 아니면 AuthActivity
+            // 4. 로그인되지 않은 경우 -> AuthActivity (이미 온보딩은 봄)
             else -> {
-                if (isFirstLogin) {
-                    WelcomeActivity::class.java
-                } else {
-                    AuthActivity::class.java
-                }
+                AuthActivity::class.java
             }
         }
 
@@ -102,7 +102,7 @@ fun SplashScreen(onNext: () -> Unit) {
             Image(
                 painter = painterResource(id = R.drawable.wy_logo),
                 contentDescription = "WY Logo",
-                modifier = Modifier.size(160.dp)
+                modifier = Modifier.size(280.dp)
             )
 
             Spacer(modifier = Modifier.height(48.dp))

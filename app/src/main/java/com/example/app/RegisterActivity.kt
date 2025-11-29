@@ -15,6 +15,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
+import androidx.compose.ui.res.painterResource
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -345,6 +348,25 @@ fun RegisterScreen(
         }
 
         Spacer(Modifier.height(16.dp))
+
+        // WY 로고 (원형)
+        Box(
+            modifier = Modifier
+                .size(120.dp)  // 크기 120dp로 설정
+                .clip(androidx.compose.foundation.shape.CircleShape)
+                .background(Color.White)
+                .border(1.dp, Color(0xFFE5E7EB), androidx.compose.foundation.shape.CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.wy_logo),
+                contentDescription = "WY Logo",
+                modifier = Modifier.fillMaxSize(), // padding(16.dp) 제거하여 원본 크기 유지
+                contentScale = androidx.compose.ui.layout.ContentScale.Fit
+            )
+        }
+
+        Spacer(Modifier.height(24.dp))
 
         /* 이메일 입력칸 */
         OutlinedTextField(

@@ -19,6 +19,21 @@ import androidx.compose.ui.unit.sp
 import com.example.app.ui.theme.AppColors
 import com.example.app.ui.theme.Spacing
 
+import androidx.compose.ui.tooling.preview.Preview
+
+@Preview(showBackground = true)
+@Composable
+fun BottomNavigationBarPreview() {
+    BottomNavigationBar(
+        currentScreen = "home",
+        onNavigateHome = {},
+        onNavigateCalendar = {},
+        onNavigateChatbot = {},
+        onNavigateBookmark = {},
+        onNavigateProfile = {}
+    )
+}
+
 @Composable
 fun BottomNavigationBar(
     currentScreen: String,
@@ -39,10 +54,9 @@ fun BottomNavigationBar(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = (navigationBarsPadding.calculateBottomPadding() - 8.dp).coerceAtLeast(0.dp))  // 0.3cm(8dp) 낮춤
+                .padding(bottom = (navigationBarsPadding.calculateBottomPadding() + 8.dp)) // 하단 패딩 줄임 (+24dp -> +8dp)
         ) {
-            // 챗봇 아이콘이 잘리지 않도록 상단 패딩 추가
-            Spacer(modifier = Modifier.height(16.dp))
+            // 상단 패딩 제거 (챗봇 튀어나옴 제거로 불필요)
             
             Row(
                 modifier = Modifier
@@ -69,40 +83,14 @@ fun BottomNavigationBar(
                 onClick = onNavigateCalendar
             )
             
-            // 챗봇 버튼 (특별 스타일)
-            Column(
-                modifier = Modifier.offset(y = (-24).dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(64.dp)
-                        .clip(CircleShape)
-                        .background(
-                            brush = Brush.horizontalGradient(
-                                colors = listOf(
-                                    AppColors.LightBlue,  // 메인 컬러 #59abf7
-                                    Color(0xFF6EBBFF)  // 연한 블루 계열로 통일
-                                )
-                            )
-                        )
-                        .clickable { onNavigateChatbot() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Message,
-                        contentDescription = "Chatbot",
-                        tint = Color.White,
-                        modifier = Modifier.size(32.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "챗봇",
-                    fontSize = 12.sp,
-                    color = AppColors.TextPrimary
-                )
-            }
+            // 챗봇 버튼 (일반 아이콘 스타일로 변경)
+            BottomNavButton(
+                icon = Icons.Default.Message,
+                filledIcon = Icons.Filled.Message, // 채워진 아이콘이 있다면 사용, 없으면 기본값
+                label = "챗봇",
+                isSelected = false, // 챗봇은 다이얼로그라 선택 상태 없음
+                onClick = onNavigateChatbot
+            )
             
             // 좋아요 버튼 (하트 아이콘)
             BottomNavButton(

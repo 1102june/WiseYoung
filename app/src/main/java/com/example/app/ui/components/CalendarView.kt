@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
@@ -240,18 +241,31 @@ private fun CalendarDayCell(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // 배경 색상 결정 (우선순위: 선택된 날짜 > 오늘 > 이벤트 날짜)
+    val backgroundColor = when {
+        dayItem.isSelected -> AppColors.BackgroundGradientStart.copy(alpha = 0.3f)
+        dayItem.isToday -> Color(0xFFFBBF24) // 오늘 - 노란색 원형 배경
+        dayItem.hasEvent && dayItem.isCurrentMonth -> when (dayItem.eventType) {
+            EventType.POLICY -> Color(0xFF59ABF7) // 정책 마감일 - 파란색 원형 배경
+            EventType.HOUSING -> Color(0xFF10B981) // 임대주택 마감일 - 초록색 원형 배경 (오늘과 구분)
+            null -> Color.Transparent
+        }
+        else -> Color.Transparent
+    }
+    
+    // 텍스트 색상 결정
+    val textColor = when {
+        !dayItem.isCurrentMonth -> AppColors.TextTertiary.copy(alpha = 0.3f)
+        dayItem.isSelected -> AppColors.BackgroundGradientStart
+        dayItem.isToday -> Color(0xFF1A1A1A) // 오늘 - 진한 검은색 텍스트
+        dayItem.hasEvent && dayItem.isCurrentMonth -> Color.White // 이벤트 날짜 - 흰색 텍스트
+        else -> AppColors.TextPrimary
+    }
+    
     Box(
         modifier = modifier
             .aspectRatio(1f)
             .padding(2.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(
-                when {
-                    dayItem.isSelected -> AppColors.BackgroundGradientStart.copy(alpha = 0.3f)
-                    dayItem.isToday -> AppColors.Info.copy(alpha = 0.1f)
-                    else -> Color.Transparent
-                }
-            )
             .then(
                 if (dayItem.isCurrentMonth) {
                     Modifier.clickable { onClick() }
@@ -261,38 +275,30 @@ private fun CalendarDayCell(
             ),
         contentAlignment = Alignment.Center
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
+        // 동그란 원형 배경 (오늘 또는 이벤트 날짜인 경우)
+        if (dayItem.isToday || (dayItem.hasEvent && dayItem.isCurrentMonth && dayItem.eventType != null)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize(0.85f)
+                    .clip(CircleShape)
+                    .background(backgroundColor),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = dayItem.day.toString(),
+                    fontSize = 14.sp,
+                    fontWeight = if (dayItem.isSelected || dayItem.isToday || dayItem.hasEvent) FontWeight.Bold else FontWeight.Normal,
+                    color = textColor
+                )
+            }
+        } else {
+            // 일반 날짜 (원형 배경 없음)
             Text(
                 text = dayItem.day.toString(),
                 fontSize = 14.sp,
-                fontWeight = if (dayItem.isSelected || dayItem.isToday) FontWeight.Bold else FontWeight.Normal,
-                color = when {
-                    !dayItem.isCurrentMonth -> AppColors.TextTertiary.copy(alpha = 0.3f)
-                    dayItem.isSelected -> AppColors.BackgroundGradientStart
-                    dayItem.isToday -> AppColors.Info
-                    else -> AppColors.TextPrimary
-                }
+                fontWeight = if (dayItem.isSelected) FontWeight.Bold else FontWeight.Normal,
+                color = textColor
             )
-            
-            // 일정이 있는 날 표시 (이벤트 타입별 색상)
-            if (dayItem.hasEvent && dayItem.isCurrentMonth) {
-                Spacer(modifier = Modifier.height(2.dp))
-                Box(
-                    modifier = Modifier
-                        .size(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(
-                            when (dayItem.eventType) {
-                                EventType.POLICY -> Color(0xFF59ABF7) // 정책 - 파란색
-                                EventType.HOUSING -> Color(0xFFFF9800) // 임대주택 - 주황색
-                                null -> AppColors.BackgroundGradientStart
-                            }
-                        )
-                )
-            }
         }
     }
 }

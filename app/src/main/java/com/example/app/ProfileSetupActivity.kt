@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -150,6 +152,7 @@ class ProfileSetupActivity : ComponentActivity() {
                                             Toast.LENGTH_LONG
                                         ).show()
                                         val intent = Intent(this, CompleteActivity::class.java)
+                                        intent.putExtra("from_profile_setup", true) // 플래그 추가
                                         startActivity(intent)
                                         overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
                                         finish()
@@ -951,6 +954,7 @@ private fun DropdownSection(
     }
 }
 
+
 @Composable
 private fun InterestSection(selected: Set<String>, onToggle: (String) -> Unit) {
     Column(
@@ -963,48 +967,18 @@ private fun InterestSection(selected: Set<String>, onToggle: (String) -> Unit) {
             color = Color(0xFF1A1A1A)
         )
         val interests = listOf("일자리", "주거", "복지문화", "교육")
-        // 여러 줄로 배치: 2개씩 한 줄에 배치
-        Column(
+        
+        // 한 줄로 배치 (가로 스크롤)
+        LazyRow(
             modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // 첫 번째 줄: 일자리, 주거
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
+            items(interests) { interest ->
                 InterestButton(
-                    interest = interests[0],
-                    isSelected = selected.contains(interests[0]),
-                    onToggle = { onToggle(interests[0]) }
+                    interest = interest,
+                    isSelected = selected.contains(interest),
+                    onToggle = { onToggle(interest) }
                 )
-                if (interests.size > 1) {
-                    InterestButton(
-                        interest = interests[1],
-                        isSelected = selected.contains(interests[1]),
-                        onToggle = { onToggle(interests[1]) }
-                    )
-                }
-            }
-            // 두 번째 줄: 복지문화, 교육
-            if (interests.size > 2) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    InterestButton(
-                        interest = interests[2],
-                        isSelected = selected.contains(interests[2]),
-                        onToggle = { onToggle(interests[2]) }
-                    )
-                    if (interests.size > 3) {
-                        InterestButton(
-                            interest = interests[3],
-                            isSelected = selected.contains(interests[3]),
-                            onToggle = { onToggle(interests[3]) }
-                        )
-                    }
-                }
             }
         }
     }
@@ -1016,40 +990,39 @@ private fun InterestButton(
     isSelected: Boolean,
     onToggle: () -> Unit
 ) {
+    // 버튼 크기와 글씨 크기 작게 수정
     if (isSelected) {
         Button(
             onClick = onToggle,
             modifier = Modifier
-                .heightIn(min = 56.dp),  // 최소 높이를 56.dp로 증가
+                .height(36.dp), // 높이 줄임 (56dp -> 36dp)
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF59ABF7),  // 라이트 블루 (메인 컬러)
+                containerColor = Color(0xFF59ABF7),
                 contentColor = Color.White
             ),
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)  // 패딩 추가
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp)
         ) {
             Text(
                 text = interest,
-                fontSize = 13.sp,  // 텍스트 크기를 약간 줄임
-                textAlign = TextAlign.Center,
-                maxLines = 2  // 최대 2줄까지 표시
+                fontSize = 13.sp,
+                textAlign = TextAlign.Center
             )
         }
     } else {
         OutlinedButton(
             onClick = onToggle,
             modifier = Modifier
-                .heightIn(min = 56.dp),  // 최소 높이를 56.dp로 증가
+                .height(36.dp), // 높이 줄임
             colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = Color(0xFF59ABF7)  // 라이트 블루 (메인 컬러)
+                contentColor = Color(0xFF59ABF7)
             ),
-            border = BorderStroke(2.dp, Color(0xFF59ABF7)),  // 라이트 블루 테두리
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)  // 패딩 추가
+            border = BorderStroke(1.dp, Color(0xFF59ABF7)), // 테두리 두께 줄임 (2dp -> 1dp)
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp)
         ) {
             Text(
                 text = interest,
-                fontSize = 13.sp,  // 텍스트 크기를 약간 줄임
-                textAlign = TextAlign.Center,
-                maxLines = 2  // 최대 2줄까지 표시
+                fontSize = 13.sp,
+                textAlign = TextAlign.Center
             )
         }
     }

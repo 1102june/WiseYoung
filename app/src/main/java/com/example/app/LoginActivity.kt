@@ -88,42 +88,25 @@ class LoginActivity : ComponentActivity() {
     private val googleSignInLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-        try {
-            val account = task.getResult(ApiException::class.java)
-            firebaseAuthWithGoogle(account)
-        } catch (e: ApiException) {
-            val errorMessage = when (e.statusCode) {
-                com.google.android.gms.common.api.CommonStatusCodes.NETWORK_ERROR -> {
-                    // 네트워크 오류 시 재시도 안내
-                    "네트워크 연결을 확인해주세요. 인터넷 연결이 필요합니다.\n잠시 후 다시 시도해주세요."
+        if (result.resultCode == RESULT_OK) {
+            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+            try {
+                val account = task.getResult(ApiException::class.java)
+                firebaseAuthWithGoogle(account)
+            } catch (e: ApiException) {
+                val errorMessage = when (e.statusCode) {
+                    com.google.android.gms.common.api.CommonStatusCodes.NETWORK_ERROR -> {
+                        // 네트워크 오류 시 재시도 안내
+                        "네트워크 연결을 확인해주세요. 인터넷 연결이 필요합니다.\n잠시 후 다시 시도해주세요."
+                    }
+                    else -> "Google 로그인 실패: ${e.message} (코드: ${e.statusCode})"
                 }
-                com.google.android.gms.common.api.CommonStatusCodes.INTERNAL_ERROR -> 
-                    "Google 로그인 중 오류가 발생했습니다. 다시 시도해주세요."
-                com.google.android.gms.common.api.CommonStatusCodes.INVALID_ACCOUNT -> 
-                    "유효하지 않은 계정입니다."
-                com.google.android.gms.common.api.CommonStatusCodes.SIGN_IN_REQUIRED -> 
-                    "Google 로그인이 필요합니다."
-                12501 -> // GoogleSignInStatusCodes.SIGN_IN_CANCELLED
-                    "Google 로그인이 취소되었습니다."
-                7 -> // CommonStatusCodes.TIMEOUT
-                    "연결 시간이 초과되었습니다. 네트워크 상태를 확인하고 다시 시도해주세요."
-                8 -> // CommonStatusCodes.INTERRUPTED
-                    "연결이 중단되었습니다. 다시 시도해주세요."
-                else -> "Google 로그인 실패: ${e.message} (코드: ${e.statusCode})"
+                Toast.makeText(this, errorMessage, Toast.LENGTH_LONG).show()
+                android.util.Log.e("LoginActivity", "Google 로그인 실패: ${e.statusCode} - ${e.message}", e)
             }
-            Toast.makeText(this, errorMessage, Toast.LENGTH_LONG).show()
-            android.util.Log.e("LoginActivity", "Google 로그인 실패: ${e.statusCode} - ${e.message}", e)
-        } catch (e: Exception) {
-            val errorMsg = when {
-                e.message?.contains("IOException", ignoreCase = true) == true -> 
-                    "네트워크 연결 오류가 발생했습니다. 인터넷 연결을 확인하고 다시 시도해주세요."
-                e.message?.contains("Connectivity", ignoreCase = true) == true -> 
-                    "연결 오류가 발생했습니다. 네트워크 상태를 확인해주세요."
-                else -> "Google 로그인 중 오류가 발생했습니다: ${e.message}"
-            }
-            Toast.makeText(this, errorMsg, Toast.LENGTH_LONG).show()
-            android.util.Log.e("LoginActivity", "Google 로그인 예외: ${e.message}", e)
+        } else {
+            // 로그인이 취소되거나 실패한 경우
+            android.util.Log.d("LoginActivity", "Google 로그인 취소됨 result code: ${result.resultCode}")
         }
     }
 

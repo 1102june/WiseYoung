@@ -110,6 +110,8 @@ fun WiseYoungTheme(
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
+    // 시스템 설정이 아니라 사용자가 선택한 themeMode를 강제로 적용
+    // isSystemInDarkTheme() 체크 제거하고 themeMode 값만 따름
     val colorScheme = when (themeMode) {
         ThemeMode.LIGHT -> LightColorScheme
         ThemeMode.DARK -> DarkColorScheme

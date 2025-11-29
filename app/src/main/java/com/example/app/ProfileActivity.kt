@@ -21,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -33,7 +34,7 @@ import com.example.app.ui.theme.ThemeMode
 import com.example.app.ui.theme.ThemePreferences
 import com.example.app.ui.components.BottomNavigationBar
 import androidx.compose.ui.platform.LocalContext
-import com.example.app.data.model.ProfileResponse
+import com.example.app.data.model.UserProfileResponse
 import com.example.app.network.NetworkModule
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
@@ -90,39 +91,41 @@ fun ProfileScreen(
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var deletePassword by remember { mutableStateOf("") }
-    var profile by remember { mutableStateOf<ProfileResponse?>(null) }
+    var profile by remember { mutableStateOf<com.example.app.data.model.UserProfileResponse?>(null) }
     var isLoadingProfile by remember { mutableStateOf(true) }
     
-    // 프로필 정보 불러오기
+    // 프로필 정보 불러오기 (PolicyListActivity와 동일한 API 사용)
     LaunchedEffect(Unit) {
         val currentUser = auth.currentUser
-        if (currentUser != null) {
-            currentUser.getIdToken(true).addOnSuccessListener { tokenResult ->
-                val idToken = tokenResult.token
-                if (idToken != null) {
-                    scope.launch {
-                        try {
-                            val response = NetworkModule.apiService.getProfile("Bearer $idToken")
-                            if (response.isSuccessful && response.body()?.success == true) {
-                                profile = response.body()?.data
-                            } else {
-                                val errorCode = response.code()
-                                android.util.Log.e("ProfileActivity", "프로필 조회 실패: $errorCode")
-                            }
-                        } catch (e: Exception) {
-                            android.util.Log.e("ProfileActivity", "프로필 조회 오류: ${e.message}", e)
-                        } finally {
-                            isLoadingProfile = false
+        val userId = currentUser?.uid
+        if (userId != null) {
+            scope.launch {
+                try {
+                    android.util.Log.d("ProfileActivity", "프로필 조회 시작: userId=$userId")
+                    val response = NetworkModule.apiService.getUserProfile(userId)
+                    android.util.Log.d("ProfileActivity", "프로필 응답: code=${response.code()}, success=${response.body()?.success}")
+                    
+                    if (response.isSuccessful && response.body()?.success == true) {
+                        profile = response.body()?.data
+                        if (profile != null) {
+                            android.util.Log.d("ProfileActivity", "✅ 프로필 조회 성공: 닉네임=${profile?.nickname}, 나이=${profile?.age}, 지역=${profile?.region}, 관심사=${profile?.interests}")
+                        } else {
+                            android.util.Log.w("ProfileActivity", "⚠️ 프로필 데이터가 null입니다.")
                         }
+                    } else {
+                        val errorMsg = response.body()?.message ?: "알 수 없는 오류"
+                        android.util.Log.w("ProfileActivity", "프로필 조회 실패: code=${response.code()}, message=$errorMsg")
+                        profile = null
                     }
-                } else {
+                } catch (e: Exception) {
+                    android.util.Log.e("ProfileActivity", "프로필 조회 오류: ${e.message}", e)
+                    profile = null
+                } finally {
                     isLoadingProfile = false
                 }
-            }.addOnFailureListener {
-                android.util.Log.e("ProfileActivity", "ID Token 발급 실패: ${it.message}", it)
-                isLoadingProfile = false
             }
         } else {
+            android.util.Log.w("ProfileActivity", "⚠️ userId가 null입니다.")
             isLoadingProfile = false
         }
     }
@@ -306,129 +309,144 @@ private fun ProfileHeader() {
 
 @Composable
 private fun UserInfoCard(
-    profile: ProfileResponse?,
+    profile: UserProfileResponse?,
     isLoading: Boolean,
     modifier: Modifier = Modifier
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        border = androidx.compose.foundation.BorderStroke(2.dp, AppColors.Border),
+        shape = RoundedCornerShape(12.dp), // PolicyListActivity와 동일
+        border = androidx.compose.foundation.BorderStroke(1.dp, AppColors.Border), // PolicyListActivity와 동일
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(Spacing.lg)
-        ) {
-            if (isLoading) {
+        if (isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(Spacing.sm),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+        } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(Spacing.sm), // PolicyListActivity와 동일
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm), // PolicyListActivity와 동일
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 프로필 아이콘 (PolicyListActivity와 동일한 스타일)
                 Box(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .size(40.dp) // PolicyListActivity와 동일
+                        .clip(CircleShape)
+                        .background(
+                            brush = Brush.linearGradient( // PolicyListActivity와 동일한 그라데이션
+                                colors = listOf(
+                                    AppColors.LightBlue,
+                                    Color(0xFF6EBBFF)
+                                )
+                            )
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator()
-                }
-            } else {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Profile Image
-                    Box(
-                        modifier = Modifier
-                            .size(80.dp)
-                            .clip(CircleShape)
-                            .background(AppColors.Border),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = "Profile",
-                            tint = AppColors.TextSecondary,
-                            modifier = Modifier.size(40.dp)
-                        )
-                    }
-                    
-                    // User Info
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = profile?.nickname?.let { "$it 님" } ?: "사용자 님",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = AppColors.TextPrimary
-                        )
-                        // 나이 계산 (생년월일에서)
-                        profile?.birthDate?.let { birthDate ->
-                            val age = try {
-                                val birthYear = birthDate.substring(0, 4).toInt()
-                                val currentYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
-                                currentYear - birthYear + 1
-                            } catch (e: Exception) {
-                                null
-                            }
-                            age?.let {
-                                Text(
-                                    text = "${it}세",
-                                    fontSize = 14.sp,
-                                    color = AppColors.TextSecondary
-                                )
-                            }
-                        }
-                        // 지역 정보
-                        if (profile?.province != null && profile?.city != null) {
-                            Text(
-                                text = "${profile.province} ${profile.city} 거주",
-                                fontSize = 14.sp,
-                                color = AppColors.TextSecondary
-                            )
-                        }
-                        // 직업 상태
-                        profile?.employment?.let { employment ->
-                            Text(
-                                text = employment,
-                                fontSize = 14.sp,
-                                color = AppColors.TextSecondary
-                            )
-                        }
-                    }
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = "Profile",
+                        tint = Color.White, // PolicyListActivity와 동일
+                        modifier = Modifier.size(20.dp) // PolicyListActivity와 동일
+                    )
                 }
                 
-                // Interest Tags
-                if (profile?.interests != null && profile.interests.isNotEmpty()) {
-                    Divider(
-                        modifier = Modifier.padding(vertical = Spacing.md),
-                        color = AppColors.Border
-                    )
-                    
+                // 닉네임과 정보 (PolicyListActivity와 동일한 형식)
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    val nickname = profile?.nickname ?: "슬기로운 청년"
                     Text(
-                        text = "관심선택 목록",
-                        fontSize = 14.sp,
-                        color = AppColors.TextTertiary,
-                        modifier = Modifier.padding(bottom = Spacing.sm)
+                        text = "$nickname 님",
+                        fontSize = 16.sp, // PolicyListActivity와 동일
+                        fontWeight = FontWeight.Bold,
+                        color = AppColors.TextPrimary
                     )
                     
-                    // 관심사 태그를 여러 줄로 표시
-                    // 간단한 방법: Row를 여러 개 사용 (2개씩 한 줄에 배치)
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(Spacing.xs)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    
+                    // 나이, 지역, 취업상태를 한 줄에 작게 표시 (PolicyListActivity와 동일)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        profile.interests.chunked(2).forEach { row ->
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                row.forEach { interest ->
-                                    InterestTag(
-                                        text = interest,
-                                        backgroundColor = getInterestTagColor(interest),
-                                        textColor = getInterestTagTextColor(interest)
-                                    )
-                                }
-                            }
+                        profile?.age?.let {
+                            Text(
+                                text = "${it}세",
+                                fontSize = 11.sp, // PolicyListActivity와 동일
+                                color = AppColors.TextSecondary
+                            )
+                        } ?: Text(
+                            text = "25세",
+                            fontSize = 11.sp, // PolicyListActivity와 동일
+                            color = AppColors.TextSecondary
+                        )
+                        
+                        Text(
+                            text = "•",
+                            fontSize = 11.sp, // PolicyListActivity와 동일
+                            color = AppColors.TextTertiary
+                        )
+                        
+                        if (profile?.region != null) {
+                            Text(
+                                text = profile.region,
+                                fontSize = 11.sp, // PolicyListActivity와 동일
+                                color = AppColors.TextSecondary
+                            )
+                        } else {
+                            Text(
+                                text = "경기도 수원시",
+                                fontSize = 11.sp, // PolicyListActivity와 동일
+                                color = AppColors.TextSecondary
+                            )
+                        }
+                        
+                        Text(
+                            text = "•",
+                            fontSize = 11.sp, // PolicyListActivity와 동일
+                            color = AppColors.TextTertiary
+                        )
+                        
+                        if (profile?.jobStatus != null) {
+                            Text(
+                                text = profile.jobStatus,
+                                fontSize = 11.sp, // PolicyListActivity와 동일
+                                color = AppColors.TextSecondary
+                            )
+                        } else {
+                            Text(
+                                text = "취업준비생",
+                                fontSize = 11.sp, // PolicyListActivity와 동일
+                                color = AppColors.TextSecondary
+                            )
+                        }
+                    }
+                    
+                    // 관심분야 (작은 태그로 표시) - PolicyListActivity와 동일
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        // PolicyListActivity와 동일: userInterests를 기본값으로 사용
+                        val userInterests = listOf("일자리", "주거", "복지문화", "교육")
+                        val interests = profile?.interests?.takeIf { it.isNotEmpty() } ?: userInterests.take(3)
+                        interests.take(3).forEach { interest -> // PolicyListActivity와 동일하게 최대 3개
+                            InterestTag(
+                                text = interest,
+                                backgroundColor = AppColors.LightBlue.copy(alpha = 0.2f), // PolicyListActivity와 동일
+                                textColor = AppColors.LightBlue, // PolicyListActivity와 동일
+                                modifier = Modifier.padding(vertical = 2.dp)
+                            )
                         }
                     }
                 }
@@ -468,13 +486,14 @@ private fun getInterestTagTextColor(interest: String): Color {
 private fun InterestTag(
     text: String,
     backgroundColor: Color,
-    textColor: Color
+    textColor: Color,
+    modifier: Modifier = Modifier
 ) {
     Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp)) // PolicyListActivity와 동일
             .background(backgroundColor)
-            .padding(horizontal = Spacing.sm, vertical = 4.dp)
+            .padding(horizontal = 8.dp, vertical = 2.dp) // PolicyListActivity와 동일
     ) {
         Text(
             text = text,

@@ -31,10 +31,18 @@ class CompleteActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // 이미 프로필 완료된 상태에서 들어온 경우 바로 메인으로 이동
+        if (ProfilePreferences.hasCompletedProfile(this) && !intent.getBooleanExtra("from_profile_setup", false)) {
+            val intent = Intent(this, MainActivity::class.java)
+            startActivity(intent)
+            finish()
+            return
+        }
+
         setContent {
             ThemeWrapper {
                 CompleteScreen(
-                    isFirstLogin = ProfilePreferences.isFirstLogin(this),
+                    isFirstLogin = true, // Complete 화면은 항상 버튼을 보여주도록 변경
                     onStart = {
                         // 첫 로그인 플래그를 false로 설정
                         ProfilePreferences.setFirstLogin(this, false)

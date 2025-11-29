@@ -26,8 +26,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.app.ui.theme.WiseYoungTheme
-import com.wiseyoung.app.ProfilePreferences
-import com.wiseyoung.app.R
+import com.google.firebase.auth.FirebaseAuth
 
 class WelcomeActivity : ComponentActivity() {
 
@@ -41,7 +40,20 @@ class WelcomeActivity : ComponentActivity() {
                         // 첫 로그인 플래그를 false로 설정 (온보딩을 한 번만 보여줌)
                         ProfilePreferences.setFirstLogin(this, false)
                         
-                        val intent = Intent(this, AuthActivity::class.java)
+                        // 로그인 상태 확인
+                        val currentUser = FirebaseAuth.getInstance().currentUser
+                        val hasCompletedProfile = ProfilePreferences.hasCompletedProfile(this)
+                        
+                        val nextActivity = when {
+                            // 로그인되어 있고 프로필 완료 -> MainActivity
+                            currentUser != null && hasCompletedProfile -> MainActivity::class.java
+                            // 로그인되어 있고 프로필 미완료 -> ProfileSetupActivity
+                            currentUser != null && !hasCompletedProfile -> ProfileSetupActivity::class.java
+                            // 미로그인 -> AuthActivity (로그인 화면)
+                            else -> AuthActivity::class.java
+                        }
+                        
+                        val intent = Intent(this, nextActivity)
                         startActivity(intent)
                         overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
                         finish()
@@ -90,7 +102,7 @@ fun WelcomeScreen(onNext: () -> Unit) {
             Image(
                 painter = painterResource(id = R.drawable.wy_logo),
                 contentDescription = "WY Logo",
-                modifier = Modifier.size(280.dp)  // 200.dp -> 280.dp로 더 크게
+                modifier = Modifier.size(200.dp)
             )
 
             Spacer(modifier = Modifier.height(48.dp))
@@ -125,7 +137,7 @@ fun WelcomeScreen(onNext: () -> Unit) {
                 .fillMaxWidth()
                 .height(48.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF9CA3AF)
+                containerColor = Color(0xFF59ABF7) // 라이트 블루 (메인 컬러)
             )
         ) {
             Text(

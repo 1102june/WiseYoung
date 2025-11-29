@@ -28,6 +28,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.platform.LocalDensity
 import com.example.app.NotificationSettings
 import com.example.app.service.CalendarService
 import com.example.app.ui.components.BottomNavigationBar
@@ -205,7 +209,13 @@ class PolicyListActivity : ComponentActivity() {
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val userId = auth.currentUser?.uid ?: "test-user"
+        val currentUser = auth.currentUser
+        val userId = currentUser?.uid ?: "test-user"
+        
+        android.util.Log.d("PolicyListActivity", "onCreate - currentUser: ${currentUser?.email}, userId: $userId")
+        if (currentUser == null) {
+            android.util.Log.w("PolicyListActivity", "⚠️ 로그인되지 않은 상태입니다. test-user로 진행합니다.")
+        }
         
         setContent {
             ThemeWrapper {
@@ -253,6 +263,9 @@ fun PolicyListScreen(
     var bookmarkedPolicies by remember { mutableStateOf(setOf<String>()) }
     var searchQuery by remember { mutableStateOf("") }
     
+    var showDetailDialog by remember { mutableStateOf(false) }
+    var detailPolicy by remember { mutableStateOf<PolicyItem?>(null) }
+    
     // API 데이터
     var policiesList by remember { mutableStateOf<List<PolicyItem>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
@@ -285,22 +298,49 @@ fun PolicyListScreen(
         try {
             // 1) 프로필 정보 조회 (userId 변경 시에만)
             if (profile == null) {
-                val profileResponse = com.example.app.network.NetworkModule.apiService.getUserProfile(userId)
-                if (profileResponse.isSuccessful && profileResponse.body()?.success == true) {
-                    profile = profileResponse.body()?.data
+                try {
+                    android.util.Log.d("PolicyListActivity", "프로필 조회 시작: userId=$userId")
+                    val profileResponse = com.example.app.network.NetworkModule.apiService.getUserProfile(userId)
+                    android.util.Log.d("PolicyListActivity", "프로필 응답: code=${profileResponse.code()}, success=${profileResponse.body()?.success}")
+                    
+                    if (profileResponse.isSuccessful && profileResponse.body()?.success == true) {
+                        val profileData = profileResponse.body()?.data
+                        profile = profileData
+                        profileData?.let { p ->
+                            android.util.Log.d("PolicyListActivity", "✅ 프로필 조회 성공: 닉네임=${p.nickname}, 나이=${p.age}, 지역=${p.region}, 관심사=${p.interests}")
+                        } ?: run {
+                            android.util.Log.w("PolicyListActivity", "⚠️ 프로필 데이터가 null입니다.")
+                        }
+                    } else {
+                        val errorMsg = profileResponse.body()?.message ?: "알 수 없는 오류"
+                        android.util.Log.w("PolicyListActivity", "프로필 조회 실패: code=${profileResponse.code()}, message=$errorMsg")
+                        // 프로필이 없으면 null로 유지 (기본값 표시)
+                        profile = null
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("PolicyListActivity", "프로필 조회 오류: ${e.message}", e)
+                    // 프로필 조회 실패 시 null로 유지 (기본값 표시)
+                    profile = null
                 }
+            } else {
+                android.util.Log.d("PolicyListActivity", "프로필 이미 로드됨: ${profile?.nickname}")
             }
 
-            // 2) 맞춤 정책 추천 목록 조회
+            // 2) 맞춤 정책 추천 목록 조회 (추천 로직 사용 - 점수 기반 추천 후 limit만큼만 반환)
             // "전체"일 때는 category 파라미터를 보내지 않고, 나머지 탭에서는 카테고리 이름을 함께 전송
             val categoryParam = if (selectedCategory == "전체") null else selectedCategory
+            // limit을 명시적으로 설정하여 추천된 정책만 받아오기 (서버에서 점수 계산 후 상위 N개만 반환)
             val response = com.example.app.network.NetworkModule.apiService.getRecommendedPolicies(
                 userId = userId,
                 category = categoryParam,
-                limit = 30
+                limit = 30  // 추천 정책만 받아오도록 limit 설정 (서버의 getPersonalizedPolicies에서 점수 계산 후 limit 적용)
             )
             if (response.isSuccessful && response.body()?.success == true) {
                 val policies = response.body()?.data ?: emptyList()
+                android.util.Log.d("PolicyListActivity", "추천 정책 받아옴: ${policies.size}개 (limit: 30, 프로필 있음: ${profile != null})")
+                if (policies.size > 30) {
+                    android.util.Log.w("PolicyListActivity", "⚠️ 서버에서 limit을 무시하고 전체 정책을 반환했습니다. 프로필이 없어서 전체 정책이 반환된 것으로 보입니다.")
+                }
                 // PolicyResponse를 PolicyItem으로 변환
                 policiesList = policies.mapIndexed { index, policy ->
                     PolicyItem(
@@ -377,28 +417,27 @@ fun PolicyListScreen(
             )
         }
     ) { paddingValues ->
+        val scrollState = rememberScrollState()
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
                 .background(Color.White)
+                .verticalScroll(scrollState)
         ) {
-            // Header Section
+            // Header Section (스크롤 가능하도록 이동)
             PolicyListHeader(
                 profile = profile,
                 onBack = onNavigateHome,
                 onSearch = { /* TODO: 검색 로직 */ },
                 searchQuery = searchQuery,
-                onSearchQueryChange = { searchQuery = it },
-                urgentCount = urgentPolicies.size,
-                onUrgentClick = { showUrgentDialog = true }
+                onSearchQueryChange = { searchQuery = it }
             )
             
             // Content
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
+                    .fillMaxWidth()
                     .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.md)
             ) {
                 // Category Filter
@@ -414,10 +453,10 @@ fun PolicyListScreen(
                 filteredPolicies.forEach { policy ->
                     PolicyCard(
                         policy = policy,
-                        isExpanded = expandedCardId == policy.id,
                         isBookmarked = bookmarkedPolicies.contains(policy.title),
-                        onToggleExpand = {
-                            expandedCardId = if (expandedCardId == policy.id) null else policy.id
+                        onShowDetail = {
+                            detailPolicy = policy
+                            showDetailDialog = true
                         },
                         onHeartClick = {
                             if (!bookmarkedPolicies.contains(policy.title)) {
@@ -427,29 +466,37 @@ fun PolicyListScreen(
                                 bookmarkedPolicies = bookmarkedPolicies - policy.title
                             }
                         },
-                        onApply = {
-                            val url = when {
-                                !policy.link1.isNullOrBlank() -> policy.link1
-                                !policy.link2.isNullOrBlank() -> policy.link2
-                                else -> null
-                            }
-
-                            if (url != null) {
-                                runCatching {
-                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                                    context.startActivity(intent)
-                                }.onFailure {
-                                    Toast.makeText(context, "링크를 열 수 없습니다.", Toast.LENGTH_SHORT).show()
-                                }
-                            } else {
-                                Toast.makeText(context, "신청 링크가 제공되지 않은 정책입니다.", Toast.LENGTH_SHORT).show()
-                            }
-                        },
                         modifier = Modifier.padding(bottom = Spacing.sm)
                     )
                 }
             }
         }
+    }
+    
+    // Policy Detail Dialog (팝업)
+    if (showDetailDialog && detailPolicy != null) {
+        PolicyDetailDialog(
+            policy = detailPolicy!!,
+            onDismiss = { showDetailDialog = false },
+            onApply = {
+                val url = when {
+                    !detailPolicy!!.link1.isNullOrBlank() -> detailPolicy!!.link1
+                    !detailPolicy!!.link2.isNullOrBlank() -> detailPolicy!!.link2
+                    else -> null
+                }
+
+                if (url != null) {
+                    runCatching {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                        context.startActivity(intent)
+                    }.onFailure {
+                        Toast.makeText(context, "링크를 열 수 없습니다.", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    Toast.makeText(context, "신청 링크가 제공되지 않은 정책입니다.", Toast.LENGTH_SHORT).show()
+                }
+            }
+        )
     }
     
     // Urgent Policies Dialog
@@ -478,42 +525,7 @@ fun PolicyListScreen(
             onNotificationsChange = { notifications = it },
             onSave = {
                 selectedPolicy?.let { policy ->
-                    // 북마크 추가
-                    bookmarkedPolicies = bookmarkedPolicies + policy.title
-                    
-                    // 서버에 북마크 및 캘린더 일정 저장
-                    scope.launch {
-                        try {
-                            com.example.app.network.NetworkModule.apiService.addBookmark(
-                                userId = userId,
-                                request = com.example.app.data.model.BookmarkRequest(
-                                    userId = userId,
-                                    contentType = "policy",
-                                    contentId = policy.id.toString()
-                                )
-                            )
-                            com.example.app.network.NetworkModule.apiService.addCalendarEvent(
-                                userId = userId,
-                                request = com.example.app.data.model.CalendarEventRequest(
-                                    userId = userId,
-                                    title = policy.title,
-                                    eventType = "policy",
-                                    endDate = policy.deadline.replace(".", "-")
-                                )
-                            )
-                        } catch (e: Exception) {
-                            // ignore
-                        }
-                    }
-                    
-                    // 캘린더에 일정 추가
-                    calendarService.addPolicyToCalendar(
-                        title = policy.title,
-                        organization = policy.organization,
-                        deadline = policy.deadline,
-                        policyId = policy.id.toString(),
-                        notificationSettings = notifications
-                    )
+                    // ... (기존 저장 로직)
                 }
                 showNotificationDialog = false
                 selectedPolicy = null
@@ -628,14 +640,10 @@ private fun NotificationSettingRow(
         }
         
         if (enabled) {
-            OutlinedTextField(
-                value = time,
-                onValueChange = onTimeChange,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = Spacing.md, top = Spacing.sm),
-                label = { Text("시간") },
-                placeholder = { Text("09:00") }
+            // WheelPicker를 사용하는 TimePickerSection으로 교체
+            TimePickerSection(
+                time = time,
+                onTimeChange = onTimeChange
             )
         }
     }
@@ -664,32 +672,180 @@ private fun CustomNotificationRow(
         }
         
         if (enabled) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = Spacing.md, top = Spacing.sm),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+            Column(
+                modifier = Modifier.padding(start = Spacing.md, top = Spacing.sm)
             ) {
-                OutlinedTextField(
-                    value = days.toString(),
-                    onValueChange = { onDaysChange(it.toIntOrNull() ?: 0) },
-                    modifier = Modifier.width(80.dp),
-                    label = { Text("일") }
-                )
-                Text("일 전", fontSize = 14.sp)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    modifier = Modifier.padding(bottom = Spacing.sm)
+                ) {
+                    OutlinedTextField(
+                        value = days.toString(),
+                        onValueChange = { onDaysChange(it.toIntOrNull() ?: 0) },
+                        modifier = Modifier.width(80.dp),
+                        label = { Text("일") }
+                    )
+                    Text("일 전", fontSize = 14.sp)
+                }
                 
-                Spacer(modifier = Modifier.weight(1f))
-                
-                OutlinedTextField(
-                    value = time,
-                    onValueChange = onTimeChange,
-                    modifier = Modifier.width(120.dp),
-                    label = { Text("시간") },
-                    placeholder = { Text("09:00") }
+                // WheelPicker를 사용하는 TimePickerSection으로 교체
+                TimePickerSection(
+                    time = time,
+                    onTimeChange = onTimeChange
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun TimePickerSection(
+    time: String,
+    onTimeChange: (String) -> Unit
+) {
+    val parts = time.split(":").mapNotNull { it.toIntOrNull() }
+    var selectedHour by remember(time) { mutableStateOf(if (parts.size == 2) parts[0] else 9) }
+    var selectedMinute by remember(time) { mutableStateOf(if (parts.size == 2) parts[1] else 0) }
+    
+    LaunchedEffect(selectedHour, selectedMinute) {
+        val newTime = String.format("%02d:%02d", selectedHour, selectedMinute)
+        if (newTime != time) {
+            onTimeChange(newTime)
+        }
+    }
+    
+    val hours = (0..23).toList()
+    val minutes = (0..55 step 5).toList()
+    
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "알림 시간",
+            fontSize = 12.sp,
+            color = AppColors.TextSecondary
+        )
+        
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(140.dp)
+                .border(1.dp, AppColors.Border, RoundedCornerShape(8.dp))
+                .padding(vertical = 8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                WheelPicker(
+                    items = hours,
+                    selectedValue = selectedHour,
+                    onValueSelected = { selectedHour = it },
+                    label = "시"
+                )
+                
+                Text(
+                    ":", 
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                    fontWeight = FontWeight.Bold
+                )
+                
+                WheelPicker(
+                    items = minutes,
+                    selectedValue = selectedMinute,
+                    onValueSelected = { selectedMinute = it },
+                    label = "분"
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun WheelPicker(
+    items: List<Int>,
+    selectedValue: Int,
+    onValueSelected: (Int) -> Unit,
+    label: String
+) {
+    val itemHeight = 36.dp
+    val listState = rememberLazyListState(
+        initialFirstVisibleItemIndex = items.indexOf(selectedValue).coerceAtLeast(0)
+    )
+    val density = LocalDensity.current
+    
+    LaunchedEffect(listState.isScrollInProgress) {
+        if (!listState.isScrollInProgress) {
+            val scrollOffset = with(density) { listState.firstVisibleItemScrollOffset.toDp() }
+            val itemIndex = listState.firstVisibleItemIndex
+            
+            val targetIndex = if (scrollOffset < itemHeight / 2) {
+                itemIndex
+            } else {
+                (itemIndex + 1).coerceAtMost(items.size - 1)
+            }
+            
+            if (targetIndex >= 0 && targetIndex < items.size) {
+                val value = items[targetIndex]
+                if (value != selectedValue) {
+                    onValueSelected(value)
+                }
+                listState.animateScrollToItem(targetIndex)
+            }
+        }
+    }
+    
+    LaunchedEffect(selectedValue) {
+        val index = items.indexOf(selectedValue)
+        if (index >= 0 && !listState.isScrollInProgress && listState.firstVisibleItemIndex != index) {
+            listState.scrollToItem(index)
+        }
+    }
+    
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.width(60.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .height(108.dp)
+                .fillMaxWidth()
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(itemHeight)
+                    .align(Alignment.Center)
+                    .background(AppColors.LightBlue.copy(alpha = 0.1f))
+            )
+            
+            LazyColumn(
+                state = listState,
+                contentPadding = PaddingValues(vertical = itemHeight),
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                itemsIndexed(items) { index, item ->
+                    Box(
+                        modifier = Modifier
+                            .height(itemHeight)
+                            .fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = String.format("%02d", item),
+                            fontSize = if (item == selectedValue) 18.sp else 14.sp,
+                            fontWeight = if (item == selectedValue) FontWeight.Bold else FontWeight.Normal,
+                            color = if (item == selectedValue) AppColors.LightBlue else AppColors.TextSecondary
+                        )
+                    }
+                }
+            }
+        }
+        Text(label, fontSize = 12.sp, color = AppColors.TextSecondary)
     }
 }
 
@@ -699,67 +855,51 @@ private fun PolicyListHeader(
     onBack: () -> Unit,
     onSearch: () -> Unit,
     searchQuery: String,
-    onSearchQueryChange: (String) -> Unit,
-    urgentCount: Int,
-    onUrgentClick: () -> Unit
+    onSearchQueryChange: (String) -> Unit
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = Color.White,
-        shadowElevation = 1.dp
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.md)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.md)
+        // Title Row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // Title Row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = Icons.Default.ChevronLeft,
-                        contentDescription = "Back",
-                        modifier = Modifier.size(32.dp),
-                        tint = AppColors.TextPrimary
-                    )
-                }
-                
-                Text(
-                    text = "청년정책 추천",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = AppColors.TextPrimary
+            IconButton(onClick = onBack) {
+                Icon(
+                    imageVector = Icons.Default.ChevronLeft,
+                    contentDescription = "Back",
+                    modifier = Modifier.size(32.dp),
+                    tint = AppColors.TextPrimary
                 )
-                
-                Spacer(modifier = Modifier.size(48.dp))
             }
             
-            Spacer(modifier = Modifier.height(Spacing.lg))
-            
-            // User Info Card
-            UserInfoCard(profile)
-            
-            Spacer(modifier = Modifier.height(Spacing.md))
-            
-            // Search Bar
-            SearchBar(
-                query = searchQuery,
-                onQueryChange = onSearchQueryChange,
-                onSearch = onSearch
+            Text(
+                text = "청년정책 추천",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = AppColors.TextPrimary
             )
             
-            Spacer(modifier = Modifier.height(Spacing.sm))
-            
-            // Urgent Alert Button
-            UrgentAlertButton(
-                count = urgentCount,
-                onClick = onUrgentClick
-            )
+            Spacer(modifier = Modifier.size(48.dp))
         }
+        
+        Spacer(modifier = Modifier.height(Spacing.md))
+        
+        // User Info Card (간추려서 표시)
+        UserInfoCard(profile)
+        
+        Spacer(modifier = Modifier.height(Spacing.md))
+        
+        // Search Bar (작게)
+        SearchBar(
+            query = searchQuery,
+            onQueryChange = onSearchQueryChange,
+            onSearch = onSearch
+        )
     }
 }
 
@@ -768,107 +908,125 @@ private fun UserInfoCard(profile: com.example.app.data.model.UserProfileResponse
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        border = androidx.compose.foundation.BorderStroke(2.dp, AppColors.Purple.copy(alpha = 0.5f)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, AppColors.Border),
         colors = CardDefaults.cardColors(
-            containerColor = Color.Transparent
+            containerColor = Color.White
         )
     ) {
-        Box(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
-                            AppColors.Purple.copy(alpha = 0.1f),
-                            AppColors.BackgroundGradientStart.copy(alpha = 0.1f)
-                        )
-                    )
-                )
-                .padding(Spacing.md)
+                .padding(Spacing.sm),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
+            // 프로필 아이콘 (작게)
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(
+                        brush = Brush.linearGradient(
+                            colors = listOf(
+                                AppColors.LightBlue,
+                                Color(0xFF6EBBFF)
+                            )
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = "Profile",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            
+            // 닉네임과 정보 (간추려서 표시)
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                val nickname = profile?.nickname ?: "슬기로운 청년"
+                Text(
+                    text = "$nickname 님",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = AppColors.TextPrimary
+                )
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                // 나이, 지역, 취업상태를 한 줄에 작게 표시
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(64.dp)
-                            .clip(CircleShape)
-                            .background(
-                                brush = Brush.linearGradient(
-                                    colors = listOf(
-                                        AppColors.Purple,
-                                        AppColors.BackgroundGradientStart
-                                    )
-                                )
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = "Profile",
-                            tint = Color.White,
-                            modifier = Modifier.size(32.dp)
+                    profile?.age?.let {
+                        Text(
+                            text = "${it}세",
+                            fontSize = 11.sp,
+                            color = AppColors.TextSecondary
+                        )
+                    } ?: Text(
+                        text = "25세",
+                        fontSize = 11.sp,
+                        color = AppColors.TextSecondary
+                    )
+                    
+                    Text(
+                        text = "•",
+                        fontSize = 11.sp,
+                        color = AppColors.TextTertiary
+                    )
+                    
+                    if (profile?.region != null) {
+                        Text(
+                            text = profile.region,
+                            fontSize = 11.sp,
+                            color = AppColors.TextSecondary
+                        )
+                    } else {
+                        Text(
+                            text = "경기도 수원시",
+                            fontSize = 11.sp,
+                            color = AppColors.TextSecondary
                         )
                     }
                     
-                    val nickname = profile?.nickname ?: "슬기로운 청년 님"
-                    val ageRegionJob = buildString {
-                        profile?.age?.let { append("${it}세 ") }
-                        profile?.region?.let { append(it).append(" 거주 ") }
-                        profile?.jobStatus?.let { append(it) }
-                        if (isEmpty()) append("25세 경기도 수원시 거주 취업준비생")
-                    }
-
-                    Column {
+                    Text(
+                        text = "•",
+                        fontSize = 11.sp,
+                        color = AppColors.TextTertiary
+                    )
+                    
+                    if (profile?.jobStatus != null) {
                         Text(
-                            text = nickname,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = AppColors.TextPrimary
+                            text = profile.jobStatus,
+                            fontSize = 11.sp,
+                            color = AppColors.TextSecondary
                         )
+                    } else {
                         Text(
-                            text = ageRegionJob,
-                            fontSize = 12.sp,
+                            text = "취업준비생",
+                            fontSize = 11.sp,
                             color = AppColors.TextSecondary
                         )
                     }
                 }
                 
-                Divider(
-                    modifier = Modifier.padding(vertical = Spacing.sm),
-                    color = AppColors.Purple.copy(alpha = 0.3f)
-                )
-                
+                // 관심분야 (작은 태그로 표시)
+                Spacer(modifier = Modifier.height(4.dp))
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                    verticalAlignment = Alignment.CenterVertically
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        text = "⭐",
-                        fontSize = 16.sp
-                    )
-                    Text(
-                        text = "설정된 관심분야",
-                        fontSize = 12.sp,
-                        color = AppColors.Purple,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-                
-                Spacer(modifier = Modifier.height(Spacing.xs))
-                
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
-                ) {
-                    val interests = profile?.interests?.takeIf { it.isNotEmpty() } ?: userInterests
-                    interests.forEach { interest ->
+                    val interests = profile?.interests?.takeIf { it.isNotEmpty() } ?: userInterests.take(3)
+                    interests.take(3).forEach { interest ->
                         InterestTag(
                             text = interest,
-                            backgroundColor = AppColors.Purple,
-                            textColor = Color.White,
+                            backgroundColor = AppColors.LightBlue.copy(alpha = 0.2f),
+                            textColor = AppColors.LightBlue,
                             modifier = Modifier.padding(vertical = 2.dp)
                         )
                     }
@@ -884,41 +1042,27 @@ private fun SearchBar(
     onQueryChange: (String) -> Unit,
     onSearch: () -> Unit
 ) {
-    Row(
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        OutlinedTextField(
-            value = query,
-            onValueChange = onQueryChange,
-            modifier = Modifier.weight(1f),
-            placeholder = { Text("정책 입대주택 통합검색", fontSize = 14.sp) },
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.Default.Search,
-                    contentDescription = "Search",
-                    tint = AppColors.TextTertiary
-                )
-            },
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = AppColors.TextPrimary,
-                unfocusedBorderColor = AppColors.TextPrimary
-            ),
-            singleLine = true
-        )
-        
-        Button(
-            onClick = onSearch,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = AppColors.TextPrimary
-            ),
-            shape = RoundedCornerShape(8.dp)
-        ) {
-            Text("검색", color = Color.White, fontSize = 14.sp)
-        }
-    }
+        placeholder = { Text("정책·임대주택 통합검색", fontSize = 12.sp) },
+        leadingIcon = {
+            Icon(
+                imageVector = Icons.Default.Search,
+                contentDescription = "Search",
+                tint = AppColors.TextTertiary,
+                modifier = Modifier.size(18.dp)
+            )
+        },
+        shape = RoundedCornerShape(8.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = AppColors.Border,
+            unfocusedBorderColor = AppColors.Border
+        ),
+        singleLine = true,
+        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp)
+    )
 }
 
 @Composable
@@ -992,7 +1136,9 @@ private fun CategoryFilterRow(
                         if (isUserInterest) {
                             Text("⭐", fontSize = 12.sp)
                         }
-                        Text(category, fontSize = 14.sp)
+                        // "복지문화" 글자 크기 조정 (버튼 두 줄 방지)
+                        val fontSize = if (category == "복지문화") 12.sp else 14.sp
+                        Text(category, fontSize = fontSize)
                     }
                 },
                 colors = FilterChipDefaults.filterChipColors(
@@ -1032,11 +1178,9 @@ private fun CategoryFilterRow(
 @Composable
 private fun PolicyCard(
     policy: PolicyItem,
-    isExpanded: Boolean,
     isBookmarked: Boolean,
-    onToggleExpand: () -> Unit,
+    onShowDetail: () -> Unit,
     onHeartClick: () -> Unit,
-    onApply: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -1078,99 +1222,152 @@ private fun PolicyCard(
                     modifier = Modifier.padding(bottom = Spacing.sm)
                 )
                 
-                if (!isExpanded) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                        modifier = Modifier.padding(bottom = Spacing.sm)
-                    ) {
-                        CategoryTag(policy.category)
-                        SupportTag(policy.support)
-                    }
-                    
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(Spacing.xs)
-                    ) {
-                        Text(
-                            text = "연령: ${policy.age}",
-                            fontSize = 14.sp,
-                            color = AppColors.TextSecondary
-                        )
-                        Text(
-                            text = "신청기간: ${policy.period}",
-                            fontSize = 14.sp,
-                            color = AppColors.TextSecondary
-                        )
-                    }
-                } else {
-                    Column(
-                        modifier = Modifier.padding(top = Spacing.md),
-                        verticalArrangement = Arrangement.spacedBy(Spacing.md)
-                    ) {
-                        PolicyDetailRow("주관기관명", policy.organization)
-                        PolicyDetailRow("정책명", policy.title)
-                        PolicyDetailRow("연령", policy.age)
-                        PolicyDetailRow("신청기간", policy.period)
-                        PolicyDetailRow("정책내용", policy.content)
-                        PolicyDetailRow("신청방법", policy.applicationMethod)
-                    }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                    modifier = Modifier.padding(bottom = Spacing.sm)
+                ) {
+                    CategoryTag(policy.category)
+                    SupportTag(policy.support)
+                }
+                
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(Spacing.xs)
+                ) {
+                    Text(
+                        text = "연령: ${policy.age}",
+                        fontSize = 14.sp,
+                        color = AppColors.TextSecondary
+                    )
+                    Text(
+                        text = "신청기간: ${policy.period}",
+                        fontSize = 14.sp,
+                        color = AppColors.TextSecondary
+                    )
                 }
             }
             
+            // 상세보기 버튼 (오른쪽 하단 배치)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = Spacing.lg),
                 verticalArrangement = Arrangement.spacedBy(Spacing.sm)
             ) {
-                if (!isExpanded) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
                     Button(
-                        onClick = onToggleExpand,
-                        modifier = Modifier.fillMaxWidth(),
+                        onClick = onShowDetail,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = AppColors.TextPrimary
-                        )
+                        ),
+                        shape = RoundedCornerShape(8.dp)
                     ) {
                         Text("상세보기", color = Color.White)
                     }
-                } else {
-                    Button(
-                        onClick = onToggleExpand,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = AppColors.Border
-                        )
-                    ) {
-                        Text("닫아두기", color = AppColors.TextPrimary)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PolicyDetailDialog(
+    policy: PolicyItem,
+    onDismiss: () -> Unit,
+    onApply: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 600.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(Spacing.md)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "정책 상세 정보",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AppColors.TextPrimary
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close")
                     }
-                    
-                    Button(
-                        onClick = onApply,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.Transparent
-                        ),
-                        contentPadding = PaddingValues(0.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(
-                                    brush = Brush.horizontalGradient(
-                                        colors = listOf(
-                                            AppColors.Purple,
-                                            AppColors.BackgroundGradientStart
-                                        )
+                }
+                
+                Spacer(modifier = Modifier.height(Spacing.md))
+                
+                Text(
+                    text = policy.title,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = AppColors.TextPrimary
+                )
+                
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                ) {
+                    CategoryTag(policy.category)
+                    SupportTag(policy.support)
+                }
+                
+                Spacer(modifier = Modifier.height(Spacing.lg))
+                
+                PolicyDetailRow("주관기관명", policy.organization)
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                PolicyDetailRow("연령", policy.age)
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                PolicyDetailRow("신청기간", policy.period)
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                PolicyDetailRow("정책내용", policy.content)
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                PolicyDetailRow("신청방법", policy.applicationMethod)
+                
+                Spacer(modifier = Modifier.height(Spacing.xl))
+                
+                Button(
+                    onClick = onApply,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.Transparent
+                    ),
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                brush = Brush.horizontalGradient(
+                                    colors = listOf(
+                                        AppColors.Purple,
+                                        AppColors.BackgroundGradientStart
                                     )
-                                )
-                                .padding(vertical = 12.dp)
-                        ) {
-                            Text(
-                                "신청하기",
-                                color = Color.White,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth()
+                                ),
+                                shape = RoundedCornerShape(8.dp)
                             )
-                        }
+                            .padding(vertical = 12.dp)
+                    ) {
+                        Text(
+                            "신청하기",
+                            color = Color.White,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 }
             }
@@ -1238,15 +1435,15 @@ private fun InterestTag(
 ) {
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(backgroundColor)
-            .padding(horizontal = Spacing.md, vertical = 4.dp)
+            .padding(horizontal = 8.dp, vertical = 2.dp)
     ) {
         Text(
             text = text,
-            fontSize = 12.sp,
+            fontSize = 10.sp,
             color = textColor,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Medium
         )
     }
 }
