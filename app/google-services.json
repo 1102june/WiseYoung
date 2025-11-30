@@ -31,6 +31,14 @@
           }
         },
         {
+          "client_id": "609597104515-sig9a69ts5ukjsvunnhtpsta9ihtf2gl.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.wiseyoung.app",
+            "certificate_hash": "4d53623421005ff6715f7638ecec0ff29ebacef6"
+          }
+        },
+        {
           "client_id": "609597104515-hhhv4g5tckho264n2jv2mpnqtie0qf48.apps.googleusercontent.com",
           "client_type": 3
         }

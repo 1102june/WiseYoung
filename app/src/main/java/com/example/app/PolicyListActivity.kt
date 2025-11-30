@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -48,6 +49,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 
 data class PolicyItem(
     val id: Int,
+    val policyId: String? = null, // 실제 서버의 policyId (북마크용)
     val title: String,
     val date: String,
     val category: String,
@@ -347,7 +349,8 @@ fun PolicyListScreen(
                 // PolicyResponse를 PolicyItem으로 변환
                 policiesList = policies.mapIndexed { index, policy ->
                     PolicyItem(
-                        id = index + 1,
+                        id = index + 1, // UI용 인덱스
+                        policyId = policy.policyId, // 실제 서버의 policyId (북마크용)
                         title = policy.title,
                         date = "${policy.ageStart ?: 0}-${policy.ageEnd ?: 0}세 ${policy.applicationEnd?.take(10)?.replace("-", ".") ?: ""}",
                         category = policy.category ?: "기타",
@@ -425,7 +428,7 @@ fun PolicyListScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .background(Color.White)
+                .background(MaterialTheme.colorScheme.background)
                 .verticalScroll(scrollState)
         ) {
             // Header Section (스크롤 가능하도록 이동)
@@ -456,17 +459,77 @@ fun PolicyListScreen(
                 filteredPolicies.forEach { policy ->
                     PolicyCard(
                         policy = policy,
-                        isBookmarked = bookmarkedPolicies.contains(policy.title),
+                        isBookmarked = policy.isFavorite,
                         onShowDetail = {
                             detailPolicy = policy
                             showDetailDialog = true
                         },
                         onHeartClick = {
-                            if (!bookmarkedPolicies.contains(policy.title)) {
+                            if (!policy.isFavorite) {
                                 selectedPolicy = policy
                                 showNotificationDialog = true
                             } else {
-                                bookmarkedPolicies = bookmarkedPolicies - policy.title
+                                // 북마크 제거
+                                scope.launch {
+                                    try {
+                                        // 서버에서 북마크 목록 조회하여 해당 북마크 찾기
+                                        val response = com.example.app.network.NetworkModule.apiService.getBookmarks(
+                                            userId = userId,
+                                            contentType = "policy"
+                                        )
+                                        if (response.isSuccessful && response.body()?.success == true) {
+                                            val bookmarks = response.body()?.data ?: emptyList()
+                                            // contentId로 북마크 찾기
+                                            val contentId = policy.policyId ?: policy.id.toString()
+                                            val bookmark = bookmarks.find { it.contentId == contentId }
+                                            bookmark?.let {
+                                                com.example.app.network.NetworkModule.apiService.deleteBookmark(
+                                                    userId = userId,
+                                                    bookmarkId = it.bookmarkId
+                                                )
+                                                android.util.Log.d("PolicyListActivity", "서버 북마크 삭제 성공: ${it.bookmarkId}")
+                                                // 정책 목록 새로고침하여 북마크 상태 업데이트
+                                                isLoading = true
+                                                try {
+                                                    val refreshResponse = com.example.app.network.NetworkModule.apiService.getRecommendedPolicies(
+                                                        userId = userId,
+                                                        category = selectedCategory?.takeIf { it != "전체" },
+                                                        limit = 30
+                                                    )
+                                                    if (refreshResponse.isSuccessful && refreshResponse.body()?.success == true) {
+                                                        val policies = refreshResponse.body()?.data ?: emptyList()
+                                                        policiesList = policies.mapIndexed { index, p ->
+                                                            PolicyItem(
+                                                                id = index + 1,
+                                                                policyId = p.policyId,
+                                                                title = p.title,
+                                                                date = "${p.ageStart ?: 0}-${p.ageEnd ?: 0}세 ${p.applicationEnd?.take(10)?.replace("-", ".") ?: ""}",
+                                                                category = p.category ?: "기타",
+                                                                support = "지원금",
+                                                                isFavorite = p.isBookmarked,
+                                                                organization = p.region ?: "",
+                                                                age = "만 ${p.ageStart ?: 0}세 ~ ${p.ageEnd ?: 0}세",
+                                                                period = "${p.applicationStart?.take(10)?.replace("-", ".") ?: ""} ~ ${p.applicationEnd?.take(10)?.replace("-", ".") ?: ""}",
+                                                                content = p.summary ?: "",
+                                                                applicationMethod = p.eligibility ?: "",
+                                                                deadline = p.applicationEnd?.take(10) ?: "",
+                                                                isUrgent = false,
+                                                                link1 = p.link1,
+                                                                link2 = p.link2
+                                                            )
+                                                        }
+                                                    }
+                                                } catch (e: Exception) {
+                                                    android.util.Log.e("PolicyListActivity", "정책 목록 새로고침 실패: ${e.message}", e)
+                                                } finally {
+                                                    isLoading = false
+                                                }
+                                            }
+                                        }
+                                    } catch (e: Exception) {
+                                        android.util.Log.e("PolicyListActivity", "서버 북마크 삭제 실패: ${e.message}", e)
+                                    }
+                                }
                             }
                         },
                         modifier = Modifier.padding(bottom = Spacing.sm)
@@ -512,7 +575,32 @@ fun PolicyListScreen(
                     selectedPolicy = policy
                     showNotificationDialog = true
                 } else {
+                    // 북마크 제거
                     bookmarkedPolicies = bookmarkedPolicies - policy.title
+                    // 서버에 북마크 삭제 요청
+                    scope.launch {
+                        try {
+                            // 서버에서 북마크 목록 조회하여 해당 북마크 찾기
+                            val response = com.example.app.network.NetworkModule.apiService.getBookmarks(
+                                userId = userId,
+                                contentType = "policy"
+                            )
+                            if (response.isSuccessful && response.body()?.success == true) {
+                                val bookmarks = response.body()?.data ?: emptyList()
+                                // contentId로 북마크 찾기
+                                val bookmark = bookmarks.find { it.contentId == policy.id.toString() }
+                                bookmark?.let {
+                                    com.example.app.network.NetworkModule.apiService.deleteBookmark(
+                                        userId = userId,
+                                        bookmarkId = it.bookmarkId
+                                    )
+                                    android.util.Log.d("PolicyListActivity", "서버 북마크 삭제 성공: ${it.bookmarkId}")
+                                }
+                            }
+                        } catch (e: Exception) {
+                            android.util.Log.e("PolicyListActivity", "서버 북마크 삭제 실패: ${e.message}", e)
+                        }
+                    }
                 }
             },
             onDismiss = { showUrgentDialog = false }
@@ -528,6 +616,29 @@ fun PolicyListScreen(
             onNotificationsChange = { notifications = it },
             onSave = {
                 selectedPolicy?.let { policy ->
+                    // 북마크 상태 업데이트
+                    bookmarkedPolicies = bookmarkedPolicies + policy.title
+                    
+                    // 서버에 북마크 저장
+                    scope.launch {
+                        try {
+                            val contentId = policy.policyId ?: policy.id.toString()
+                            val bookmarkResponse = com.example.app.network.NetworkModule.apiService.addBookmark(
+                                userId = userId,
+                                request = com.example.app.data.model.BookmarkRequest(
+                                    userId = userId,
+                                    contentType = "policy",
+                                    contentId = contentId
+                                )
+                            )
+                            android.util.Log.d("PolicyListActivity", "서버 북마크 저장 성공: ${policy.title} (contentId: $contentId)")
+                        } catch (e: Exception) {
+                            android.util.Log.e("PolicyListActivity", "서버 북마크 저장 실패: ${e.message}", e)
+                            // 실패해도 로컬 상태는 유지
+                        }
+                    }
+                    
+                    // 캘린더에 일정 추가
                     calendarService.addPolicyToCalendar(
                         title = policy.title,
                         organization = policy.organization,
@@ -535,7 +646,7 @@ fun PolicyListScreen(
                         policyId = policy.id.toString(),
                         notificationSettings = notifications
                     )
-                    Toast.makeText(context, "캘린더에 일정이 추가되었습니다.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "북마크 및 캘린더에 추가되었습니다.", Toast.LENGTH_SHORT).show()
                 }
                 showNotificationDialog = false
                 selectedPolicy = null
@@ -885,7 +996,7 @@ private fun PolicyListHeader(
                     imageVector = Icons.Default.ChevronLeft,
                     contentDescription = "Back",
                     modifier = Modifier.size(28.dp), // 아이콘 크기 축소
-                    tint = AppColors.TextPrimary
+                        tint = MaterialTheme.colorScheme.onSurface
                 )
             }
             
@@ -922,7 +1033,7 @@ private fun UserInfoCard(profile: com.example.app.data.model.UserProfileResponse
         shape = RoundedCornerShape(12.dp),
         border = androidx.compose.foundation.BorderStroke(1.dp, AppColors.Border),
         colors = CardDefaults.cardColors(
-            containerColor = Color.White
+            containerColor = MaterialTheme.colorScheme.surface
         )
     ) {
         Row(
@@ -964,7 +1075,7 @@ private fun UserInfoCard(profile: com.example.app.data.model.UserProfileResponse
                     text = "$nickname 님",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = AppColors.TextPrimary
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 
                 Spacer(modifier = Modifier.height(4.dp))
@@ -978,51 +1089,51 @@ private fun UserInfoCard(profile: com.example.app.data.model.UserProfileResponse
                         Text(
                             text = "${it}세",
                             fontSize = 11.sp,
-                            color = AppColors.TextSecondary
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     } ?: Text(
                         text = "25세",
                         fontSize = 11.sp,
-                        color = AppColors.TextSecondary
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     
                     Text(
                         text = "•",
                         fontSize = 11.sp,
-                        color = AppColors.TextTertiary
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                     )
                     
                     if (profile?.region != null) {
                         Text(
                             text = profile.region,
                             fontSize = 11.sp,
-                            color = AppColors.TextSecondary
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     } else {
                         Text(
                             text = "경기도 수원시",
                             fontSize = 11.sp,
-                            color = AppColors.TextSecondary
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     
                     Text(
                         text = "•",
                         fontSize = 11.sp,
-                        color = AppColors.TextTertiary
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                     )
                     
                     if (profile?.jobStatus != null) {
                         Text(
                             text = profile.jobStatus,
                             fontSize = 11.sp,
-                            color = AppColors.TextSecondary
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     } else {
                         Text(
                             text = "취업준비생",
                             fontSize = 11.sp,
-                            color = AppColors.TextSecondary
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -1063,7 +1174,7 @@ private fun SearchBar(
             Icon(
                 imageVector = Icons.Default.Search,
                 contentDescription = "Search",
-                tint = AppColors.TextTertiary,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                 modifier = Modifier.size(18.dp)
             )
         },
@@ -1189,7 +1300,7 @@ private fun CategoryFilterRow(
 }
 
 @Composable
-private fun PolicyCard(
+fun PolicyCard(
     policy: PolicyItem,
     isBookmarked: Boolean,
     onShowDetail: () -> Unit,
@@ -1219,7 +1330,7 @@ private fun PolicyCard(
                     text = policy.title,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = AppColors.TextPrimary,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier
                         .weight(1f)
                         .padding(end = 8.dp)
@@ -1255,12 +1366,12 @@ private fun PolicyCard(
                 Text(
                     text = "연령: ${policy.age}",
                     fontSize = 14.sp,
-                    color = AppColors.TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
                     text = "신청기간: ${policy.period}",
                     fontSize = 14.sp,
-                    color = AppColors.TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             
@@ -1288,7 +1399,7 @@ private fun PolicyCard(
 }
 
 @Composable
-private fun PolicyDetailDialog(
+fun PolicyDetailDialog(
     policy: PolicyItem,
     onDismiss: () -> Unit,
     onApply: () -> Unit
@@ -1316,7 +1427,7 @@ private fun PolicyDetailDialog(
                         text = "정책 상세 정보",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
-                        color = AppColors.TextPrimary
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     IconButton(onClick = onDismiss) {
                         Icon(Icons.Default.Close, contentDescription = "Close")
@@ -1329,7 +1440,7 @@ private fun PolicyDetailDialog(
                     text = policy.title,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = AppColors.TextPrimary
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 
                 Spacer(modifier = Modifier.height(Spacing.sm))
@@ -1497,7 +1608,7 @@ private fun UrgentPoliciesDialog(
                         text = "마감 임박 정책 ${policies.size}개",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
-                        color = AppColors.TextPrimary
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
                 
@@ -1592,21 +1703,21 @@ private fun UrgentPolicyCard(
                     text = policy.title,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = AppColors.TextPrimary,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(bottom = 4.dp)
                 )
                 
                 Text(
                     text = policy.date,
                     fontSize = 14.sp,
-                    color = AppColors.TextSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 4.dp)
                 )
                 
                 Text(
                     text = "마감일: ${policy.deadline}",
                     fontSize = 12.sp,
-                    color = AppColors.TextTertiary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                 )
             }
         }

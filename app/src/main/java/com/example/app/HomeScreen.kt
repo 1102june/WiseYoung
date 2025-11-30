@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -186,7 +187,7 @@ fun HomeScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.White)
+                .background(MaterialTheme.colorScheme.background)
                 .padding(paddingValues)
                 .verticalScroll(rememberScrollState())
         ) {
@@ -211,13 +212,13 @@ fun HomeScreen(
                         text = "나와 비슷한 다른사람은 어떤한 정책을?",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
-                        color = AppColors.TextPrimary
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     
                     Text(
                         text = "AI 추천 정책 모음",
                         fontSize = 14.sp,
-                        color = AppColors.TextSecondary
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     
                     // 슬라이드 카드
@@ -280,7 +281,7 @@ fun HomeScreen(
                         Text(
                             text = "현재 추천할 정책이 없습니다.",
                             fontSize = 14.sp,
-                            color = AppColors.TextSecondary
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -389,7 +390,7 @@ private fun HomeHeader(
                     imageVector = Icons.Default.ChevronLeft,
                     contentDescription = "Back",
                     modifier = Modifier.size(28.dp), // 아이콘 크기 약간 축소
-                    tint = AppColors.TextPrimary
+                    tint = MaterialTheme.colorScheme.onSurface
                 )
             }
             
@@ -406,13 +407,13 @@ private fun HomeHeader(
                 onClick = onNotifications,
                 modifier = Modifier
                     .size(40.dp) // 버튼 크기 축소
-                    .border(2.dp, AppColors.TextPrimary, CircleShape)
+                    .border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
             ) {
                 Icon(
                     imageVector = Icons.Default.Notifications,
                     contentDescription = "Notifications",
                     modifier = Modifier.size(20.dp), // 내부 아이콘 크기 축소
-                    tint = AppColors.TextPrimary
+                    tint = MaterialTheme.colorScheme.onSurface
                 )
             }
         }
@@ -469,7 +470,7 @@ private fun PolicyCard(
     
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color.White) // 배경색 흰색으로 명시적 지정
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface) // 배경색 흰색으로 명시적 지정
     ) {
         Column(
             modifier = Modifier.fillMaxWidth()
@@ -486,13 +487,13 @@ private fun PolicyCard(
                         text = policy.title,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
-                        color = AppColors.TextPrimary
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     
                     Text(
                         text = policy.date,
                         fontSize = 14.sp,
-                        color = AppColors.TextSecondary,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 4.dp)
                     )
                 }
@@ -505,7 +506,7 @@ private fun PolicyCard(
                     Icon(
                         imageVector = if (isBookmarked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                         contentDescription = "Bookmark",
-                        tint = if (isBookmarked) AppColors.TextPrimary else AppColors.TextTertiary,
+                        tint = if (isBookmarked) MaterialTheme.colorScheme.onSurface else AppColors.TextTertiary,
                         modifier = Modifier.size(28.dp)
                     )
                 }
@@ -529,7 +530,7 @@ private fun PolicyCard(
                         modifier = Modifier
                             .size(32.dp)
                             .background(
-                                AppColors.TextPrimary.copy(alpha = 0.7f),
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                                 CircleShape
                             )
                     ) {
@@ -548,7 +549,7 @@ private fun PolicyCard(
                         modifier = Modifier
                             .size(32.dp)
                             .background(
-                                AppColors.TextPrimary.copy(alpha = 0.7f),
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                                 CircleShape
                             )
                     ) {
@@ -576,7 +577,7 @@ private fun PolicyCard(
                                 .padding(horizontal = 3.dp)
                                 .clip(RoundedCornerShape(3.dp))
                                 .background(
-                                    if (index == currentIndex) AppColors.TextPrimary else AppColors.Border
+                                    if (index == currentIndex) MaterialTheme.colorScheme.onSurface else AppColors.Border
                                 )
                                 .clickable { onIndicatorClick(index) }
                         )
@@ -598,7 +599,7 @@ private fun PolicyCard(
                     Button(
                         onClick = onShowDetail,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = AppColors.TextPrimary
+                            containerColor = MaterialTheme.colorScheme.onSurface
                         ),
                         shape = RoundedCornerShape(8.dp)
                     ) {
@@ -622,7 +623,7 @@ private fun PolicyDetailDialog(
                 .fillMaxWidth()
                 .heightIn(max = 600.dp),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             Column(
                 modifier = Modifier
@@ -639,7 +640,7 @@ private fun PolicyDetailDialog(
                         text = "정책 상세 정보",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
-                        color = AppColors.TextPrimary
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     IconButton(onClick = onDismiss) {
                         Icon(Icons.Default.Close, contentDescription = "Close")
@@ -652,7 +653,7 @@ private fun PolicyDetailDialog(
                     text = policy.title,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = AppColors.TextPrimary
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 
                 Spacer(modifier = Modifier.height(Spacing.lg))
@@ -715,7 +716,7 @@ private fun PolicyDetailRow(label: String, value: String) {
         Text(
             text = value,
             fontSize = 14.sp,
-            color = AppColors.TextPrimary,
+            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(top = 2.dp)
         )
     }
@@ -855,7 +856,7 @@ private fun NotificationDialog(
                     onSave()
                 },
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = AppColors.TextPrimary
+                    containerColor = MaterialTheme.colorScheme.onSurface
                 )
             ) {
                 Text("저장하기", color = Color.White)
@@ -974,7 +975,7 @@ private fun TimePickerSection(
         Text(
             text = "알림 시간",
             fontSize = 12.sp,
-            color = AppColors.TextSecondary
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         
         Box(
@@ -1088,13 +1089,13 @@ private fun WheelPicker(
                             text = String.format("%02d", item),
                             fontSize = if (item == selectedValue) 18.sp else 14.sp,
                             fontWeight = if (item == selectedValue) FontWeight.Bold else FontWeight.Normal,
-                            color = if (item == selectedValue) AppColors.LightBlue else AppColors.TextSecondary
+                            color = if (item == selectedValue) AppColors.LightBlue else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
             }
         }
-        Text(label, fontSize = 12.sp, color = AppColors.TextSecondary)
+        Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

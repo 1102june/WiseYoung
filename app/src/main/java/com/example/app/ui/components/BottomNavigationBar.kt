@@ -14,6 +14,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -51,7 +52,7 @@ fun BottomNavigationBar(
     
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = Color.White,
+        color = MaterialTheme.colorScheme.surface,
         shadowElevation = 2.5.dp
     ) {
         Column(
@@ -166,7 +167,7 @@ fun ChatbotDialog(onDismiss: () -> Unit) {
                 .fillMaxWidth()
                 .fillMaxHeight(0.85f), // 팝업 크기를 화면 높이의 85%로 키움
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             Column(
                 modifier = Modifier.fillMaxSize()
@@ -188,7 +189,7 @@ fun ChatbotDialog(onDismiss: () -> Unit) {
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "Wisebot",
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.surface,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold
                     )

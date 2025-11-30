@@ -1,7 +1,9 @@
 package com.wiseyoung.app
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -21,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -45,6 +48,7 @@ import com.google.firebase.auth.FirebaseAuth
 
 data class ApartmentItem(
     val id: Int,
+    val housingId: String? = null, // 실제 임대주택 ID (북마크용)
     val name: String,
     val distance: String,
     val deposit: Int, // 만원 단위
@@ -63,7 +67,10 @@ data class ApartmentItem(
     val hasElevator: Boolean,
     val parkingSpaces: Int,
     val convertibleDeposit: String,
-    val totalUnits: Int
+    val totalUnits: Int,
+    val link: String? = null, // 신청 링크
+    val latitude: Double? = null, // 위도
+    val longitude: Double? = null // 경도
 )
 
 data class HousingAnnouncementItem(
@@ -82,7 +89,8 @@ data class HousingAnnouncementItem(
     val depositDisplay: String,
     val monthlyRent: Int, // 만원 단위
     val monthlyRentDisplay: String,
-    val announcementDate: String
+    val announcementDate: String,
+    val link: String? = null // 신청 링크
 )
 
 data class HousingFilters(
@@ -114,11 +122,7 @@ class HousingMapActivity : ComponentActivity() {
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        try {
-            KakaoMapSdk.init(this, "a6d711e7786442c3aaf2b5596af9ae04")
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        // 카카오맵 SDK는 YouthApplication에서 이미 초기화됨 (중복 초기화 방지)
         val userId = auth.currentUser?.uid ?: "test-user"
         
         setContent {
@@ -207,79 +211,10 @@ fun HousingMapScreen(
     
     // 주택 목록 로드
     LaunchedEffect(userId) {
-        isLoading = false // Mock 데이터 사용시 로딩 해제
-        // Mock Data for Testing UI
-        apartmentsList = listOf(
-            ApartmentItem(
-                id = 1,
-                name = "행복주택 수원역점",
-                distance = "1.2km",
-                deposit = 5000,
-                depositDisplay = "5,000만원",
-                monthlyRent = 30,
-                monthlyRentDisplay = "30만원",
-                deadline = "2025.12.31",
-                address = "경기도 수원시 팔달구 매산로",
-                area = 36,
-                completionDate = "2023.01",
-                organization = "LH",
-                count = 0,
-                region = "수원시",
-                housingType = "행복주택",
-                heatingType = "개별난방",
-                hasElevator = true,
-                parkingSpaces = 100,
-                convertibleDeposit = "가능",
-                totalUnits = 200
-            ),
-            ApartmentItem(
-                id = 2,
-                name = "청년안심주택 서초",
-                distance = "5.0km",
-                deposit = 10000,
-                depositDisplay = "1억원",
-                monthlyRent = 50,
-                monthlyRentDisplay = "50만원",
-                deadline = "2025.11.30",
-                address = "서울특별시 서초구 서초동",
-                area = 29,
-                completionDate = "2024.05",
-                organization = "SH",
-                count = 0,
-                region = "서울시",
-                housingType = "청년안심주택",
-                heatingType = "지역난방",
-                hasElevator = true,
-                parkingSpaces = 50,
-                convertibleDeposit = "불가능",
-                totalUnits = 150
-            )
-        )
-
-        announcementsList = listOf(
-            HousingAnnouncementItem(
-                id = 3,
-                title = "수원시 매입임대 입주자 모집",
-                organization = "LH",
-                region = "수원시",
-                housingType = "매입임대",
-                status = "접수중",
-                deadline = "2025.12.15",
-                recruitmentPeriod = "2025.12.01 ~ 2025.12.15",
-                address = "경기도 수원시 장안구",
-                totalUnits = 10,
-                area = "45㎡",
-                deposit = 3000,
-                depositDisplay = "3,000만원",
-                monthlyRent = 15,
-                monthlyRentDisplay = "15만원",
-                announcementDate = "2025.11.20"
-            )
-        )
-
-        /* API 호출 임시 비활성화
         isLoading = true
         errorMessage = null
+        
+        // 실제 서버 데이터 사용 (Mock 데이터 제거)
         try {
             // 사용자 프로필/지역을 고려한 맞춤 임대주택 추천 목록 조회
             val recommendedResponse = com.example.app.network.NetworkModule.apiService
@@ -302,8 +237,14 @@ fun HousingMapScreen(
             // HousingResponse를 ApartmentItem으로 변환 (안전한 변환)
             apartmentsList = try {
                 housingList.mapIndexed { index, housing ->
+                    // housingId가 null인 경우 경고 로그 출력
+                    if (housing.housingId.isNullOrBlank()) {
+                        android.util.Log.w("HousingMapActivity", "⚠️ 서버에서 받은 데이터에 housingId가 없습니다: housing.name=${housing.name}")
+                    }
+                    
                     ApartmentItem(
                         id = index + 1,
+                        housingId = housing.housingId, // 실제 임대주택 ID 저장
                         name = housing.name,
                         distance = housing.distanceFromUser?.let { 
                             try {
@@ -328,7 +269,10 @@ fun HousingMapScreen(
                         hasElevator = housing.elevator ?: false,
                         parkingSpaces = housing.parkingSpaces ?: 0,
                         convertibleDeposit = "",
-                        totalUnits = housing.totalUnits ?: 0
+                        totalUnits = housing.totalUnits ?: 0,
+                        link = housing.link, // 신청 링크 추가
+                        latitude = housing.latitude, // 위도
+                        longitude = housing.longitude // 경도
                     )
                 }
             } catch (e: Exception) {
@@ -376,7 +320,8 @@ fun HousingMapScreen(
                         depositDisplay = try { "${(housing.deposit ?: 0) / 10000}만원" } catch (e: Exception) { "0만원" },
                         monthlyRent = try { (housing.monthlyRent ?: 0) / 10000 } catch (e: Exception) { 0 },
                         monthlyRentDisplay = try { "${(housing.monthlyRent ?: 0) / 10000}만원" } catch (e: Exception) { "0만원" },
-                        announcementDate = applicationStart
+                        announcementDate = applicationStart,
+                        link = housing.link // 신청 링크 추가
                     )
                 }
             } catch (e: Exception) {
@@ -392,7 +337,6 @@ fun HousingMapScreen(
         } finally {
             isLoading = false
         }
-        */
     }
     
     val filteredApartments = apartmentsList.filter { apt ->
@@ -426,7 +370,7 @@ fun HousingMapScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .background(Color.White)
+                .background(MaterialTheme.colorScheme.background)
         ) {
             // Header
             HousingMapHeader(onBack = onNavigateHome)
@@ -451,6 +395,7 @@ fun HousingMapScreen(
                                 onFilterClick = { showFilterDialog = true },
                                 totalCount = filteredApartments.size,
                                 regionLabel = filters.region.takeUnless { it == "전체" },
+                                apartments = filteredApartments,
                                 modifier = Modifier.padding(bottom = Spacing.md)
                             )
                         }
@@ -464,10 +409,32 @@ fun HousingMapScreen(
                                         selectedHousing = apartment
                                         showNotificationDialog = true
                                     } else {
-                                        // 북마크 제거 (로컬 상태)
+                                        // 북마크 제거
                                         bookmarkedHousings = bookmarkedHousings - apartment.name
-                                        // SharedPreferences에서도 제거
-                                        BookmarkPreferences.removeBookmark(context, apartment.name, BookmarkType.HOUSING)
+                                        // 서버에 북마크 삭제 요청
+                                        scope.launch {
+                                            try {
+                                                // 서버에서 북마크 목록 조회하여 해당 북마크 찾기
+                                                val response = com.example.app.network.NetworkModule.apiService.getBookmarks(
+                                                    userId = userId,
+                                                    contentType = "housing"
+                                                )
+                                                if (response.isSuccessful && response.body()?.success == true) {
+                                                    val bookmarks = response.body()?.data ?: emptyList()
+                                                    // contentId로 북마크 찾기
+                                                    val bookmark = bookmarks.find { it.contentId == apartment.id.toString() }
+                                                    bookmark?.let {
+                                                        com.example.app.network.NetworkModule.apiService.deleteBookmark(
+                                                            userId = userId,
+                                                            bookmarkId = it.bookmarkId
+                                                        )
+                                                        android.util.Log.d("HousingMapActivity", "서버 북마크 삭제 성공: ${it.bookmarkId}")
+                                                    }
+                                                }
+                                            } catch (e: Exception) {
+                                                android.util.Log.e("HousingMapActivity", "서버 북마크 삭제 실패: ${e.message}", e)
+                                            }
+                                        }
                                     }
                                 },
                                 onDetailClick = {
@@ -496,7 +463,7 @@ fun HousingMapScreen(
                                 Button(
                                     onClick = { showFilterDialog = true },
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color.White
+                                        containerColor = MaterialTheme.colorScheme.surface
                                     ),
                                     border = androidx.compose.foundation.BorderStroke(1.dp, AppColors.Border)
                                 ) {
@@ -504,13 +471,13 @@ fun HousingMapScreen(
                                         imageVector = Icons.Default.Tune,
                                         contentDescription = "Filter",
                                         modifier = Modifier.size(20.dp),
-                                        tint = AppColors.TextSecondary
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     Spacer(modifier = Modifier.width(Spacing.xs))
                                     Text(
                                         text = "필터",
                                         fontSize = 12.sp,
-                                        color = AppColors.TextSecondary
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             }
@@ -527,7 +494,30 @@ fun HousingMapScreen(
                                     } else {
                                         // 북마크 제거
                                         bookmarkedHousings = bookmarkedHousings - announcement.title
-                                        BookmarkPreferences.removeBookmark(context, announcement.title, BookmarkType.HOUSING)
+                                        // 서버에 북마크 삭제 요청
+                                        scope.launch {
+                                            try {
+                                                // 서버에서 북마크 목록 조회하여 해당 북마크 찾기
+                                                val response = com.example.app.network.NetworkModule.apiService.getBookmarks(
+                                                    userId = userId,
+                                                    contentType = "housing"
+                                                )
+                                                if (response.isSuccessful && response.body()?.success == true) {
+                                                    val bookmarks = response.body()?.data ?: emptyList()
+                                                    // contentId로 북마크 찾기
+                                                    val bookmark = bookmarks.find { it.contentId == announcement.id.toString() }
+                                                    bookmark?.let {
+                                                        com.example.app.network.NetworkModule.apiService.deleteBookmark(
+                                                            userId = userId,
+                                                            bookmarkId = it.bookmarkId
+                                                        )
+                                                        android.util.Log.d("HousingMapActivity", "서버 북마크 삭제 성공: ${it.bookmarkId}")
+                                                    }
+                                                }
+                                            } catch (e: Exception) {
+                                                android.util.Log.e("HousingMapActivity", "서버 북마크 삭제 실패: ${e.message}", e)
+                                            }
+                                        }
                                     }
                                 },
                                 onDetailClick = {
@@ -556,10 +546,31 @@ fun HousingMapScreen(
                             showDetailDialog = false
                             showNotificationDialog = true
                         } else {
-                            // 북마크 제거 (로컬 상태)
+                            // 북마크 제거
                             bookmarkedHousings = bookmarkedHousings - item.name
-                            // SharedPreferences에서도 제거
-                            BookmarkPreferences.removeBookmark(context, item.name, BookmarkType.HOUSING)
+                            // 서버에 북마크 삭제 요청
+                            scope.launch {
+                                try {
+                                    val response = com.example.app.network.NetworkModule.apiService.getBookmarks(
+                                        userId = userId,
+                                        contentType = "housing"
+                                    )
+                                    if (response.isSuccessful && response.body()?.success == true) {
+                                        val bookmarks = response.body()?.data ?: emptyList()
+                                        // title로 북마크 찾기
+                                        val bookmark = bookmarks.find { it.title == item.name }
+                                        bookmark?.let {
+                                            com.example.app.network.NetworkModule.apiService.deleteBookmark(
+                                                userId = userId,
+                                                bookmarkId = it.bookmarkId
+                                            )
+                                            android.util.Log.d("HousingMapActivity", "서버 북마크 삭제 성공: ${it.bookmarkId}")
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    android.util.Log.e("HousingMapActivity", "서버 북마크 삭제 실패: ${e.message}", e)
+                                }
+                            }
                         }
                     },
                     onClose = {
@@ -567,7 +578,19 @@ fun HousingMapScreen(
                         selectedApartment = null
                     },
                     onApply = {
-                        // TODO: 신청하기 로직
+                        // 신청하기 링크 열기
+                        val link = item.link
+                        if (link != null && link.isNotEmpty()) {
+                            try {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(link))
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                android.util.Log.e("HousingMapActivity", "링크 열기 실패: ${e.message}", e)
+                                Toast.makeText(context, "링크를 열 수 없습니다.", Toast.LENGTH_SHORT).show()
+                            }
+                        } else {
+                            Toast.makeText(context, "신청 링크가 제공되지 않았습니다.", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 )
             }
@@ -581,8 +604,31 @@ fun HousingMapScreen(
                             showDetailDialog = false
                             showNotificationDialog = true
                         } else {
+                            // 북마크 제거
                             bookmarkedHousings = bookmarkedHousings - item.title
-                            BookmarkPreferences.removeBookmark(context, item.title, BookmarkType.HOUSING)
+                            // 서버에 북마크 삭제 요청
+                            scope.launch {
+                                try {
+                                    val response = com.example.app.network.NetworkModule.apiService.getBookmarks(
+                                        userId = userId,
+                                        contentType = "housing"
+                                    )
+                                    if (response.isSuccessful && response.body()?.success == true) {
+                                        val bookmarks = response.body()?.data ?: emptyList()
+                                        // title로 북마크 찾기
+                                        val bookmark = bookmarks.find { it.title == item.title }
+                                        bookmark?.let {
+                                            com.example.app.network.NetworkModule.apiService.deleteBookmark(
+                                                userId = userId,
+                                                bookmarkId = it.bookmarkId
+                                            )
+                                            android.util.Log.d("HousingMapActivity", "서버 북마크 삭제 성공: ${it.bookmarkId}")
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    android.util.Log.e("HousingMapActivity", "서버 북마크 삭제 실패: ${e.message}", e)
+                                }
+                            }
                         }
                     },
                     onClose = {
@@ -590,7 +636,19 @@ fun HousingMapScreen(
                         selectedApartment = null
                     },
                     onApply = {
-                        // TODO: 신청하기 로직
+                        // 신청하기 링크 열기
+                        val link = item.link
+                        if (link != null && link.isNotEmpty()) {
+                            try {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(link))
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                android.util.Log.e("HousingMapActivity", "링크 열기 실패: ${e.message}", e)
+                                Toast.makeText(context, "링크를 열 수 없습니다.", Toast.LENGTH_SHORT).show()
+                            }
+                        } else {
+                            Toast.makeText(context, "신청 링크가 제공되지 않았습니다.", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 )
             }
@@ -614,81 +672,81 @@ fun HousingMapScreen(
                     when (housing) {
                         is ApartmentItem -> {
                             bookmarkedHousings = bookmarkedHousings + housing.name
-                            val bookmark = BookmarkItem(
-                                id = housing.id,
-                                type = BookmarkType.HOUSING,
-                                title = housing.name,
-                                organization = housing.organization,
-                                address = housing.address,
-                                deposit = housing.depositDisplay,
-                                monthlyRent = housing.monthlyRentDisplay,
-                                area = housing.area.toString(),
-                                completionDate = housing.completionDate,
-                                distance = housing.distance,
-                                deadline = housing.deadline
-                            )
-                            BookmarkPreferences.addBookmark(context, bookmark)
                             
-                            // 서버에 북마크 및 캘린더 일정 저장 (ApartmentItem)
+                            // 서버에 북마크 및 캘린더 일정 저장 (로컬 저장 제거 - 서버에서만 관리)
                             scope.launch {
                                 try {
-                                    com.example.app.network.NetworkModule.apiService.addBookmark(
+                                    val contentId = housing.housingId ?: run {
+                                        android.util.Log.w("HousingMapActivity", "⚠️ housingId가 null입니다. housing.name=${housing.name}, housing.id=${housing.id}")
+                                        null
+                                    }
+                                    
+                                    if (contentId == null) {
+                                        android.util.Log.e("HousingMapActivity", "❌ housingId가 null이어서 북마크를 저장할 수 없습니다.")
+                                        return@launch
+                                    }
+                                    
+                                    android.util.Log.d("HousingMapActivity", "북마크 저장 시작: housing.name=${housing.name}, contentId=$contentId")
+                                    val bookmarkResponse = com.example.app.network.NetworkModule.apiService.addBookmark(
                                         userId = userId,
                                         request = com.example.app.data.model.BookmarkRequest(
                                             userId = userId,
                                             contentType = "housing",
-                                            contentId = housing.id.toString()
+                                            contentId = contentId
                                         )
                                     )
-                                    com.example.app.network.NetworkModule.apiService.addCalendarEvent(
-                                        userId = userId,
-                                        request = com.example.app.data.model.CalendarEventRequest(
-                                            userId = userId,
+                                    
+                                    if (bookmarkResponse.isSuccessful && bookmarkResponse.body()?.success == true) {
+                                        android.util.Log.d("HousingMapActivity", "✅ 서버 북마크 저장 성공: contentId=$contentId")
+                                        
+                                        // 북마크 저장 성공 후 캘린더 일정 저장
+                                        try {
+                                            com.example.app.network.NetworkModule.apiService.addCalendarEvent(
+                                                userId = userId,
+                                                request = com.example.app.data.model.CalendarEventRequest(
+                                                    userId = userId,
+                                                    title = housing.name,
+                                                    eventType = "housing",
+                                                    endDate = housing.deadline.replace(".", "-")
+                                                )
+                                            )
+                                            android.util.Log.d("HousingMapActivity", "✅ 서버 캘린더 일정 저장 성공")
+                                        } catch (e: Exception) {
+                                            android.util.Log.e("HousingMapActivity", "❌ 서버 캘린더 일정 저장 실패: ${e.message}", e)
+                                        }
+                                        
+                                        // 로컬 캘린더에도 추가
+                                        calendarService.addHousingToCalendar(
                                             title = housing.name,
-                                            eventType = "housing",
-                                            endDate = housing.deadline.replace(".", "-")
+                                            organization = housing.organization,
+                                            deadline = housing.deadline,
+                                            housingId = contentId,
+                                            notificationSettings = notifications
                                         )
-                                    )
+                                    } else {
+                                        android.util.Log.e("HousingMapActivity", "❌ 서버 북마크 저장 실패: code=${bookmarkResponse.code()}, message=${bookmarkResponse.body()?.message}")
+                                    }
                                 } catch (e: Exception) {
-                                    android.util.Log.e("HousingMapActivity", "서버 저장 실패", e)
+                                    android.util.Log.e("HousingMapActivity", "서버 저장 실패: ${e.message}", e)
                                 }
                             }
-                            calendarService.addHousingToCalendar(
-                                title = housing.name,
-                                organization = housing.organization,
-                                deadline = housing.deadline,
-                                housingId = housing.id.toString(),
-                                notificationSettings = notifications
-                            )
                         }
                         is HousingAnnouncementItem -> {
                             bookmarkedHousings = bookmarkedHousings + housing.title
-                            val bookmark = BookmarkItem(
-                                id = housing.id,
-                                type = BookmarkType.HOUSING,
-                                title = housing.title,
-                                organization = housing.organization,
-                                address = housing.address,
-                                deposit = housing.depositDisplay,
-                                monthlyRent = housing.monthlyRentDisplay,
-                                area = housing.area,
-                                completionDate = "",
-                                distance = "",
-                                deadline = housing.deadline
-                            )
-                            BookmarkPreferences.addBookmark(context, bookmark)
                             
-                            // 서버에 북마크 및 캘린더 일정 저장 (Announcement)
+                            // 서버에 북마크 및 캘린더 일정 저장 (로컬 저장 제거 - 서버에서만 관리)
                             scope.launch {
                                 try {
-                                    com.example.app.network.NetworkModule.apiService.addBookmark(
+                                    val bookmarkResponse = com.example.app.network.NetworkModule.apiService.addBookmark(
                                         userId = userId,
                                         request = com.example.app.data.model.BookmarkRequest(
                                             userId = userId,
                                             contentType = "housing",
-                                            contentId = housing.id.toString()
+                                            contentId = housing.id.toString() // HousingAnnouncementItem에는 housingId 필드가 없음
                                         )
                                     )
+                                    android.util.Log.d("HousingMapActivity", "서버 북마크 저장 성공")
+                                    
                                     com.example.app.network.NetworkModule.apiService.addCalendarEvent(
                                         userId = userId,
                                         request = com.example.app.data.model.CalendarEventRequest(
@@ -698,8 +756,9 @@ fun HousingMapScreen(
                                             endDate = housing.deadline.replace(".", "-")
                                         )
                                     )
+                                    android.util.Log.d("HousingMapActivity", "서버 캘린더 일정 저장 성공")
                                 } catch (e: Exception) {
-                                    android.util.Log.e("HousingMapActivity", "서버 저장 실패", e)
+                                    android.util.Log.e("HousingMapActivity", "서버 저장 실패: ${e.message}", e)
                                 }
                             }
                             calendarService.addHousingToCalendar(
@@ -753,7 +812,7 @@ private fun HousingMapHeader(onBack: () -> Unit) {
                     imageVector = Icons.Default.ArrowBack,
                     contentDescription = "Back",
                     modifier = Modifier.size(24.dp),
-                    tint = AppColors.TextSecondary
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             
@@ -774,6 +833,7 @@ private fun MapContainer(
     onFilterClick: () -> Unit,
     totalCount: Int,
     regionLabel: String?,
+    apartments: List<ApartmentItem>,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -791,15 +851,9 @@ private fun MapContainer(
                     .background(AppColors.Border)
             ) {
                 // 카카오맵 SDK MapView 직접 사용
-                // TODO: 크래시 원인 파악을 위해 임시로 지도 비활성화
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("지도를 불러오는 중입니다...", color = Color.Gray)
-                }
-/*
                 var mapView by remember { mutableStateOf<MapView?>(null) }
+                var kakaoMapInstance by remember { mutableStateOf<com.kakao.vectormap.KakaoMap?>(null) }
+                var mapError by remember { mutableStateOf<String?>(null) }
 
                 AndroidView(
                     factory = { ctx ->
@@ -807,34 +861,66 @@ private fun MapContainer(
                             val view = MapView(ctx)
                             view.start(object : com.kakao.vectormap.MapLifeCycleCallback() {
                                 override fun onMapDestroy() {
-                                    // 지도 종료 시 처리
+                                    android.util.Log.d("HousingMapActivity", "Kakao Map Destroyed")
+                                    kakaoMapInstance = null
                                 }
 
                                 override fun onMapError(error: Exception?) {
-                                    android.util.Log.e("HousingMapActivity", "Kakao Map Error: ${error?.message}")
+                                    android.util.Log.e("HousingMapActivity", "Kakao Map Error: ${error?.message}", error)
+                                    mapError = error?.message ?: "지도 로드 오류"
                                 }
                             }, object : com.kakao.vectormap.KakaoMapReadyCallback() {
                                 override fun onMapReady(kakaoMap: com.kakao.vectormap.KakaoMap) {
-                                    // 지도가 준비되었을 때 처리
                                     android.util.Log.d("HousingMapActivity", "Kakao Map Ready")
+                                    mapError = null
+                                    kakaoMapInstance = kakaoMap
+                                    
+                                    // 마커 추가는 추후 SDK API 확인 후 구현
+                                    // TODO: 카카오맵 SDK API로 마커 추가 구현
                                 }
                             })
                             mapView = view
                             view
                         } catch (e: Exception) {
-                            android.util.Log.e("HousingMapActivity", "Map creation failed", e)
+                            android.util.Log.e("HousingMapActivity", "Map creation failed: ${e.message}", e)
+                            mapError = "지도를 불러올 수 없습니다: ${e.message}"
                             android.widget.TextView(ctx).apply {
-                                text = "지도를 불러올 수 없습니다."
+                                text = "지도를 불러올 수 없습니다.\n${e.message}"
                                 textSize = 12f
                                 gravity = android.view.Gravity.CENTER
+                                setPadding(16, 16, 16, 16)
                                 setBackgroundColor(android.graphics.Color.LTGRAY)
                                 setTextColor(android.graphics.Color.DKGRAY)
                             }
                         }
                     },
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    update = { view ->
+                        // MapView 업데이트 로직 (필요시)
+                        // 마커 추가는 onMapReady 콜백에서 처리
+                    }
                 )
-*/
+                
+                // 지도 로딩 중 또는 오류 표시
+                if (mapError != null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.3f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            Text(
+                                text = mapError ?: "지도를 불러오는 중입니다...",
+                                color = Color.White,
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+                }
 
 
                 // MapView 생명주기 정리
@@ -854,15 +940,69 @@ private fun MapContainer(
                 ) {
                     MapControlButton(
                         icon = Icons.Default.Add,
-                        onClick = { /* Zoom In */ }
+                        onClick = { 
+                            // 줌 인 기능
+                            kakaoMapInstance?.let { map ->
+                                try {
+                                    // 방법 1: CameraUpdateFactory.zoomIn() 사용
+                                    map.moveCamera(
+                                        com.kakao.vectormap.camera.CameraUpdateFactory.zoomIn()
+                                    )
+                                } catch (e: Exception) {
+                                    android.util.Log.e("HousingMapActivity", "줌 인 실패: ${e.message}", e)
+                                    // 방법 2: 현재 줌 레벨 가져와서 증가
+                                    try {
+                                        val currentPosition = map.cameraPosition
+                                        if (currentPosition != null) {
+                                            val currentZoom = currentPosition.zoomLevel
+                                            val newZoom = (currentZoom + 1).coerceAtMost(20)
+                                            map.moveCamera(
+                                                com.kakao.vectormap.camera.CameraUpdateFactory.zoomTo(newZoom)
+                                            )
+                                        }
+                                    } catch (e2: Exception) {
+                                        android.util.Log.e("HousingMapActivity", "줌 인 대안 방법 실패: ${e2.message}", e2)
+                                    }
+                                }
+                            }
+                        }
                     )
                     MapControlButton(
                         icon = Icons.Default.Remove,
-                        onClick = { /* Zoom Out */ }
+                        onClick = { 
+                            // 줌 아웃 기능
+                            kakaoMapInstance?.let { map ->
+                                try {
+                                    // 방법 1: CameraUpdateFactory.zoomOut() 사용
+                                    map.moveCamera(
+                                        com.kakao.vectormap.camera.CameraUpdateFactory.zoomOut()
+                                    )
+                                } catch (e: Exception) {
+                                    android.util.Log.e("HousingMapActivity", "줌 아웃 실패: ${e.message}", e)
+                                    // 방법 2: 현재 줌 레벨 가져와서 감소
+                                    try {
+                                        val currentPosition = map.cameraPosition
+                                        if (currentPosition != null) {
+                                            val currentZoom = currentPosition.zoomLevel
+                                            val newZoom = (currentZoom - 1).coerceAtLeast(1)
+                                            map.moveCamera(
+                                                com.kakao.vectormap.camera.CameraUpdateFactory.zoomTo(newZoom)
+                                            )
+                                        }
+                                    } catch (e2: Exception) {
+                                        android.util.Log.e("HousingMapActivity", "줌 아웃 대안 방법 실패: ${e2.message}", e2)
+                                    }
+                                }
+                            }
+                        }
                     )
                     MapControlButton(
                         icon = Icons.Default.LocationOn,
-                        onClick = { /* Current Location */ }
+                        onClick = { 
+                            // 현재 위치로 이동 기능 - 카카오맵 SDK v2 API 확인 필요
+                            // TODO: 위치 권한 확인 및 현재 위치 가져오기 구현
+                            android.util.Log.d("HousingMapActivity", "현재 위치 버튼 클릭")
+                        }
                     )
                 }
                 
@@ -885,25 +1025,17 @@ private fun MapContainer(
                             imageVector = Icons.Default.Tune,
                             contentDescription = "Filter",
                             modifier = Modifier.size(20.dp),
-                            tint = AppColors.TextSecondary
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
                             text = "필터",
                             fontSize = 12.sp,
-                            color = AppColors.TextSecondary
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
                 
-                // Location Marker (동적으로 전체 개수 표시)
-                if (totalCount > 0) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                    ) {
-                        LocationMarker(count = totalCount)
-                    }
-                }
+                // 검은 동그라미 제거 - 실제 마커로 대체됨
 
                 // Location Label (선택된 지역 기준 동적 텍스트)
                 regionLabel?.let { label ->
@@ -918,7 +1050,7 @@ private fun MapContainer(
                         Text(
                             text = "$label 주변 임대주택",
                             fontSize = 12.sp,
-                            color = AppColors.TextSecondary,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(horizontal = Spacing.sm, vertical = 4.dp)
                         )
                     }
@@ -1031,7 +1163,7 @@ private fun TabButton(
 }
 
 @Composable
-private fun ApartmentCard(
+fun ApartmentCard(
     apartment: ApartmentItem,
     isBookmarked: Boolean,
     onHeartClick: () -> Unit,
@@ -1061,7 +1193,7 @@ private fun ApartmentCard(
                     text = apartment.name,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = AppColors.TextPrimary,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier
                         .weight(1f)
                         .padding(end = 8.dp)
@@ -1088,17 +1220,17 @@ private fun ApartmentCard(
                 Text(
                     text = "📍 사용자로부터 ${apartment.distance}",
                     fontSize = 14.sp,
-                    color = AppColors.TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
                     text = "💰 보증금 ${apartment.depositDisplay} / 월세 ${apartment.monthlyRentDisplay}",
                     fontSize = 14.sp,
-                    color = AppColors.TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
                     text = "📅 신청마감일: ${apartment.deadline}",
                     fontSize = 14.sp,
-                    color = AppColors.TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             
@@ -1126,7 +1258,7 @@ private fun ApartmentCard(
 }
 
 @Composable
-private fun ApartmentDetailDialog(
+fun ApartmentDetailDialog(
     apartment: ApartmentItem,
     isBookmarked: Boolean,
     onHeartClick: () -> Unit,
@@ -1150,7 +1282,7 @@ private fun ApartmentDetailDialog(
                     text = "상세 정보",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = AppColors.TextPrimary,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(bottom = Spacing.md)
                 )
                 
@@ -1319,7 +1451,7 @@ private fun AnnouncementCard(
                         text = announcement.title,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
-                        color = AppColors.TextPrimary,
+                        color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(bottom = Spacing.sm)
                     )
                 }
@@ -1343,22 +1475,22 @@ private fun AnnouncementCard(
                 Text(
                     text = "🏢 ${announcement.organization}",
                     fontSize = 14.sp,
-                    color = AppColors.TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
                     text = "📍 ${announcement.address}",
                     fontSize = 14.sp,
-                    color = AppColors.TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
                     text = "💰 보증금 ${announcement.depositDisplay} / 월세 ${announcement.monthlyRentDisplay}",
                     fontSize = 14.sp,
-                    color = AppColors.TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
                     text = "📅 모집기간: ${announcement.recruitmentPeriod}",
                     fontSize = 14.sp,
-                    color = AppColors.TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             
@@ -1410,7 +1542,7 @@ private fun AnnouncementDetailDialog(
                     text = "상세 정보",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = AppColors.TextPrimary,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(bottom = Spacing.md)
                 )
                 
@@ -1516,7 +1648,7 @@ private fun FilterDialog(
                     text = "필터 설정",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = AppColors.TextPrimary,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(bottom = Spacing.md)
                 )
                 
@@ -1528,7 +1660,7 @@ private fun FilterDialog(
                         Text(
                             text = "지역",
                             fontSize = 14.sp,
-                            color = AppColors.TextPrimary,
+                            color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(bottom = Spacing.xs)
                         )
                         var expanded by remember { mutableStateOf(false) }
@@ -1570,7 +1702,7 @@ private fun FilterDialog(
                         Text(
                             text = "주택유형",
                             fontSize = 14.sp,
-                            color = AppColors.TextPrimary,
+                            color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(bottom = Spacing.xs)
                         )
                         var expanded by remember { mutableStateOf(false) }
@@ -1613,7 +1745,7 @@ private fun FilterDialog(
                             Text(
                                 text = "최대 보증금",
                                 fontSize = 14.sp,
-                                color = AppColors.TextPrimary,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.padding(bottom = Spacing.xs)
                             )
                             Slider(
@@ -1625,7 +1757,7 @@ private fun FilterDialog(
                             Text(
                                 text = "보증금: ${localFilters.maxDeposit}만원 이하",
                                 fontSize = 12.sp,
-                                color = AppColors.TextSecondary
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         
@@ -1634,7 +1766,7 @@ private fun FilterDialog(
                             Text(
                                 text = "최대 월세",
                                 fontSize = 14.sp,
-                                color = AppColors.TextPrimary,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.padding(bottom = Spacing.xs)
                             )
                             Slider(
@@ -1646,7 +1778,7 @@ private fun FilterDialog(
                             Text(
                                 text = "월세: ${localFilters.maxMonthlyRent}만원 이하",
                                 fontSize = 12.sp,
-                                color = AppColors.TextSecondary
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -1657,7 +1789,7 @@ private fun FilterDialog(
                             Text(
                                 text = "공고 상태",
                                 fontSize = 14.sp,
-                                color = AppColors.TextPrimary,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.padding(bottom = Spacing.xs)
                             )
                             var expanded by remember { mutableStateOf(false) }

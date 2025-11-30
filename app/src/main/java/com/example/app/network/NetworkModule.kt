@@ -1,5 +1,6 @@
 package com.example.app.network
 
+import com.wiseyoung.app.BuildConfig
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -8,10 +9,15 @@ import java.util.concurrent.TimeUnit
 
 object NetworkModule {
     // Base URL 설정
-    // 에뮬레이터: 10.0.2.2
-    // 실제 기기: PC의 로컬 IP 주소 (예: 192.168.0.100)
-    //private const val BASE_URL = "http://10.0.2.2:8080/"  // 에뮬레이터용
-     private const val BASE_URL = "http://127.0.0.1:8080/" // 실제 기기용 (PC IP 주소로 변경 필요)
+    // ⚠️ 개발 중: 로컬 서버 사용
+    // ⚠️ 배포 시: 서버 IP로 변경 필요
+    private const val BASE_URL = "http://127.0.0.1:8080/" // 로컬 개발용
+    
+    // 배포 시 아래 주석 해제하고 위 주석 처리:
+    // private const val BASE_URL = "http://210.104.76.139:8080/" // 서버 배포용
+    
+    // BuildConfig 자동 전환 (나중에 사용 가능):
+    // private const val BASE_URL = BuildConfig.BASE_URL
     
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY

@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -35,9 +36,18 @@ import com.example.app.ui.theme.ThemePreferences
 import com.example.app.ui.components.BottomNavigationBar
 import androidx.compose.ui.platform.LocalContext
 import com.example.app.data.model.UserProfileResponse
+import com.example.app.data.model.DeleteAccountRequest
 import com.example.app.network.NetworkModule
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.EmailAuthProvider
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInClient
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
+import com.wiseyoung.app.R
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 class ProfileActivity : ComponentActivity() {
     private val auth = FirebaseAuth.getInstance()
@@ -65,9 +75,10 @@ class ProfileActivity : ComponentActivity() {
                         // TODO: 챗봇 다이얼로그 표시
                     },
                     onThemeModeChange = { mode ->
-                        // ThemePreferences에 저장 (ThemeWrapper가 자동으로 감지하여 즉시 적용)
+                        // ThemePreferences에 저장
                         ThemePreferences.setThemeMode(this, mode)
-                        // recreate() 제거 - ThemeWrapper의 DisposableEffect 리스너가 자동으로 테마 변경 감지
+                        // ThemeWrapper가 자동으로 SharedPreferences 변경을 감지하여 테마를 업데이트함
+                        // recreate()는 필요 없음 - ThemeWrapper가 즉시 반영
                     }
                 )
             }
@@ -93,6 +104,9 @@ fun ProfileScreen(
     var deletePassword by remember { mutableStateOf("") }
     var profile by remember { mutableStateOf<com.example.app.data.model.UserProfileResponse?>(null) }
     var isLoadingProfile by remember { mutableStateOf(true) }
+    var isLoadingLogout by remember { mutableStateOf(false) }
+    var isLoadingDelete by remember { mutableStateOf(false) }
+    var showLogoutDialog by remember { mutableStateOf(false) }
     
     // 프로필 정보 불러오기 (PolicyListActivity와 동일한 API 사용)
     LaunchedEffect(Unit) {
@@ -161,7 +175,7 @@ fun ProfileScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .background(Color.White)
+                .background(MaterialTheme.colorScheme.background)
                 .verticalScroll(rememberScrollState())
         ) {
             // Header
@@ -187,7 +201,7 @@ fun ProfileScreen(
                         .fillMaxWidth()
                         .height(44.dp),  // 높이 명시적으로 줄임
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = AppColors.TextPrimary
+                        containerColor = MaterialTheme.colorScheme.onSurface
                     ),
                     shape = RoundedCornerShape(12.dp),  // 모서리도 약간 줄임
                     contentPadding = PaddingValues(vertical = 12.dp)  // 패딩 줄임
@@ -206,7 +220,8 @@ fun ProfileScreen(
                     onThemeModeChange = { mode ->
                         themeMode = mode
                         ThemePreferences.setThemeMode(context, mode)
-                        onThemeModeChange(mode)  // 부모에게 알림 (테마 즉시 적용)
+                        // ThemeWrapper가 자동으로 감지하여 테마를 업데이트함
+                        // recreate()를 호출하지 않고 즉시 반영되도록 함
                     },
                     modifier = Modifier.padding(top = Spacing.md)
                 )
@@ -218,8 +233,9 @@ fun ProfileScreen(
                 ) {
                     Button(
                         onClick = {
-                            // TODO: 로그아웃 로직
+                            showLogoutDialog = true
                         },
+                        enabled = !isLoadingLogout,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(44.dp),  // 높이 명시적으로 줄임
@@ -238,18 +254,84 @@ fun ProfileScreen(
                     }
                     
                     TextButton(
-                        onClick = { showDeleteDialog = true },
+                        onClick = {
+                            val currentUser = auth.currentUser
+                            val providerId = currentUser?.providerData?.firstOrNull()?.providerId ?: "password"
+                            val isGoogleSignIn = providerId == "google.com"
+                            
+                            // Google 로그인인 경우 비밀번호 입력 건너뛰기
+                            if (isGoogleSignIn) {
+                                showDeleteConfirm = true
+                            } else {
+                                showDeleteDialog = true
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
                             text = "회원탈퇴",
                             fontSize = 14.sp,
-                            color = AppColors.TextTertiary
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                         )
                     }
                 }
             }
         }
+    }
+    
+    // Logout Confirmation Dialog
+    if (showLogoutDialog) {
+        LogoutConfirmDialog(
+            onConfirm = {
+                showLogoutDialog = false
+                scope.launch {
+                    isLoadingLogout = true
+                    try {
+                        val currentUser = auth.currentUser
+                        val userId = currentUser?.uid
+                        
+                        if (userId != null) {
+                            // 백엔드 로그아웃 API 호출 (실패해도 계속 진행)
+                            try {
+                                NetworkModule.apiService.logout(userId)
+                            } catch (e: Exception) {
+                                android.util.Log.w("ProfileActivity", "백엔드 로그아웃 실패 (무시): ${e.message}")
+                            }
+                        }
+                        
+                        // Firebase 로그아웃
+                        auth.signOut()
+                        
+                        // Google 로그인도 로그아웃
+                        try {
+                            val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                                .requestIdToken(context.getString(R.string.default_web_client_id))
+                                .requestEmail()
+                                .build()
+                            val googleSignInClient = GoogleSignIn.getClient(context, gso)
+                            googleSignInClient.signOut().await()
+                        } catch (e: Exception) {
+                            android.util.Log.w("ProfileActivity", "Google 로그아웃 실패 (무시): ${e.message}")
+                        }
+                        
+                        // 로그인 화면으로 이동
+                        val intent = Intent(context, LoginActivity::class.java).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        }
+                        context.startActivity(intent)
+                        (context as? ComponentActivity)?.finishAffinity()
+                    } catch (e: Exception) {
+                        android.util.Log.e("ProfileActivity", "로그아웃 실패: ${e.message}", e)
+                        Toast.makeText(context, "로그아웃 중 오류가 발생했습니다.", Toast.LENGTH_SHORT).show()
+                    } finally {
+                        isLoadingLogout = false
+                    }
+                }
+            },
+            onDismiss = {
+                showLogoutDialog = false
+            }
+        )
     }
     
     // Delete Account Dialog - Password Input
@@ -271,10 +353,90 @@ fun ProfileScreen(
     // Delete Account Confirmation
     if (showDeleteConfirm) {
         DeleteConfirmDialog(
+            isLoading = isLoadingDelete,
             onConfirm = {
-                // TODO: 실제 탈퇴 로직 실행
-                showDeleteConfirm = false
-                deletePassword = ""
+                scope.launch {
+                    isLoadingDelete = true
+                    try {
+                        val currentUser = auth.currentUser
+                        val userId = currentUser?.uid
+                        
+                        if (currentUser == null || userId == null) {
+                            Toast.makeText(context, "로그인된 사용자가 없습니다.", Toast.LENGTH_SHORT).show()
+                            return@launch
+                        }
+                        
+                        // 로그인 제공자 확인 (Google 로그인인지 이메일/비밀번호 로그인인지)
+                        val providerId = currentUser.providerData.firstOrNull()?.providerId ?: "password"
+                        val isGoogleSignIn = providerId == "google.com"
+                        
+                        // 이메일/비밀번호 로그인인 경우에만 비밀번호 확인
+                        if (!isGoogleSignIn) {
+                            val email = currentUser.email
+                            if (email.isNullOrEmpty()) {
+                                Toast.makeText(context, "이메일 정보를 찾을 수 없습니다.", Toast.LENGTH_SHORT).show()
+                                isLoadingDelete = false
+                                showDeleteConfirm = false
+                                deletePassword = ""
+                                return@launch
+                            }
+                            
+                            // Firebase 재인증 (비밀번호 확인)
+                            try {
+                                val credential = EmailAuthProvider.getCredential(email, deletePassword)
+                                currentUser.reauthenticate(credential).await()
+                            } catch (e: Exception) {
+                                android.util.Log.e("ProfileActivity", "Firebase 재인증 실패: ${e.message}", e)
+                                Toast.makeText(context, "비밀번호가 올바르지 않습니다.", Toast.LENGTH_SHORT).show()
+                                isLoadingDelete = false
+                                showDeleteConfirm = false
+                                deletePassword = ""
+                                return@launch
+                            }
+                        }
+                        
+                        // 백엔드 회원탈퇴 API 호출
+                        try {
+                            NetworkModule.apiService.deleteAccount(
+                                userId = userId,
+                                request = DeleteAccountRequest(deletePassword)
+                            )
+                        } catch (e: Exception) {
+                            android.util.Log.w("ProfileActivity", "백엔드 회원탈퇴 실패 (계속 진행): ${e.message}")
+                        }
+                        
+                        // Firebase 계정 삭제
+                        currentUser.delete().await()
+                        
+                        // Google 로그인도 로그아웃
+                        try {
+                            val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                                .requestIdToken(context.getString(R.string.default_web_client_id))
+                                .requestEmail()
+                                .build()
+                            val googleSignInClient = GoogleSignIn.getClient(context, gso)
+                            googleSignInClient.revokeAccess().await()
+                        } catch (e: Exception) {
+                            android.util.Log.w("ProfileActivity", "Google 계정 해제 실패 (무시): ${e.message}")
+                        }
+                        
+                        Toast.makeText(context, "회원탈퇴가 완료되었습니다.", Toast.LENGTH_SHORT).show()
+                        
+                        // 로그인 화면으로 이동
+                        val intent = Intent(context, LoginActivity::class.java).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        }
+                        context.startActivity(intent)
+                        (context as? ComponentActivity)?.finishAffinity()
+                    } catch (e: Exception) {
+                        android.util.Log.e("ProfileActivity", "회원탈퇴 실패: ${e.message}", e)
+                        Toast.makeText(context, "회원탈퇴 중 오류가 발생했습니다: ${e.message}", Toast.LENGTH_SHORT).show()
+                    } finally {
+                        isLoadingDelete = false
+                        showDeleteConfirm = false
+                        deletePassword = ""
+                    }
+                }
             },
             onDismiss = {
                 showDeleteConfirm = false
@@ -301,7 +463,7 @@ private fun ProfileHeader() {
                 text = "내정보",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                color = AppColors.TextPrimary
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
     }
@@ -317,7 +479,7 @@ private fun UserInfoCard(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp), // PolicyListActivity와 동일
         border = androidx.compose.foundation.BorderStroke(1.dp, AppColors.Border), // PolicyListActivity와 동일
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         if (isLoading) {
             Box(
@@ -368,7 +530,7 @@ private fun UserInfoCard(
                         text = "$nickname 님",
                         fontSize = 16.sp, // PolicyListActivity와 동일
                         fontWeight = FontWeight.Bold,
-                        color = AppColors.TextPrimary
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     
                     Spacer(modifier = Modifier.height(4.dp))
@@ -382,51 +544,51 @@ private fun UserInfoCard(
                             Text(
                                 text = "${it}세",
                                 fontSize = 11.sp, // PolicyListActivity와 동일
-                                color = AppColors.TextSecondary
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         } ?: Text(
                             text = "25세",
                             fontSize = 11.sp, // PolicyListActivity와 동일
-                            color = AppColors.TextSecondary
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         
                         Text(
                             text = "•",
                             fontSize = 11.sp, // PolicyListActivity와 동일
-                            color = AppColors.TextTertiary
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                         )
                         
                         if (profile?.region != null) {
                             Text(
                                 text = profile.region,
                                 fontSize = 11.sp, // PolicyListActivity와 동일
-                                color = AppColors.TextSecondary
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         } else {
                             Text(
                                 text = "경기도 수원시",
                                 fontSize = 11.sp, // PolicyListActivity와 동일
-                                color = AppColors.TextSecondary
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         
                         Text(
                             text = "•",
                             fontSize = 11.sp, // PolicyListActivity와 동일
-                            color = AppColors.TextTertiary
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                         )
                         
                         if (profile?.jobStatus != null) {
                             Text(
                                 text = profile.jobStatus,
                                 fontSize = 11.sp, // PolicyListActivity와 동일
-                                color = AppColors.TextSecondary
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         } else {
                             Text(
                                 text = "취업준비생",
                                 fontSize = 11.sp, // PolicyListActivity와 동일
-                                color = AppColors.TextSecondary
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -478,7 +640,7 @@ private fun getInterestTagTextColor(interest: String): Color {
             AppColors.BackgroundGradientStart
         interest.contains("복지") || interest.contains("문화") -> 
             AppColors.Info
-        else -> AppColors.TextPrimary
+        else -> MaterialTheme.colorScheme.onSurface
     }
 }
 
@@ -514,7 +676,7 @@ private fun ThemeSettingCard(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         border = androidx.compose.foundation.BorderStroke(1.dp, AppColors.Border),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Row(
             modifier = Modifier
@@ -536,13 +698,13 @@ private fun ThemeSettingCard(
                         modifier = Modifier
                             .size(16.dp)
                             .clip(CircleShape)
-                            .background(AppColors.TextPrimary)
+                            .background(MaterialTheme.colorScheme.onSurface)
                     )
                 }
                 Text(
                     text = "테마",
                     fontSize = 16.sp,
-                    color = AppColors.TextPrimary
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
             
@@ -586,7 +748,7 @@ private fun ThemeToggleButton(
         Text(
             text = text,
             fontSize = 14.sp,
-            color = if (isSelected) AppColors.TextPrimary else AppColors.TextSecondary,
+            color = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = Spacing.md, vertical = 4.dp),
             fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal
         )
@@ -611,7 +773,7 @@ private fun DeletePasswordDialog(
                 Text(
                     text = "본인 확인을 위해 비밀번호를 입력해주세요.",
                     fontSize = 14.sp,
-                    color = AppColors.TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 
                 OutlinedTextField(
@@ -645,23 +807,73 @@ private fun DeletePasswordDialog(
 }
 
 @Composable
-private fun DeleteConfirmDialog(
+private fun LogoutConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("정말 탈퇴하시겠습니까?") },
+        title = { Text("로그아웃") },
         text = {
             Text(
-                text = "회원 탈퇴 시 모든 정보가 소실되며 복구할 수 없습니다.\n정말 탈퇴하시겠습니까?",
+                text = "정말 로그아웃하시겠습니까?",
                 fontSize = 14.sp,
-                color = AppColors.TextSecondary
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         },
         confirmButton = {
             Button(
                 onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = AppColors.BackgroundGradientStart
+                )
+            ) {
+                Text("로그아웃", color = Color.White)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("취소")
+            }
+        }
+    )
+}
+
+@Composable
+private fun DeleteConfirmDialog(
+    isLoading: Boolean,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = {
+            if (!isLoading) {
+                onDismiss()
+            }
+        },
+        title = { Text("정말 탈퇴하시겠습니까?") },
+        text = {
+            if (isLoading) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            } else {
+                Text(
+                    text = "회원 탈퇴 시 모든 정보가 소실되며 복구할 수 없습니다.\n정말 탈퇴하시겠습니까?",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                enabled = !isLoading,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFFDC2626)
                 )
@@ -670,7 +882,10 @@ private fun DeleteConfirmDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !isLoading
+            ) {
                 Text("뒤로가기")
             }
         }

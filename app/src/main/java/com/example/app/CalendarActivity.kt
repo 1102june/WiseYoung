@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -48,10 +49,13 @@ import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
+import com.example.app.network.NetworkModule
 import java.text.SimpleDateFormat
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.*
+import android.util.Log
 
 data class CalendarBookmark(
     val id: Int,
@@ -150,6 +154,97 @@ fun CalendarScreen(
         }
     }
     
+    // 앱 시작 시 북마크를 캘린더에 동기화
+    LaunchedEffect(currentUser?.uid) {
+        currentUser?.let { user ->
+            try {
+                // 정책 북마크 가져오기
+                val policyBookmarksResponse = com.example.app.network.NetworkModule.apiService.getBookmarks(
+                    userId = user.uid,
+                    contentType = "policy"
+                )
+                if (policyBookmarksResponse.isSuccessful && policyBookmarksResponse.body()?.success == true) {
+                    val policyBookmarks = policyBookmarksResponse.body()?.data ?: emptyList()
+                    policyBookmarks.forEach { bookmark ->
+                        // 이미 캘린더에 있는지 확인
+                        val existingEvent = allEvents.find { 
+                            it.policyId == bookmark.contentId 
+                        }
+                        if (existingEvent == null && !bookmark.title.isNullOrBlank()) {
+                            // 캘린더에 추가
+                            calendarService.addPolicyToCalendar(
+                                title = bookmark.title,
+                                organization = bookmark.organization,
+                                deadline = bookmark.deadline ?: "",
+                                policyId = bookmark.contentId,
+                                notificationSettings = NotificationSettings(
+                                    sevenDays = true,
+                                    sevenDaysTime = "09:00",
+                                    oneDay = true,
+                                    oneDayTime = "10:00",
+                                    custom = false,
+                                    customDays = 3,
+                                    customTime = "09:00"
+                                )
+                            )
+                        }
+                    }
+                }
+                
+                // 임대주택 북마크 가져오기
+                val housingBookmarksResponse = com.example.app.network.NetworkModule.apiService.getBookmarks(
+                    userId = user.uid,
+                    contentType = "housing"
+                )
+                if (housingBookmarksResponse.isSuccessful && housingBookmarksResponse.body()?.success == true) {
+                    val housingBookmarks = housingBookmarksResponse.body()?.data ?: emptyList()
+                    housingBookmarks.forEach { bookmark ->
+                        // 이미 캘린더에 있는지 확인
+                        val existingEvent = allEvents.find { 
+                            it.housingId == bookmark.contentId 
+                        }
+                        if (existingEvent == null && !bookmark.title.isNullOrBlank()) {
+                            // 임대주택 상세 정보 조회하여 마감일 가져오기
+                            coroutineScope.launch {
+                                try {
+                                    val housingResponse = com.example.app.network.NetworkModule.apiService.getHousingById(
+                                        housingId = bookmark.contentId ?: "",
+                                        userIdParam = user.uid
+                                    )
+                                    if (housingResponse.isSuccessful && housingResponse.body()?.success == true) {
+                                        val housing = housingResponse.body()?.data
+                                        val deadline = housing?.applicationEnd?.take(10)?.replace("-", ".") ?: bookmark.deadline ?: ""
+                                        if (deadline.isNotEmpty()) {
+                                            calendarService.addHousingToCalendar(
+                                                title = bookmark.title,
+                                                organization = bookmark.organization,
+                                                deadline = deadline,
+                                                housingId = bookmark.contentId,
+                                                notificationSettings = NotificationSettings(
+                                                    sevenDays = true,
+                                                    sevenDaysTime = "09:00",
+                                                    oneDay = true,
+                                                    oneDayTime = "10:00",
+                                                    custom = false,
+                                                    customDays = 3,
+                                                    customTime = "09:00"
+                                                )
+                                            )
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    android.util.Log.e("CalendarActivity", "임대주택 상세 정보 조회 실패: ${e.message}", e)
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("CalendarActivity", "북마크 동기화 실패: ${e.message}", e)
+            }
+        }
+    }
+    
     Scaffold(
         bottomBar = {
             BottomNavigationBar(
@@ -166,7 +261,7 @@ fun CalendarScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .background(Color.White)
+                .background(MaterialTheme.colorScheme.background)
         ) {
             // Header
             CalendarHeader()
@@ -205,7 +300,7 @@ fun CalendarScreen(
                     text = "다가오는 마감일",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = AppColors.TextPrimary,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(bottom = Spacing.md)
                 )
                 
@@ -254,11 +349,10 @@ fun CalendarScreen(
                 TextButton(
                     onClick = {
                         selectedEventId?.let { id ->
-                            // Room DB에서 삭제
-                    coroutineScope.launch {
-                        repository.deleteEventById(id)
-                        calendarService.removeEventFromCalendar(id)
-                    }
+                            // CalendarService를 통해서만 삭제 (서버 삭제 포함, 로컬 삭제도 서비스에서 처리)
+                            coroutineScope.launch {
+                                calendarService.removeEventFromCalendar(id)
+                            }
                         }
                         deleteDialogOpen = false
                         selectedEventId = null
@@ -334,7 +428,7 @@ private fun CalendarHeader() {
                 text = "D-day 캘린더",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                color = AppColors.TextPrimary
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
     }
@@ -353,7 +447,7 @@ private fun CalendarCard(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         border = androidx.compose.foundation.BorderStroke(2.dp, AppColors.Border),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(
             modifier = Modifier
@@ -407,7 +501,7 @@ private fun LegendItem(color: Color, label: String) {
         Text(
             text = label,
             fontSize = 14.sp,
-            color = AppColors.TextSecondary
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -429,7 +523,7 @@ private fun CategoryFilter(
                 label = { Text(category) },
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = AppColors.BackgroundGradientStart.copy(alpha = 0.2f),
-                    selectedLabelColor = AppColors.TextPrimary
+                    selectedLabelColor = MaterialTheme.colorScheme.onSurface
                 ),
                 border = FilterChipDefaults.filterChipBorder(
                     enabled = true,
@@ -462,7 +556,7 @@ private fun DeadlineCard(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         border = androidx.compose.foundation.BorderStroke(2.dp, AppColors.Border),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(
             modifier = Modifier
@@ -538,7 +632,7 @@ private fun DeadlineCard(
                 text = event.title,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
-                color = AppColors.TextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(top = Spacing.sm, bottom = Spacing.md)
             )
             
@@ -548,14 +642,14 @@ private fun DeadlineCard(
                 Text(
                     text = "${if (event.eventType == EventType.POLICY) "신청마감일" else "접수마감일"}: $deadlineStr",
                     fontSize = 14.sp,
-                    color = AppColors.TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 
                 event.organization?.let {
                     Text(
                         text = "기관: $it",
                         fontSize = 14.sp,
-                        color = AppColors.TextSecondary
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 
@@ -649,7 +743,7 @@ private fun EmptyDeadlineCard(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         border = androidx.compose.foundation.BorderStroke(2.dp, AppColors.Border),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Box(
             modifier = Modifier
@@ -660,7 +754,7 @@ private fun EmptyDeadlineCard(
             Text(
                 text = message,
                 fontSize = 14.sp,
-                color = AppColors.TextSecondary
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
@@ -730,7 +824,7 @@ private fun NotificationEditDialog(
                     onSave()
                 },
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = AppColors.TextPrimary
+                    containerColor = MaterialTheme.colorScheme.onSurface
                 )
             ) {
                 Text("저장하기", color = Color.White)
@@ -853,7 +947,7 @@ private fun TimePickerSection(
         Text(
             text = "알림 시간",
             fontSize = 12.sp,
-            color = AppColors.TextSecondary
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         
         Box(
@@ -972,13 +1066,13 @@ private fun WheelPicker(
                             text = String.format("%02d", item),
                             fontSize = if (item == selectedValue) 18.sp else 14.sp,
                             fontWeight = if (item == selectedValue) FontWeight.Bold else FontWeight.Normal,
-                            color = if (item == selectedValue) AppColors.LightBlue else AppColors.TextSecondary
+                            color = if (item == selectedValue) AppColors.LightBlue else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
             }
         }
-        Text(label, fontSize = 12.sp, color = AppColors.TextSecondary)
+        Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
