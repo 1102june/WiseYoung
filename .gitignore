@@ -13,3 +13,6 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+app/libs/kakao-android-sdk-rx-2.23.0/.scan/accessToken
+

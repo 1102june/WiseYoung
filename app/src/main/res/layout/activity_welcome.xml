@@ -22,13 +22,13 @@
         <!-- 로고 (원형) -->
         <ImageView
             android:id="@+id/logoImage"
-            android:layout_width="128dp"
-            android:layout_height="128dp"
-            android:src="@drawable/wy_logo2"
+            android:layout_width="222dp"
+            android:layout_height="213dp"
             android:layout_gravity="center"
-            android:scaleType="centerCrop"
             android:background="@drawable/logo_circle_bg"
-            android:contentDescription="@string/wy_logo_desc" />
+            android:contentDescription="@string/wy_logo_desc"
+            android:scaleType="centerCrop"
+            android:src="@drawable/wy_logo2" />
 
         <!-- 상단 여백 -->
         <Space
