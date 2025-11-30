@@ -28,8 +28,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.platform.LocalDensity
 import com.example.app.NotificationSettings
@@ -42,6 +42,9 @@ import com.google.firebase.auth.FirebaseAuth
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+
 
 data class PolicyItem(
     val id: Int,
@@ -525,7 +528,14 @@ fun PolicyListScreen(
             onNotificationsChange = { notifications = it },
             onSave = {
                 selectedPolicy?.let { policy ->
-                    // ... (기존 저장 로직)
+                    calendarService.addPolicyToCalendar(
+                        title = policy.title,
+                        organization = policy.organization,
+                        deadline = policy.deadline,
+                        policyId = policy.id.toString(),
+                        notificationSettings = notifications
+                    )
+                    Toast.makeText(context, "캘린더에 일정이 추가되었습니다.", Toast.LENGTH_SHORT).show()
                 }
                 showNotificationDialog = false
                 selectedPolicy = null
@@ -554,7 +564,9 @@ private fun PolicyNotificationDialog(
         title = { Text("알림 설정") },
         text = {
             Column(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()), // 스크롤 추가
                 verticalArrangement = Arrangement.spacedBy(Spacing.md)
             ) {
                 NotificationSettingRow(
@@ -731,9 +743,9 @@ private fun TimePickerSection(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(140.dp)
+                .height(100.dp) // 높이 축소 (140dp -> 100dp)
                 .border(1.dp, AppColors.Border, RoundedCornerShape(8.dp))
-                .padding(vertical = 8.dp)
+                .padding(vertical = 4.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxSize(),
@@ -860,7 +872,7 @@ private fun PolicyListHeader(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.md)
+            .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.sm) // vertical 패딩 축소
     ) {
         // Title Row
         Row(
@@ -872,22 +884,22 @@ private fun PolicyListHeader(
                 Icon(
                     imageVector = Icons.Default.ChevronLeft,
                     contentDescription = "Back",
-                    modifier = Modifier.size(32.dp),
+                    modifier = Modifier.size(28.dp), // 아이콘 크기 축소
                     tint = AppColors.TextPrimary
                 )
             }
             
             Text(
                 text = "청년정책 추천",
-                fontSize = 18.sp,
+                fontSize = 16.sp, // 폰트 크기 축소
                 fontWeight = FontWeight.Bold,
                 color = AppColors.TextPrimary
             )
             
-            Spacer(modifier = Modifier.size(48.dp))
+            Spacer(modifier = Modifier.size(28.dp)) // 균형 맞추기 위한 공간 축소
         }
         
-        Spacer(modifier = Modifier.height(Spacing.md))
+        Spacer(modifier = Modifier.height(Spacing.sm)) // 간격 축소
         
         // User Info Card (간추려서 표시)
         UserInfoCard(profile)
@@ -1117,11 +1129,12 @@ private fun CategoryFilterRow(
     userInterests: List<String>,
     modifier: Modifier = Modifier
 ) {
-    Row(
+    LazyRow(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        contentPadding = PaddingValues(end = Spacing.md)
     ) {
-        categories.forEach { category ->
+        items(categories) { category ->
             val isUserInterest = userInterests.contains(category)
             val isSelected = category == selectedCategory
             
@@ -1191,81 +1204,83 @@ private fun PolicyCard(
             containerColor = AppColors.Purple.copy(alpha = 0.05f)
         )
     ) {
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(Spacing.md)
         ) {
-            // 좋아요 버튼
-            IconButton(
-                onClick = onHeartClick,
-                modifier = Modifier.align(Alignment.TopEnd)
-            ) {
-                Icon(
-                    imageVector = if (isBookmarked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    contentDescription = "Bookmark",
-                    tint = if (isBookmarked) AppColors.TextPrimary else AppColors.TextTertiary,
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-            
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(end = 48.dp)
+            // 상단: 제목 + 좋아요 버튼
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
             ) {
                 Text(
                     text = policy.title,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = AppColors.TextPrimary,
-                    modifier = Modifier.padding(bottom = Spacing.sm)
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp)
                 )
                 
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                    modifier = Modifier.padding(bottom = Spacing.sm)
+                IconButton(
+                    onClick = onHeartClick,
+                    modifier = Modifier.size(28.dp)
                 ) {
-                    CategoryTag(policy.category)
-                    SupportTag(policy.support)
-                }
-                
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(Spacing.xs)
-                ) {
-                    Text(
-                        text = "연령: ${policy.age}",
-                        fontSize = 14.sp,
-                        color = AppColors.TextSecondary
-                    )
-                    Text(
-                        text = "신청기간: ${policy.period}",
-                        fontSize = 14.sp,
-                        color = AppColors.TextSecondary
+                    Icon(
+                        imageVector = if (isBookmarked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = "Bookmark",
+                        tint = if (isBookmarked) AppColors.TextPrimary else AppColors.TextTertiary
                     )
                 }
             }
             
-            // 상세보기 버튼 (오른쪽 하단 배치)
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = Spacing.lg),
-                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            
+            // 태그
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                modifier = Modifier.padding(bottom = Spacing.sm)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
+                CategoryTag(policy.category)
+                SupportTag(policy.support)
+            }
+            
+            // 정보 텍스트
+            Column(
+                verticalArrangement = Arrangement.spacedBy(Spacing.xs)
+            ) {
+                Text(
+                    text = "연령: ${policy.age}",
+                    fontSize = 14.sp,
+                    color = AppColors.TextSecondary
+                )
+                Text(
+                    text = "신청기간: ${policy.period}",
+                    fontSize = 14.sp,
+                    color = AppColors.TextSecondary
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
+            // 상세보기 버튼 (오른쪽 하단, 작게)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                Button(
+                    onClick = onShowDetail,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AppColors.TextPrimary
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    modifier = Modifier.height(32.dp)
                 ) {
-                    Button(
-                        onClick = onShowDetail,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = AppColors.TextPrimary
-                        ),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text("상세보기", color = Color.White)
-                    }
+                    Text("상세보기", color = Color.White, fontSize = 12.sp)
                 }
             }
         }
@@ -1282,7 +1297,7 @@ private fun PolicyDetailDialog(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(max = 600.dp),
+                .fillMaxHeight(0.9f), // 팝업 크기 키움
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White)
         ) {
@@ -1352,10 +1367,10 @@ private fun PolicyDetailDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(
-                                brush = Brush.horizontalGradient(
+                                    brush = Brush.horizontalGradient(
                                     colors = listOf(
-                                        AppColors.Purple,
-                                        AppColors.BackgroundGradientStart
+                                        Color(0xFF59ABF7), // 시작 색상
+                                        Color(0xFF59ABF7)  // 끝 색상 (단색 효과)
                                     )
                                 ),
                                 shape = RoundedCornerShape(8.dp)

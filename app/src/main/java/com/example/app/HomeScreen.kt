@@ -380,7 +380,7 @@ private fun HomeHeader(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = Spacing.lg, vertical = Spacing.md),
+                .padding(horizontal = Spacing.lg, vertical = Spacing.sm), // 패딩 축소
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -388,7 +388,7 @@ private fun HomeHeader(
                 Icon(
                     imageVector = Icons.Default.ChevronLeft,
                     contentDescription = "Back",
-                    modifier = Modifier.size(32.dp),
+                    modifier = Modifier.size(28.dp), // 아이콘 크기 약간 축소
                     tint = AppColors.TextPrimary
                 )
             }
@@ -397,7 +397,7 @@ private fun HomeHeader(
                 painter = painterResource(id = R.drawable.wy_logo),
                 contentDescription = "WY Logo",
                 modifier = Modifier
-                    .size(64.dp)
+                    .size(48.dp) // 로고 크기 축소 (64dp -> 48dp)
                     .clip(CircleShape),
                 contentScale = ContentScale.Crop
             )
@@ -405,13 +405,13 @@ private fun HomeHeader(
             IconButton(
                 onClick = onNotifications,
                 modifier = Modifier
-                    .size(48.dp)
+                    .size(40.dp) // 버튼 크기 축소
                     .border(2.dp, AppColors.TextPrimary, CircleShape)
             ) {
                 Icon(
                     imageVector = Icons.Default.Notifications,
                     contentDescription = "Notifications",
-                    modifier = Modifier.size(24.dp),
+                    modifier = Modifier.size(20.dp), // 내부 아이콘 크기 축소
                     tint = AppColors.TextPrimary
                 )
             }

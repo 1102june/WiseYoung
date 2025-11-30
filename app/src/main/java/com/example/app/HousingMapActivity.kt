@@ -744,7 +744,7 @@ private fun HousingMapHeader(onBack: () -> Unit) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.md),
+                .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.sm), // 패딩 축소
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -759,12 +759,12 @@ private fun HousingMapHeader(onBack: () -> Unit) {
             
             Text(
                 text = "임대주택 추천",
-                fontSize = 18.sp,
+                fontSize = 16.sp, // 폰트 크기 축소
                 fontWeight = FontWeight.Bold,
                 color = AppColors.TextPrimary
             )
             
-            Spacer(modifier = Modifier.size(48.dp))
+            Spacer(modifier = Modifier.size(24.dp)) // 균형 공간 축소
         }
     }
 }
@@ -1046,68 +1046,80 @@ private fun ApartmentCard(
             containerColor = AppColors.BackgroundGradientStart.copy(alpha = 0.05f)
         )
     ) {
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(Spacing.md)
         ) {
-            // 좋아요 버튼
-            IconButton(
-                onClick = onHeartClick,
-                modifier = Modifier.align(Alignment.TopEnd)
-            ) {
-                Icon(
-                    imageVector = if (isBookmarked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    contentDescription = "Bookmark",
-                    tint = if (isBookmarked) AppColors.TextPrimary else AppColors.TextTertiary,
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-            
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(end = 48.dp)
+            // 상단: 제목 + 좋아요 버튼
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
             ) {
                 Text(
                     text = apartment.name,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = AppColors.TextPrimary,
-                    modifier = Modifier.padding(bottom = Spacing.sm)
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp)
                 )
                 
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(Spacing.xs)
+                IconButton(
+                    onClick = onHeartClick,
+                    modifier = Modifier.size(28.dp)
                 ) {
-                    Text(
-                        text = "📍 사용자로부터 ${apartment.distance}",
-                        fontSize = 14.sp,
-                        color = AppColors.TextSecondary
-                    )
-                    Text(
-                        text = "💰 보증금 ${apartment.depositDisplay} / 월세 ${apartment.monthlyRentDisplay}",
-                        fontSize = 14.sp,
-                        color = AppColors.TextSecondary
-                    )
-                    Text(
-                        text = "📅 신청마감일: ${apartment.deadline}",
-                        fontSize = 14.sp,
-                        color = AppColors.TextSecondary
+                    Icon(
+                        imageVector = if (isBookmarked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = "Bookmark",
+                        tint = if (isBookmarked) AppColors.TextPrimary else AppColors.TextTertiary
                     )
                 }
             }
             
-            Button(
-                onClick = onDetailClick,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = Spacing.lg),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = AppColors.TextPrimary
-                )
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            
+            // 정보 텍스트
+            Column(
+                verticalArrangement = Arrangement.spacedBy(Spacing.xs)
             ) {
-                Text("상세보기", color = Color.White)
+                Text(
+                    text = "📍 사용자로부터 ${apartment.distance}",
+                    fontSize = 14.sp,
+                    color = AppColors.TextSecondary
+                )
+                Text(
+                    text = "💰 보증금 ${apartment.depositDisplay} / 월세 ${apartment.monthlyRentDisplay}",
+                    fontSize = 14.sp,
+                    color = AppColors.TextSecondary
+                )
+                Text(
+                    text = "📅 신청마감일: ${apartment.deadline}",
+                    fontSize = 14.sp,
+                    color = AppColors.TextSecondary
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
+            // 상세보기 버튼 (오른쪽 하단, 작게)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                Button(
+                    onClick = onDetailClick,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AppColors.TextPrimary
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Text("상세보기", color = Color.White, fontSize = 12.sp)
+                }
             }
         }
     }
@@ -1255,109 +1267,119 @@ private fun AnnouncementCard(
             containerColor = AppColors.BackgroundGradientStart.copy(alpha = 0.05f)
         )
     ) {
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(Spacing.md)
         ) {
-            // 좋아요 버튼 - 우측 상단 고정
-            IconButton(
-                onClick = onHeartClick,
-                modifier = Modifier.align(Alignment.TopEnd)
+            // 상단: 상태 뱃지/제목 + 좋아요 버튼
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
             ) {
-                Icon(
-                    imageVector = if (isBookmarked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    contentDescription = "Bookmark",
-                    tint = if (isBookmarked) AppColors.TextPrimary else AppColors.TextTertiary,
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-            
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(end = 48.dp)
-            ) {
-                // Status Badge
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(bottom = Spacing.sm)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(
-                                when (announcement.status) {
-                                    "접수중" -> Color(0xFF10B981).copy(alpha = 0.1f)
-                                    "예정" -> Color(0xFF3B82F6).copy(alpha = 0.1f)
-                                    else -> AppColors.Border.copy(alpha = 0.3f)
-                                }
-                            )
-                            .padding(horizontal = Spacing.sm, vertical = 4.dp)
+                Column(modifier = Modifier.weight(1f)) {
+                    // Status Badge
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(bottom = Spacing.xs)
                     ) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(
+                                    when (announcement.status) {
+                                        "접수중" -> Color(0xFF10B981).copy(alpha = 0.1f)
+                                        "예정" -> Color(0xFF3B82F6).copy(alpha = 0.1f)
+                                        else -> AppColors.Border.copy(alpha = 0.3f)
+                                    }
+                                )
+                                .padding(horizontal = Spacing.sm, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = announcement.status,
+                                fontSize = 12.sp,
+                                color = when (announcement.status) {
+                                    "접수중" -> Color(0xFF10B981)
+                                    "예정" -> Color(0xFF3B82F6)
+                                    else -> AppColors.TextSecondary
+                                },
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
                         Text(
-                            text = announcement.status,
+                            text = announcement.housingType,
                             fontSize = 12.sp,
-                            color = when (announcement.status) {
-                                "접수중" -> Color(0xFF10B981)
-                                "예정" -> Color(0xFF3B82F6)
-                                else -> AppColors.TextSecondary
-                            },
-                            fontWeight = FontWeight.Medium
+                            color = AppColors.TextTertiary
                         )
                     }
+                    
                     Text(
-                        text = announcement.housingType,
-                        fontSize = 12.sp,
-                        color = AppColors.TextTertiary
+                        text = announcement.title,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AppColors.TextPrimary,
+                        modifier = Modifier.padding(bottom = Spacing.sm)
                     )
                 }
                 
-                Text(
-                    text = announcement.title,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = AppColors.TextPrimary,
-                    modifier = Modifier.padding(bottom = Spacing.sm)
-                )
-                
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(Spacing.xs)
+                IconButton(
+                    onClick = onHeartClick,
+                    modifier = Modifier.size(28.dp)
                 ) {
-                    Text(
-                        text = "🏢 ${announcement.organization}",
-                        fontSize = 14.sp,
-                        color = AppColors.TextSecondary
-                    )
-                    Text(
-                        text = "📍 ${announcement.address}",
-                        fontSize = 14.sp,
-                        color = AppColors.TextSecondary
-                    )
-                    Text(
-                        text = "💰 보증금 ${announcement.depositDisplay} / 월세 ${announcement.monthlyRentDisplay}",
-                        fontSize = 14.sp,
-                        color = AppColors.TextSecondary
-                    )
-                    Text(
-                        text = "📅 모집기간: ${announcement.recruitmentPeriod}",
-                        fontSize = 14.sp,
-                        color = AppColors.TextSecondary
+                    Icon(
+                        imageVector = if (isBookmarked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = "Bookmark",
+                        tint = if (isBookmarked) AppColors.TextPrimary else AppColors.TextTertiary
                     )
                 }
             }
             
-            Button(
-                onClick = onDetailClick,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = Spacing.lg),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = AppColors.TextPrimary
-                )
+            // 정보 텍스트
+            Column(
+                verticalArrangement = Arrangement.spacedBy(Spacing.xs)
             ) {
-                Text("상세보기", color = Color.White)
+                Text(
+                    text = "🏢 ${announcement.organization}",
+                    fontSize = 14.sp,
+                    color = AppColors.TextSecondary
+                )
+                Text(
+                    text = "📍 ${announcement.address}",
+                    fontSize = 14.sp,
+                    color = AppColors.TextSecondary
+                )
+                Text(
+                    text = "💰 보증금 ${announcement.depositDisplay} / 월세 ${announcement.monthlyRentDisplay}",
+                    fontSize = 14.sp,
+                    color = AppColors.TextSecondary
+                )
+                Text(
+                    text = "📅 모집기간: ${announcement.recruitmentPeriod}",
+                    fontSize = 14.sp,
+                    color = AppColors.TextSecondary
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
+            // 상세보기 버튼 (오른쪽 하단, 작게)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                Button(
+                    onClick = onDetailClick,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AppColors.TextPrimary
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Text("상세보기", color = Color.White, fontSize = 12.sp)
+                }
             }
         }
     }

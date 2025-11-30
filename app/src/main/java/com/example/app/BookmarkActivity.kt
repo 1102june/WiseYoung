@@ -586,26 +586,21 @@ private fun PolicyBookmarkCard(
                 }
             }
             
-            // 상세보기 버튼 (오른쪽 하단 배치)
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = Spacing.lg),
-                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+            // 상세보기 버튼 (오른쪽 하단, 작게)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
+                Button(
+                    onClick = onShowDetail,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AppColors.TextPrimary
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    modifier = Modifier.height(32.dp)
                 ) {
-                    Button(
-                        onClick = onShowDetail,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = AppColors.TextPrimary
-                        ),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text("상세보기", color = Color.White)
-                    }
+                    Text("상세보기", color = Color.White, fontSize = 12.sp)
                 }
             }
         }
@@ -678,26 +673,21 @@ private fun HousingBookmarkCard(
                 }
             }
             
-            // 상세보기 버튼 (오른쪽 하단 배치)
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = Spacing.lg),
-                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+            // 상세보기 버튼 (오른쪽 하단, 작게)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
+                Button(
+                    onClick = onShowDetail,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AppColors.TextPrimary
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    modifier = Modifier.height(32.dp)
                 ) {
-                    Button(
-                        onClick = onShowDetail,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = AppColors.TextPrimary
-                        ),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text("상세보기", color = Color.White)
-                    }
+                    Text("상세보기", color = Color.White, fontSize = 12.sp)
                 }
             }
         }
@@ -797,8 +787,8 @@ private fun PolicyDetailDialog(
                             .background(
                                 brush = Brush.horizontalGradient(
                                     colors = listOf(
-                                        AppColors.LightBlue,
-                                        Color(0xFF6EBBFF)
+                                        Color(0xFF59ABF7), // 시작 색상
+                                        Color(0xFF59ABF7)  // 끝 색상 (단색 효과)
                                     )
                                 ),
                                 shape = RoundedCornerShape(8.dp)
@@ -903,8 +893,8 @@ private fun HousingDetailDialog(
                             .background(
                                 brush = Brush.horizontalGradient(
                                     colors = listOf(
-                                        AppColors.LightBlue,
-                                        Color(0xFF6EBBFF)
+                                        Color(0xFF59ABF7), // 시작 색상
+                                        Color(0xFF59ABF7)  // 끝 색상 (단색 효과)
                                     )
                                 ),
                                 shape = RoundedCornerShape(8.dp)
