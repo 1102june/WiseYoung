@@ -46,6 +46,13 @@ class CalendarRepository(context: Context) {
     }
     
     /**
+     * ID로 일정 조회
+     */
+    suspend fun getEventById(id: Long): CalendarEvent? {
+        return calendarDao.getEventById(id)
+    }
+    
+    /**
      * 일정 추가
      */
     suspend fun insertEvent(event: CalendarEvent): Long {

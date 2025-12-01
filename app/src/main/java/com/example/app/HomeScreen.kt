@@ -5,11 +5,13 @@ import android.net.Uri
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateIntOffsetAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -26,13 +28,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -50,6 +55,7 @@ import com.example.app.network.NetworkModule
 import com.wiseyoung.app.BookmarkItem
 import com.wiseyoung.app.BookmarkType
 import com.wiseyoung.app.BookmarkPreferences
+import kotlin.math.roundToInt
 
 data class PolicyRecommendation(
     val id: Int,
@@ -171,149 +177,221 @@ fun HomeScreen(
         }
     }
     
-    Scaffold(
-        bottomBar = {
-            BottomNavigationBar(
-                currentScreen = "home",
-                onNavigateHome = {},
-                onNavigateCalendar = onNavigateCalendar,
-                onNavigateChatbot = { showChatbotDialog = true },
-                onNavigateBookmark = onNavigateBookmark,
-                onNavigateProfile = onNavigateProfile
-            )
-        }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.White)
-                .padding(paddingValues)
-                .verticalScroll(rememberScrollState())
-        ) {
-            // Header
-            HomeHeader(
-                onBack = onBack,
-                onNotifications = onNavigateNotifications
-            )
-            
-            // Main Content
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val screenWidth = maxWidth
+        val screenHeight = maxHeight
+        val density = LocalDensity.current
+        
+        // 챗봇 버튼 초기 위치 (우측 하단)
+        // 초기값이 0이면 LaunchedEffect가 실행되기 전까지 왼쪽 상단에 붙어있으므로 초기값을 계산해서 넣어줌
+        var offsetX by remember { mutableStateOf(with(density) { (screenWidth - 80.dp).toPx() }) }
+        var offsetY by remember { mutableStateOf(with(density) { (screenHeight - 160.dp).toPx() }) }
+        
+        // 드래그 종료 시 애니메이션을 위한 타겟 오프셋
+        var targetOffsetX by remember { mutableStateOf<Float?>(null) }
+        
+        // 애니메이션 오프셋 (드래그 중에는 사용 안함)
+        val animatedOffsetX by animateFloatAsState(
+            targetValue = targetOffsetX ?: offsetX,
+            animationSpec = tween(300),
+            label = "snapAnimation"
+        )
+
+        Scaffold(
+            bottomBar = {
+                BottomNavigationBar(
+                    currentScreen = "home",
+                    onNavigateHome = {},
+                    onNavigateCalendar = onNavigateCalendar,
+                    onNavigateBookmark = onNavigateBookmark,
+                    onNavigateProfile = onNavigateProfile
+                )
+            }
+        ) { paddingValues ->
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.lg)
+                    .fillMaxSize()
+                    .background(Color.White)
+                    .padding(paddingValues)
+                    .verticalScroll(rememberScrollState())
             ) {
-                // AI Recommendations Section
+                // Header
+                HomeHeader(
+                    onBack = onBack,
+                    onNotifications = onNavigateNotifications
+                )
+                
+                // Main Content
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.md)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.lg)
                 ) {
-                    Text(
-                        text = "나와 비슷한 다른사람은 어떤한 정책을?",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = AppColors.TextPrimary
-                    )
-                    
-                    Text(
-                        text = "AI 추천 정책 모음",
-                        fontSize = 14.sp,
-                        color = AppColors.TextSecondary
-                    )
-                    
-                    // 슬라이드 카드
-                    if (currentPolicy != null) {
-                        PolicyCard(
-                            policy = currentPolicy,
-                            isTransitioning = isTransitioning,
-                            isBookmarked = isBookmarked,
-                            currentIndex = currentIndex,
-                            totalCount = aiRecommendationsList.size,
-                            onShowDetail = {
-                                detailPolicy = currentPolicy
-                                showDetailDialog = true
-                            },
-                            onPrevious = {
-                                if (aiRecommendationsList.isNotEmpty()) {
-                                    isTransitioning = true
-                                    coroutineScope.launch {
-                                        delay(300)
-                                        currentIndex = (currentIndex - 1 + aiRecommendationsList.size) % aiRecommendationsList.size
-                                        isTransitioning = false
-                                    }
-                                }
-                            },
-                            onNext = {
-                                if (aiRecommendationsList.isNotEmpty()) {
-                                    isTransitioning = true
-                                    coroutineScope.launch {
-                                        delay(300)
-                                        currentIndex = (currentIndex + 1) % aiRecommendationsList.size
-                                        isTransitioning = false
-                                    }
-                                }
-                            },
-                            onIndicatorClick = { index ->
-                                isTransitioning = true
-                                coroutineScope.launch {
-                                    delay(300)
-                                    currentIndex = index
-                                    isTransitioning = false
-                                }
-                            },
-                            onHeartClick = {
-                                if (!isBookmarked) {
-                                    selectedPolicy = currentPolicy
-                                    showNotificationDialog = true
-                                } else {
-                                    // 북마크 제거 (로컬 상태)
-                                    bookmarkedPolicies = bookmarkedPolicies - currentPolicy.title
-                                    // SharedPreferences에서도 제거
-                                    BookmarkPreferences.removeBookmark(
-                                        context,
-                                        currentPolicy.title,
-                                        BookmarkType.POLICY
-                                    )
-                                }
-                            }
-                        )
-                    } else {
+                    // AI Recommendations Section
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.md)
+                    ) {
                         Text(
-                            text = "현재 추천할 정책이 없습니다.",
+                            text = "나와 비슷한 다른사람은 어떤한 정책을?",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = AppColors.TextPrimary
+                        )
+                        
+                        Text(
+                            text = "AI 추천 정책 모음",
                             fontSize = 14.sp,
                             color = AppColors.TextSecondary
                         )
+                        
+                        // 슬라이드 카드
+                        if (currentPolicy != null) {
+                            PolicyCard(
+                                policy = currentPolicy,
+                                isTransitioning = isTransitioning,
+                                isBookmarked = isBookmarked,
+                                currentIndex = currentIndex,
+                                totalCount = aiRecommendationsList.size,
+                                onShowDetail = {
+                                    detailPolicy = currentPolicy
+                                    showDetailDialog = true
+                                },
+                                onPrevious = {
+                                    if (aiRecommendationsList.isNotEmpty()) {
+                                        isTransitioning = true
+                                        coroutineScope.launch {
+                                            delay(300)
+                                            currentIndex = (currentIndex - 1 + aiRecommendationsList.size) % aiRecommendationsList.size
+                                            isTransitioning = false
+                                        }
+                                    }
+                                },
+                                onNext = {
+                                    if (aiRecommendationsList.isNotEmpty()) {
+                                        isTransitioning = true
+                                        coroutineScope.launch {
+                                            delay(300)
+                                            currentIndex = (currentIndex + 1) % aiRecommendationsList.size
+                                            isTransitioning = false
+                                        }
+                                    }
+                                },
+                                onIndicatorClick = { index ->
+                                    isTransitioning = true
+                                    coroutineScope.launch {
+                                        delay(300)
+                                        currentIndex = index
+                                        isTransitioning = false
+                                    }
+                                },
+                                onHeartClick = {
+                                    if (!isBookmarked) {
+                                        selectedPolicy = currentPolicy
+                                        showNotificationDialog = true
+                                    } else {
+                                        // 북마크 제거 (로컬 상태)
+                                        bookmarkedPolicies = bookmarkedPolicies - currentPolicy.title
+                                        // SharedPreferences에서도 제거
+                                        BookmarkPreferences.removeBookmark(
+                                            context,
+                                            currentPolicy.title,
+                                            BookmarkType.POLICY
+                                        )
+                                    }
+                                }
+                            )
+                        } else {
+                            Text(
+                                text = "현재 추천할 정책이 없습니다.",
+                                fontSize = 14.sp,
+                                color = AppColors.TextSecondary
+                            )
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(Spacing.lg))
+                    
+                    // 바로가기 카드들
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(Spacing.md)
+                    ) {
+                        QuickAccessCard(
+                            title = "맞춤 청년정책",
+                            subtitle = "나에게 딱 맞는 정책 찾기",
+                            icon = Icons.Default.CalendarToday,
+                            gradientColors = listOf(
+                                Color(0xFF59ABF7),  // 라이트 블루 (메인 컬러)
+                                Color(0xFF4A8FD9)  // 진한 블루
+                            ),
+                            onClick = onNavigatePolicy
+                        )
+                        
+                        QuickAccessCard(
+                            title = "맞춤 임대주택",
+                            subtitle = "내 주변 임대주택 찾기",
+                            icon = Icons.Default.Home,
+                            gradientColors = listOf(
+                                Color(0xFFFF9A5C),
+                                Color(0xFFFF6B2C)
+                            ),
+                            onClick = onNavigateHousing
+                        )
                     }
                 }
-                
-                Spacer(modifier = Modifier.height(Spacing.lg))
-                
-                // 바로가기 카드들
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(Spacing.md)
-                ) {
-                    QuickAccessCard(
-                        title = "맞춤 청년정책",
-                        subtitle = "나에게 딱 맞는 정책 찾기",
-                        icon = Icons.Default.CalendarToday,
-                        gradientColors = listOf(
-                            Color(0xFF59ABF7),  // 라이트 블루 (메인 컬러)
-                            Color(0xFF4A8FD9)  // 진한 블루
-                        ),
-                        onClick = onNavigatePolicy
-                    )
-                    
-                    QuickAccessCard(
-                        title = "맞춤 임대주택",
-                        subtitle = "내 주변 임대주택 찾기",
-                        icon = Icons.Default.Home,
-                        gradientColors = listOf(
-                            Color(0xFFFF9A5C),
-                            Color(0xFFFF6B2C)
-                        ),
-                        onClick = onNavigateHousing
-                    )
-                }
             }
+        }
+
+        // Draggable Chatbot Button
+        val buttonSize = 64.dp
+        val buttonSizePx = with(density) { buttonSize.toPx() }
+        val screenWidthPx = with(density) { screenWidth.toPx() }
+        val screenHeightPx = with(density) { screenHeight.toPx() }
+
+        // 애니메이션이 진행 중일 때는 animatedOffsetX 사용, 드래그 중일 때는 offsetX 사용
+        val currentX = if (targetOffsetX != null) animatedOffsetX else offsetX
+        
+        Box(
+            modifier = Modifier
+                .offset { IntOffset(currentX.roundToInt(), offsetY.roundToInt()) }
+                .pointerInput(Unit) {
+                    detectDragGestures(
+                        onDragStart = {
+                            targetOffsetX = null // 드래그 시작 시 애니메이션 취소
+                        },
+                        onDragEnd = {
+                            // 드래그 종료 시 자석 효과 (가까운 벽으로 이동)
+                            val centerX = offsetX + (buttonSizePx / 2)
+                            targetOffsetX = if (centerX < screenWidthPx / 2) {
+                                16.dp.toPx() // 왼쪽 벽 (여백 16dp)
+                            } else {
+                                screenWidthPx - buttonSizePx - 16.dp.toPx() // 오른쪽 벽 (여백 16dp)
+                            }
+                            offsetX = targetOffsetX!! // 상태 업데이트 (애니메이션 시작)
+                        }
+                    ) { change, dragAmount ->
+                        change.consume()
+                        // 화면 범위 내에서만 이동
+                        val newX = (offsetX + dragAmount.x).coerceIn(0f, screenWidthPx - buttonSizePx)
+                        val newY = (offsetY + dragAmount.y).coerceIn(0f, screenHeightPx - buttonSizePx)
+                        
+                        offsetX = newX
+                        offsetY = newY
+                    }
+                }
+                .size(buttonSize)
+                .shadow(8.dp, CircleShape)
+                .clip(CircleShape)
+                .background(Color(0xFF59ABF7)) // 메인 컬러
+                .clickable { showChatbotDialog = true },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.SmartToy,
+                contentDescription = "Chatbot",
+                tint = Color.White,
+                modifier = Modifier.size(32.dp)
+            )
         }
     }
     
@@ -1097,4 +1175,3 @@ private fun WheelPicker(
         Text(label, fontSize = 12.sp, color = AppColors.TextSecondary)
     }
 }
-

@@ -8,12 +8,20 @@ import android.content.Intent
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.example.app.data.*
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.wiseyoung.app.MainActivity
 import com.wiseyoung.app.R
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class MyFirebaseMessagingService : FirebaseMessagingService() {
+
+    private val repository by lazy { NotificationRepository(applicationContext) }
+    private val auth = FirebaseAuth.getInstance()
 
     override fun onNewToken(token: String) {
         Log.d(TAG, "Refreshed token: $token")
@@ -33,7 +41,14 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         // 알림 메시지 처리
         remoteMessage.notification?.let {
             Log.d(TAG, "Message Notification Body: ${it.body}")
-            sendNotification(it.title ?: "알림", it.body ?: "")
+            val title = it.title ?: "알림"
+            val body = it.body ?: ""
+            
+            // 상단 알림 표시
+            sendNotification(title, body, remoteMessage.data)
+            
+            // 알림함에 로그 저장
+            saveNotificationToInbox(title, body, remoteMessage.data)
         }
     }
 
@@ -41,13 +56,21 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         val title = data["title"] ?: "알림"
         val body = data["body"] ?: ""
         if (body.isNotEmpty()) {
-            sendNotification(title, body)
+            sendNotification(title, body, data)
+            saveNotificationToInbox(title, body, data)
         }
     }
 
-    private fun sendNotification(title: String, messageBody: String) {
+    private fun sendNotification(title: String, messageBody: String, data: Map<String, String> = emptyMap()) {
+        // 알림 클릭 시 이동할 화면 설정 (앱 로고/메인으로 이동)
         val intent = Intent(this, MainActivity::class.java)
-        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        
+        // 필요한 경우 데이터 전달
+        for ((key, value) in data) {
+            intent.putExtra(key, value)
+        }
+
         val pendingIntent = PendingIntent.getActivity(
             this, 0 /* Request code */, intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_ONE_SHOT
@@ -76,6 +99,49 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         }
 
         notificationManager.notify(System.currentTimeMillis().toInt(), notificationBuilder.build())
+    }
+    
+    /**
+     * 알림을 내부 DB 알림함에 저장 (로그 기능)
+     */
+    private fun saveNotificationToInbox(title: String, body: String, data: Map<String, String>) {
+        val currentUser = auth.currentUser ?: return
+        
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                // 데이터에서 이벤트 정보 추출 (서버에서 보내주는 키값에 맞춤)
+                val eventId = data["eventId"]?.toLongOrNull()
+                val eventTypeStr = data["eventType"]
+                val eventType = when (eventTypeStr?.lowercase()) {
+                    "policy" -> EventType.POLICY
+                    "housing" -> EventType.HOUSING
+                    else -> null
+                }
+                val organization = data["organization"]
+                val policyId = data["policyId"]
+                val housingId = data["housingId"]
+                
+                // Notification 엔티티 생성
+                val notification = Notification(
+                    userId = currentUser.uid,
+                    title = title,
+                    body = body,
+                    notificationType = NotificationType.FCM,
+                    eventId = eventId,
+                    eventType = eventType,
+                    organization = organization,
+                    policyId = policyId,
+                    housingId = housingId,
+                    isRead = false
+                    // createdAt은 기본값인 현재 시간으로 자동 설정됨
+                )
+                
+                repository.insertNotification(notification)
+                Log.d(TAG, "알림함에 저장 완료: $title")
+            } catch (e: Exception) {
+                Log.e(TAG, "알림함 저장 실패: ${e.message}", e)
+            }
+        }
     }
 
     companion object {

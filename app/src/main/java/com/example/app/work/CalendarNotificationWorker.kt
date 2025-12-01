@@ -9,8 +9,14 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.work.Worker
 import androidx.work.WorkerParameters
+import com.example.app.data.*
+import com.google.firebase.auth.FirebaseAuth
 import com.wiseyoung.app.CalendarActivity
 import com.wiseyoung.app.R
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 /**
  * 캘린더 알림 발송 Worker
@@ -21,12 +27,19 @@ class CalendarNotificationWorker(
     params: WorkerParameters
 ) : Worker(context, params) {
     
+    private val notificationRepository = NotificationRepository(context)
+    private val calendarRepository = CalendarRepository(context)
+    private val auth = FirebaseAuth.getInstance()
+    
     override fun doWork(): Result {
         val title = inputData.getString(KEY_TITLE) ?: "일정 알림"
         val body = inputData.getString(KEY_BODY) ?: "일정이 곧 마감됩니다."
         val eventId = inputData.getLong(KEY_EVENT_ID, -1)
         
         sendNotification(title, body, eventId)
+        
+        // 알림함에 저장
+        saveNotificationToInbox(title, body, eventId)
         
         return Result.success()
     }
@@ -71,6 +84,39 @@ class CalendarNotificationWorker(
         
         // 알림 발송
         notificationManager.notify(eventId.toInt(), notification)
+    }
+    
+    /**
+     * 알림을 알림함에 저장
+     */
+    private fun saveNotificationToInbox(title: String, body: String, eventId: Long) {
+        val currentUser = auth.currentUser ?: return
+        
+        runBlocking {
+            try {
+                // 캘린더 이벤트 정보 가져오기
+                val calendarEvent = calendarRepository.getEventById(eventId)
+                
+                // 알림 생성
+                val notification = Notification(
+                    userId = currentUser.uid,
+                    title = title,
+                    body = body,
+                    notificationType = NotificationType.CALENDAR,
+                    eventId = eventId,
+                    eventType = calendarEvent?.eventType,
+                    organization = calendarEvent?.organization,
+                    policyId = calendarEvent?.policyId,
+                    housingId = calendarEvent?.housingId,
+                    isRead = false
+                )
+                
+                notificationRepository.insertNotification(notification)
+                android.util.Log.d("CalendarNotificationWorker", "알림함에 저장 완료: $title")
+            } catch (e: Exception) {
+                android.util.Log.e("CalendarNotificationWorker", "알림함 저장 실패: ${e.message}", e)
+            }
+        }
     }
     
     companion object {

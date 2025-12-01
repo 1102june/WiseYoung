@@ -156,7 +156,6 @@ fun CalendarScreen(
                 currentScreen = "calendar",
                 onNavigateHome = onNavigateHome,
                 onNavigateCalendar = {},
-                onNavigateChatbot = onNavigateChatbot,
                 onNavigateBookmark = onNavigateBookmark,
                 onNavigateProfile = onNavigateProfile
             )

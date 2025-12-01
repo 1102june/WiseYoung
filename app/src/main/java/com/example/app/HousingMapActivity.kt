@@ -416,7 +416,6 @@ fun HousingMapScreen(
                 currentScreen = "home",
                 onNavigateHome = onNavigateHome,
                 onNavigateCalendar = onNavigateCalendar,
-                onNavigateChatbot = onNavigateChatbot,
                 onNavigateBookmark = onNavigateBookmark,
                 onNavigateProfile = onNavigateProfile
             )

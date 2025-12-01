@@ -64,6 +64,9 @@ class ProfileActivity : ComponentActivity() {
                     onNavigateChatbot = {
                         // TODO: 챗봇 다이얼로그 표시
                     },
+                    onNavigateIntro = {
+                        startActivity(Intent(this, IntroActivity::class.java))
+                    },
                     onThemeModeChange = { mode ->
                         // ThemePreferences에 저장 (ThemeWrapper가 자동으로 감지하여 즉시 적용)
                         ThemePreferences.setThemeMode(this, mode)
@@ -82,6 +85,7 @@ fun ProfileScreen(
     onNavigateBookmark: () -> Unit,
     onNavigateEditProfile: () -> Unit,
     onNavigateChatbot: () -> Unit,
+    onNavigateIntro: () -> Unit, // 추가
     onThemeModeChange: (ThemeMode) -> Unit
 ) {
     val context = LocalContext.current
@@ -151,7 +155,6 @@ fun ProfileScreen(
                 currentScreen = "profile",
                 onNavigateHome = onNavigateHome,
                 onNavigateCalendar = onNavigateCalendar,
-                onNavigateChatbot = onNavigateChatbot,
                 onNavigateBookmark = onNavigateBookmark,
                 onNavigateProfile = {}
             )
@@ -210,6 +213,34 @@ fun ProfileScreen(
                     },
                     modifier = Modifier.padding(top = Spacing.md)
                 )
+                
+                // App Tour Button (앱 둘러보기)
+                Button(
+                    onClick = onNavigateIntro,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .padding(top = Spacing.md),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AppColors.LightBlue
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(vertical = 12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "앱 둘러보기",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.White
+                    )
+                }
                 
                 // Logout and Delete Account
                 Column(

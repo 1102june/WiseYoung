@@ -44,6 +44,12 @@
             </intent-filter>
         </activity>
 
+        <!-- IntroActivity (앱 소개 화면) -->
+        <activity
+            android:name="com.wiseyoung.app.IntroActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WiseYoung.NoActionBar" />
+
         <!-- WelcomeActivity -->
         <activity
             android:name="com.wiseyoung.app.WelcomeActivity"

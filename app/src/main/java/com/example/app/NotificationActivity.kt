@@ -16,6 +16,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -24,17 +26,24 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.app.data.*
 import com.example.app.ui.theme.AppColors
 import com.example.app.ui.theme.Spacing
 import com.example.app.ui.theme.ThemeWrapper
+import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
+// UI 표시용 모델
 data class NotificationItem(
-    val id: Int,
+    val id: Long,
     val icon: NotificationIcon,
     val title: String,
     val subtitle: String,
     val organization: String,
-    val deadline: String,
+    val deadline: String?,
+    val isRead: Boolean,
     val hasAction: Boolean = true
 )
 
@@ -42,18 +51,35 @@ enum class NotificationIcon {
     BELL, HOME
 }
 
-// 실제 알림 데이터는 서버/DB 또는 캘린더 알림에서 가져오도록 하고,
-// 여기서는 더미 데이터를 정의하지 않습니다.
-
 class NotificationActivity : ComponentActivity() {
+    // 알림 Repository (Room DB 연동)
+    private val repository by lazy { NotificationRepository(this) }
+    private val auth = FirebaseAuth.getInstance()
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             ThemeWrapper {
                 NotificationScreen(
+                    repository = repository,
+                    userId = auth.currentUser?.uid ?: "",
                     onBack = { finish() },
                     onNavigateCalendar = {
-                        // TODO: Calendar 화면으로 이동
+                        val intent = Intent(this, CalendarActivity::class.java)
+                        startActivity(intent)
+                    },
+                    onNotificationClick = { notification ->
+                        // 알림 클릭 시 읽음 처리
+                        CoroutineScope(Dispatchers.IO).launch {
+                            repository.markAsRead(notification.id)
+                        }
+                        
+                        // 해당 캘린더 이벤트가 있다면 캘린더로 이동 (선택사항)
+                        if (notification.eventId != null) {
+                            val intent = Intent(this, CalendarActivity::class.java)
+                            // intent.putExtra("eventId", notification.eventId) // 필요 시 구현
+                            startActivity(intent)
+                        }
                     }
                 )
             }
@@ -63,9 +89,33 @@ class NotificationActivity : ComponentActivity() {
 
 @Composable
 fun NotificationScreen(
+    repository: NotificationRepository,
+    userId: String,
     onBack: () -> Unit,
-    onNavigateCalendar: () -> Unit
+    onNavigateCalendar: () -> Unit,
+    onNotificationClick: (Notification) -> Unit
 ) {
+    // DB에서 실시간으로 알림 목록 가져오기 (Flow)
+    val notifications by repository.getAllNotifications(userId).collectAsState(initial = emptyList())
+    
+    // Notification 엔티티 -> NotificationItem 변환
+    val notificationItems = notifications.map { notification ->
+        NotificationItem(
+            id = notification.id,
+            icon = when (notification.eventType) {
+                EventType.POLICY -> NotificationIcon.BELL
+                EventType.HOUSING -> NotificationIcon.HOME
+                else -> NotificationIcon.BELL
+            },
+            title = notification.title,
+            subtitle = notification.body,
+            organization = notification.organization ?: "알림",
+            deadline = null, 
+            isRead = notification.isRead,
+            hasAction = true
+        )
+    }
+    
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -77,20 +127,39 @@ fun NotificationScreen(
             onCalendar = onNavigateCalendar
         )
         
-        // Notification List (현재는 서버 연동 전이므로 빈 상태 표시)
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.md),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "도착한 알림이 없습니다.",
-                fontSize = 14.sp,
-                color = AppColors.TextSecondary
-            )
+        // Notification List
+        if (notificationItems.isEmpty()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.md),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "도착한 알림이 없습니다.",
+                    fontSize = 14.sp,
+                    color = AppColors.TextSecondary
+                )
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.md),
+                verticalArrangement = Arrangement.spacedBy(Spacing.md)
+            ) {
+                notificationItems.forEach { item ->
+                    val notification = notifications.find { it.id == item.id }!!
+                    NotificationCard(
+                        notification = item,
+                        onNavigate = { onNotificationClick(notification) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
         }
     }
 }
@@ -122,7 +191,7 @@ private fun NotificationHeader(
             }
             
             Text(
-                text = "마감일 알림",
+                text = "알림함",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = AppColors.TextPrimary
@@ -151,8 +220,13 @@ private fun NotificationCard(
             .fillMaxWidth()
             .clickable(enabled = notification.hasAction) { onNavigate() },
         shape = RoundedCornerShape(16.dp),
-        border = androidx.compose.foundation.BorderStroke(2.dp, AppColors.Border),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+        border = androidx.compose.foundation.BorderStroke(
+            width = if (notification.isRead) 1.dp else 2.dp,
+            color = if (notification.isRead) AppColors.Border.copy(alpha = 0.5f) else AppColors.Border
+        ),
+        colors = CardDefaults.cardColors(
+            containerColor = if (notification.isRead) Color.White else Color(0xFFF8F9FA)
+        )
     ) {
         Row(
             modifier = Modifier
@@ -195,12 +269,27 @@ private fun NotificationCard(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(Spacing.xs)
             ) {
-                Text(
-                    text = notification.title,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = AppColors.TextPrimary
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = notification.title,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AppColors.TextPrimary,
+                        modifier = Modifier.weight(1f)
+                    )
+                    
+                    if (!notification.isRead) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .background(AppColors.Purple, CircleShape)
+                        )
+                    }
+                }
                 
                 Text(
                     text = notification.subtitle,
@@ -208,44 +297,15 @@ private fun NotificationCard(
                     color = AppColors.TextSecondary
                 )
                 
-                Spacer(modifier = Modifier.height(Spacing.xs))
-                
-                Text(
-                    text = "기관: ${notification.organization}",
-                    fontSize = 12.sp,
-                    color = AppColors.TextTertiary
-                )
-                
-                Text(
-                    text = "마감일: ${notification.deadline}",
-                    fontSize = 12.sp,
-                    color = AppColors.TextTertiary
-                )
-                
-                if (notification.hasAction) {
+                if (notification.organization.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(Spacing.xs))
-                    
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier.clickable { onNavigate() }
-                    ) {
-                        Text(
-                            text = "바로가기",
-                            fontSize = 14.sp,
-                            color = AppColors.Purple,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Icon(
-                            imageVector = Icons.Default.ChevronRight,
-                            contentDescription = null,
-                            tint = AppColors.Purple,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
+                    Text(
+                        text = notification.organization,
+                        fontSize = 12.sp,
+                        color = AppColors.TextTertiary
+                    )
                 }
             }
         }
     }
 }
-

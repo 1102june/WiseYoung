@@ -31,7 +31,6 @@ fun BottomNavigationBarPreview() {
         currentScreen = "home",
         onNavigateHome = {},
         onNavigateCalendar = {},
-        onNavigateChatbot = {},
         onNavigateBookmark = {},
         onNavigateProfile = {}
     )
@@ -42,7 +41,6 @@ fun BottomNavigationBar(
     currentScreen: String,
     onNavigateHome: () -> Unit,
     onNavigateCalendar: () -> Unit,
-    onNavigateChatbot: () -> Unit,
     onNavigateBookmark: () -> Unit,
     onNavigateProfile: () -> Unit
 ) {
@@ -57,14 +55,14 @@ fun BottomNavigationBar(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = (navigationBarsPadding.calculateBottomPadding() - 36.dp).coerceAtLeast(0.dp)) // 하단 패딩 최소화
+                .padding(bottom = navigationBarsPadding.calculateBottomPadding())
         ) {
             // 상단 패딩 제거 (챗봇 튀어나옴 제거로 불필요)
             
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = Spacing.lg, vertical = (Spacing.sm - 8.dp).coerceAtLeast(0.dp)),
+                    .padding(horizontal = Spacing.lg, vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -84,15 +82,6 @@ fun BottomNavigationBar(
                 label = "캘린더",
                 isSelected = currentScreen == "calendar",
                 onClick = onNavigateCalendar
-            )
-            
-            // 챗봇 버튼 (일반 아이콘 스타일로 변경)
-            BottomNavButton(
-                icon = Icons.Default.Message,
-                filledIcon = Icons.Filled.Message, // 채워진 아이콘이 있다면 사용, 없으면 기본값
-                label = "챗봇",
-                isSelected = false, // 챗봇은 다이얼로그라 선택 상태 없음
-                onClick = onNavigateChatbot
             )
             
             // 좋아요 버튼 (하트 아이콘)
@@ -128,31 +117,31 @@ private fun BottomNavButton(
     Column(
         modifier = Modifier
             .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = (Spacing.sm - 8.dp).coerceAtLeast(0.dp)),
+            .padding(horizontal = 8.dp, vertical = 2.dp), // 상하 패딩 축소
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        verticalArrangement = Arrangement.spacedBy(2.dp) // 간격 축소
     ) {
         // 선택된 버튼에 배경 추가
         Box(
             modifier = Modifier
-                .size(if (isSelected) 48.dp else 40.dp)
+                .size(if (isSelected) 48.dp else 40.dp) // 크기 축소 (56/48 -> 48/40)
                 .clip(CircleShape)
                 .background(
-                    if (isSelected) AppColors.LightBlue.copy(alpha = 0.1f) else Color.Transparent  // 라이트 블루 (메인 컬러)
+                    if (isSelected) AppColors.LightBlue.copy(alpha = 0.1f) else Color.Transparent
                 ),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = if (isSelected && filledIcon != null) filledIcon else icon,
                 contentDescription = label,
-                modifier = Modifier.size(if (isSelected) 28.dp else 24.dp),
-                tint = if (isSelected) AppColors.LightBlue else AppColors.TextSecondary  // 라이트 블루 (메인 컬러)
+                modifier = Modifier.size(if (isSelected) 26.dp else 24.dp), // 아이콘 크기 축소 (32/28 -> 26/24)
+                tint = if (isSelected) AppColors.LightBlue else AppColors.TextSecondary
             )
         }
         Text(
             text = label,
-            fontSize = 12.sp,
-            color = if (isSelected) AppColors.LightBlue else AppColors.TextSecondary,  // 라이트 블루 (메인 컬러)
+            fontSize = 11.sp, // 텍스트 크기 축소 (13 -> 11)
+            color = if (isSelected) AppColors.LightBlue else AppColors.TextSecondary,
             fontWeight = if (isSelected) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal
         )
     }

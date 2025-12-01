@@ -227,7 +227,6 @@ fun BookmarkScreen(
                 currentScreen = "bookmark",
                 onNavigateHome = onNavigateHome,
                 onNavigateCalendar = onNavigateCalendar,
-                onNavigateChatbot = onNavigateChatbot,
                 onNavigateBookmark = {},
                 onNavigateProfile = onNavigateProfile
             )

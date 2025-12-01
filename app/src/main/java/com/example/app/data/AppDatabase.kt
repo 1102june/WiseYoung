@@ -11,14 +11,16 @@ import android.content.Context
  * 앱의 로컬 데이터베이스
  */
 @Database(
-    entities = [CalendarEvent::class],
-    version = 1,
+    entities = [CalendarEvent::class, Notification::class],
+    version = 2,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     
     abstract fun calendarDao(): CalendarDao
+    
+    abstract fun notificationDao(): NotificationDao
     
     companion object {
         @Volatile
