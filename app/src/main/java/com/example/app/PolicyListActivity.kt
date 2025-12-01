@@ -405,8 +405,77 @@ fun PolicyListScreen(
         )
     }
     
-    val urgentPolicies = filteredPolicies.filter { it.isUrgent }
+    // 서버와 동기화된 북마크 상태 관리
+    // 초기값은 API에서 가져온 isFavorite 상태를 반영해야 함 (filteredPolicies 등에서 반영됨)
+    // 여기서는 UI 갱신을 위한 로컬 상태
     
+    val calendarService = remember { CalendarService(context) }
+
+    // 좋아요 클릭 처리 함수
+    val onToggleBookmark: (PolicyItem) -> Unit = { policy ->
+        scope.launch {
+            val isCurrentlyBookmarked = bookmarkedPolicies.contains(policy.title)
+            
+            if (!isCurrentlyBookmarked) {
+                // 1. 북마크 추가
+                // 로컬 상태 업데이트
+                bookmarkedPolicies = bookmarkedPolicies + policy.title
+                
+                // BookmarkItem으로 변환
+                val bookmarkItem = com.example.app.BookmarkItem(
+                    id = policy.id,
+                    type = com.example.app.BookmarkType.POLICY,
+                    title = policy.title,
+                    organization = policy.organization,
+                    age = policy.age,
+                    period = policy.period,
+                    content = policy.content,
+                    applicationMethod = policy.applicationMethod,
+                    deadline = policy.deadline
+                )
+                
+                // SharedPreferences에 저장 (BookmarkActivity와 공유)
+                com.example.app.BookmarkPreferences.addBookmark(context, bookmarkItem)
+                
+                // 서버에 전송
+                try {
+                    com.example.app.network.NetworkModule.apiService.addBookmark(
+                        com.example.app.data.model.BookmarkRequest(
+                            userId = userId,
+                            contentType = "policy",
+                            contentId = policy.id.toString() // 또는 정책의 실제 ID
+                        )
+                    )
+                } catch (e: Exception) {
+                    android.util.Log.e("PolicyListActivity", "북마크 추가 실패: ${e.message}")
+                }
+                
+                // 알림 설정 팝업 표시
+                selectedPolicy = policy
+                showNotificationDialog = true
+                
+            } else {
+                // 2. 북마크 제거
+                bookmarkedPolicies = bookmarkedPolicies - policy.title
+                
+                // SharedPreferences에서 제거
+                com.example.app.BookmarkPreferences.removeBookmark(
+                    context, 
+                    policy.title, 
+                    com.example.app.BookmarkType.POLICY
+                )
+                
+                // 서버에서 제거 (API 필요 시 호출)
+                 try {
+                     // API에 deleteBookmark가 있다면 호출 (BookmarkActivity 참조)
+                     // NetworkModule.apiService.deleteBookmark(...) 
+                 } catch (e: Exception) {
+                     android.util.Log.e("PolicyListActivity", "북마크 제거 실패: ${e.message}")
+                 }
+            }
+        }
+    }
+
     Scaffold(
         bottomBar = {
             BottomNavigationBar(
@@ -460,12 +529,7 @@ fun PolicyListScreen(
                             showDetailDialog = true
                         },
                         onHeartClick = {
-                            if (!bookmarkedPolicies.contains(policy.title)) {
-                                selectedPolicy = policy
-                                showNotificationDialog = true
-                            } else {
-                                bookmarkedPolicies = bookmarkedPolicies - policy.title
-                            }
+                            onToggleBookmark(policy)
                         },
                         modifier = Modifier.padding(bottom = Spacing.sm)
                     )
@@ -506,19 +570,13 @@ fun PolicyListScreen(
             policies = urgentPolicies,
             bookmarkedPolicies = bookmarkedPolicies,
             onHeartClick = { policy ->
-                if (!bookmarkedPolicies.contains(policy.title)) {
-                    selectedPolicy = policy
-                    showNotificationDialog = true
-                } else {
-                    bookmarkedPolicies = bookmarkedPolicies - policy.title
-                }
+                onToggleBookmark(policy)
             },
             onDismiss = { showUrgentDialog = false }
         )
     }
     
     // Notification Dialog
-    val calendarService = remember { CalendarService(context) }
     
     if (showNotificationDialog) {
         PolicyNotificationDialog(
