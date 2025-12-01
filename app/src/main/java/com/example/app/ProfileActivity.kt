@@ -98,6 +98,8 @@ fun ProfileScreen(
     var profile by remember { mutableStateOf<com.example.app.data.model.UserProfileResponse?>(null) }
     var isLoadingProfile by remember { mutableStateOf(true) }
     
+    var showEditProfileDialog by remember { mutableStateOf(false) }
+
     // 프로필 정보 불러오기 (PolicyListActivity와 동일한 API 사용)
     LaunchedEffect(Unit) {
         val currentUser = auth.currentUser
@@ -183,21 +185,21 @@ fun ProfileScreen(
                     modifier = Modifier.padding(bottom = Spacing.md)
                 )
                 
-                // Edit Profile Button (크기 줄임)
+                // Edit Profile Button
                 Button(
-                    onClick = onNavigateEditProfile,
+                    onClick = { showEditProfileDialog = true },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(44.dp),  // 높이 명시적으로 줄임
+                        .height(48.dp), // 높이 약간 증가
                     colors = ButtonDefaults.buttonColors(
                         containerColor = AppColors.TextPrimary
                     ),
-                    shape = RoundedCornerShape(12.dp),  // 모서리도 약간 줄임
-                    contentPadding = PaddingValues(vertical = 12.dp)  // 패딩 줄임
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(vertical = 12.dp)
                 ) {
                     Text(
-                        text = "내정보 변경하기",
-                        fontSize = 15.sp,  // 폰트 크기 약간 줄임
+                        text = "내 정보 수정하기", // 문구 수정
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Medium,
                         color = Color.White
                     )
@@ -214,28 +216,27 @@ fun ProfileScreen(
                     modifier = Modifier.padding(top = Spacing.md)
                 )
                 
-                // App Tour Button (앱 둘러보기)
+                // App Tour Button (앱 정보 보기)
                 Button(
                     onClick = onNavigateIntro,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(44.dp)
-                        .padding(top = Spacing.md),
+                        .padding(top = Spacing.md), // 고정 높이 제거하여 텍스트 길이에 대응
                     colors = ButtonDefaults.buttonColors(
                         containerColor = AppColors.LightBlue
                     ),
                     shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(vertical = 12.dp)
+                    contentPadding = PaddingValues(vertical = 14.dp) // 내부 여백 충분히 확보
                 ) {
                     Icon(
                         imageVector = Icons.Default.Info,
                         contentDescription = null,
                         tint = Color.White,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "앱 둘러보기",
+                        text = "앱 정보 보기", // 요청하신 문구로 변경
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Medium,
                         color = Color.White
@@ -312,6 +313,160 @@ fun ProfileScreen(
                 deletePassword = ""
             }
         )
+    }
+
+    // Edit Profile Dialog
+    if (showEditProfileDialog && profile != null) {
+        EditProfileDialog(
+            currentProfile = profile!!,
+            onDismiss = { showEditProfileDialog = false },
+            onSave = { nickname, region, jobStatus, interests ->
+                // TODO: 프로필 업데이트 API 호출
+                // 임시로 로컬 상태 업데이트
+                profile = profile!!.copy(
+                    nickname = nickname,
+                    region = region,
+                    jobStatus = jobStatus,
+                    interests = interests
+                )
+                showEditProfileDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun EditProfileDialog(
+    currentProfile: UserProfileResponse,
+    onDismiss: () -> Unit,
+    onSave: (String, String, String, List<String>) -> Unit
+) {
+    var nickname by remember { mutableStateOf(currentProfile.nickname ?: "") }
+    var region by remember { mutableStateOf(currentProfile.region ?: "") }
+    var jobStatus by remember { mutableStateOf(currentProfile.jobStatus ?: "") }
+    // 관심사는 리스트로 관리 (콤마로 구분된 문자열 처리)
+    var interests by remember { mutableStateOf(currentProfile.interests) }
+
+    val jobOptions = listOf("대학생", "취업준비생", "재직자", "창업", "기타")
+    val interestOptions = listOf("일자리", "주거", "복지문화", "교육")
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 600.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(Spacing.md)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Text(
+                    text = "내 정보 수정",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = AppColors.TextPrimary,
+                    modifier = Modifier.padding(bottom = Spacing.md)
+                )
+
+                // 닉네임
+                OutlinedTextField(
+                    value = nickname,
+                    onValueChange = { nickname = it },
+                    label = { Text("닉네임") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                Spacer(modifier = Modifier.height(Spacing.md))
+
+                // 거주 지역
+                OutlinedTextField(
+                    value = region,
+                    onValueChange = { region = it },
+                    label = { Text("거주 지역 (예: 경기도 수원시)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                Spacer(modifier = Modifier.height(Spacing.md))
+
+                // 취업 상태 (Dropdown 또는 RadioButton)
+                Text("취업 상태", fontSize = 14.sp, color = AppColors.TextSecondary)
+                Spacer(modifier = Modifier.height(Spacing.xs))
+                Column {
+                    jobOptions.forEach { option ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { jobStatus = option }
+                                .padding(vertical = 4.dp)
+                        ) {
+                            RadioButton(
+                                selected = (jobStatus == option),
+                                onClick = { jobStatus = option }
+                            )
+                            Text(text = option, fontSize = 14.sp)
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(Spacing.md))
+
+                // 관심사 (Checkbox)
+                Text("관심 분야 (중복 선택 가능)", fontSize = 14.sp, color = AppColors.TextSecondary)
+                Spacer(modifier = Modifier.height(Spacing.xs))
+                Column {
+                    interestOptions.forEach { option ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    if (interests.contains(option)) {
+                                        interests = interests - option
+                                    } else {
+                                        interests = interests + option
+                                    }
+                                }
+                                .padding(vertical = 4.dp)
+                        ) {
+                            Checkbox(
+                                checked = interests.contains(option),
+                                onCheckedChange = { checked ->
+                                    if (checked) {
+                                        interests = interests + option
+                                    } else {
+                                        interests = interests - option
+                                    }
+                                }
+                            )
+                            Text(text = option, fontSize = 14.sp)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(Spacing.lg))
+
+                // 버튼
+                Row(
+                    horizontalArrangement = Arrangement.End,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("취소")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = { onSave(nickname, region, jobStatus, interests) },
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.TextPrimary)
+                    ) {
+                        Text("저장", color = Color.White)
+                    }
+                }
+            }
+        }
     }
 }
 
