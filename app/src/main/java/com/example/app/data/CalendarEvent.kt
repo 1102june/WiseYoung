@@ -28,6 +28,8 @@ data class CalendarEvent(
     
     val housingId: String? = null, // 임대주택 ID (서버 동기화용)
     
+    val serverEventId: Long? = null, // 서버 캘린더 이벤트 ID (서버 삭제용)
+    
     val notificationSettings: String? = null, // 알림 설정 JSON 문자열
     
     val synced: Boolean = false, // 서버 동기화 여부

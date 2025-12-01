@@ -20,8 +20,14 @@ android {
     }
 
     buildTypes {
+        debug {
+            // 개발 환경: 로컬 서버 사용
+            buildConfigField("String", "BASE_URL", "\"http://127.0.0.1:8080/\"")
+        }
         release {
             isMinifyEnabled = false
+            // 배포 환경: 실제 서버 사용
+            buildConfigField("String", "BASE_URL", "\"http://210.104.76.139:8080/\"")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -38,6 +44,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true  // BuildConfig 사용 활성화
     }
 
     composeOptions {

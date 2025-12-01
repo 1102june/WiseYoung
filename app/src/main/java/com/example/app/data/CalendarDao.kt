@@ -39,6 +39,12 @@ interface CalendarDao {
      */
     @Query("SELECT * FROM calendar_events WHERE eventType = :eventType ORDER BY endDate ASC")
     suspend fun getEventsByType(eventType: EventType): List<CalendarEvent>
+
+    /**
+     * ID로 일정 조회
+     */
+    @Query("SELECT * FROM calendar_events WHERE id = :id")
+    suspend fun getEventById(id: Long): CalendarEvent?
     
     /**
      * ID로 일정 조회

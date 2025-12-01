@@ -47,6 +47,25 @@ interface ApiService {
     @POST("auth/push-token")
     suspend fun savePushToken(@Body request: PushTokenRequest): Response<ApiResponse<String>>
     
+    /**
+     * 로그아웃
+     * POST /auth/logout
+     */
+    @POST("auth/logout")
+    suspend fun logout(
+        @Header("X-User-Id") userId: String
+    ): Response<ApiResponse<String>>
+    
+    /**
+     * 회원탈퇴
+     * DELETE /auth/account
+     */
+    @DELETE("auth/account")
+    suspend fun deleteAccount(
+        @Header("X-User-Id") userId: String,
+        @Body request: DeleteAccountRequest
+    ): Response<ApiResponse<String>>
+    
     // ========== OTP (이메일 인증) ==========
     
     /**
@@ -272,5 +291,15 @@ interface ApiService {
         @Query("year") year: Int,
         @Query("month") month: Int
     ): Response<ApiResponse<List<CalendarEventResponse>>>
+
+    /**
+     * 일정 삭제
+     * DELETE /api/calendar/{eventId}
+     */
+    @DELETE("api/calendar/{eventId}")
+    suspend fun deleteCalendarEvent(
+        @Header("X-User-Id") userId: String,
+        @Path("eventId") eventId: Long
+    ): Response<ApiResponse<Unit>>
 }
 
