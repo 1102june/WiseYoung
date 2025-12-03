@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.platform.LocalContext
 import com.example.app.data.model.ChatRequest
 import com.example.app.data.model.ChatResponse
 import com.example.app.network.NetworkModule
@@ -43,7 +44,8 @@ data class ChatMessage(
     val id: Int,
     val text: String,
     val sender: MessageSender,
-    val timestamp: Date = Date()
+    val timestamp: Date = Date(),
+    val actionLink: ChatResponse.ActionLink? = null
 )
 
 enum class MessageSender {
@@ -102,6 +104,7 @@ private fun ChatbotContent(
         )
     }
     
+    var isLoading by remember { mutableStateOf(false) }
     var inputValue by remember { mutableStateOf("") }
     val scrollState = rememberScrollState()
     val coroutineScope = rememberCoroutineScope()
@@ -175,6 +178,7 @@ private fun ChatbotContent(
             ChatbotHeader(onClose = onClose)
             
             // Messages
+            val context = LocalContext.current
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -184,7 +188,21 @@ private fun ChatbotContent(
                 verticalArrangement = Arrangement.spacedBy(Spacing.md)
             ) {
                 messages.forEach { message ->
-                    MessageBubble(message = message)
+                    MessageBubble(
+                        message = message,
+                        onActionLinkClick = { link ->
+                            // URL이 있으면 웹 브라우저로 열기
+                            link.url?.let { url ->
+                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                                context.startActivity(intent)
+                            }
+                        }
+                    )
+                }
+                
+                // 로딩 상태 표시
+                if (isLoading) {
+                    LoadingMessage()
                 }
             }
             
@@ -204,7 +222,8 @@ private fun ChatbotContent(
                         messages,
                         coroutineScope,
                         userId,
-                        onMessagesChange = { messages = it }
+                        onMessagesChange = { messages = it },
+                        onLoadingChange = { isLoading = it }
                     )
                 }
             )
@@ -222,7 +241,8 @@ private fun ChatbotContent(
                             messages,
                             coroutineScope,
                             userId,
-                            onMessagesChange = { messages = it }
+                            onMessagesChange = { messages = it },
+                            onLoadingChange = { isLoading = it }
                         )
                         inputValue = ""
                     }
@@ -284,7 +304,10 @@ private fun ChatbotHeader(onClose: () -> Unit) {
 }
 
 @Composable
-private fun MessageBubble(message: ChatMessage) {
+private fun MessageBubble(
+    message: ChatMessage,
+    onActionLinkClick: (ChatResponse.ActionLink) -> Unit = {}
+) {
     val isUser = message.sender == MessageSender.USER
     val dateFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
     
@@ -317,17 +340,86 @@ private fun MessageBubble(message: ChatMessage) {
                 .padding(Spacing.md)
         ) {
             Column {
-                Text(
-                    text = message.text,
-                    fontSize = 14.sp,
-                    color = if (isUser) Color.White else AppColors.TextPrimary,
-                    lineHeight = 20.sp
-                )
+                // 텍스트를 줄바꿈으로 분리하여 각 정책/주택별로 표시
+                val paragraphs = message.text.split("\n\n").filter { it.isNotBlank() }
+                paragraphs.forEachIndexed { index, paragraph ->
+                    if (index > 0) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                    Text(
+                        text = paragraph.trim(),
+                        fontSize = 14.sp,
+                        color = if (isUser) Color.White else AppColors.TextPrimary,
+                        lineHeight = 20.sp
+                    )
+                }
+                
+                // ActionLink가 있으면 클릭 가능한 버튼 표시
+                message.actionLink?.let { link ->
+                    Spacer(modifier = Modifier.height(8.dp))
+                    if (link.url != null && link.url.isNotBlank()) {
+                        Button(
+                            onClick = { onActionLinkClick(link) },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = AppColors.LightBlue
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.OpenInNew,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "신청하러 가기",
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                }
+                
                 Text(
                     text = dateFormat.format(message.timestamp),
                     fontSize = 11.sp,
                     color = if (isUser) Color.White.copy(alpha = 0.7f) else AppColors.TextTertiary,
                     modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LoadingMessage() {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Start
+    ) {
+        Box(
+            modifier = Modifier
+                .widthIn(max = 280.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(
+                    color = AppColors.Border,
+                    shape = RoundedCornerShape(16.dp)
+                )
+                .padding(Spacing.md)
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    strokeWidth = 2.dp,
+                    color = AppColors.LightBlue
+                )
+                Text(
+                    text = "사용자에 맞는 정보를 찾는 중입니다...",
+                    fontSize = 14.sp,
+                    color = AppColors.TextSecondary
                 )
             }
         }
@@ -438,7 +530,8 @@ private fun handleSend(
     currentMessages: List<ChatMessage>,
     coroutineScope: CoroutineScope,
     userId: String?,
-    onMessagesChange: (List<ChatMessage>) -> Unit
+    onMessagesChange: (List<ChatMessage>) -> Unit,
+    onLoadingChange: (Boolean) -> Unit
 ) {
     if (text.trim().isEmpty()) return
     
@@ -450,6 +543,7 @@ private fun handleSend(
     
     val updatedMessages = currentMessages + userMessage
     onMessagesChange(updatedMessages)
+    onLoadingChange(true)
     
     // Gemini API 호출
     coroutineScope.launch {
@@ -465,26 +559,31 @@ private fun handleSend(
             
             val response = NetworkModule.apiService.chat(userId, request)
             
+            onLoadingChange(false)
+            
             if (response.isSuccessful && response.body()?.success == true) {
                 val chatResponse = response.body()?.data
                 chatResponse?.let {
-                    val botMessage = ChatMessage(
-                        id = updatedMessages.size + 1,
-                        text = it.response,
-                        sender = MessageSender.BOT
-                    )
+                    // ActionLink가 있으면 각각을 별도 메시지로 표시
+                    var finalMessages = updatedMessages
                     
-                    var finalMessages = updatedMessages + botMessage
+                    // 응답 텍스트를 메시지로 추가
+                    if (it.response.isNotBlank()) {
+                        val botMessage = ChatMessage(
+                            id = updatedMessages.size + 1,
+                            text = it.response,
+                            sender = MessageSender.BOT
+                        )
+                        finalMessages = finalMessages + botMessage
+                    }
                     
-                    // ActionLink가 있으면 추가 메시지로 표시
-                    if (it.actionLinks.isNotEmpty()) {
-                        val linksText = it.actionLinks.joinToString("\n") { link ->
-                            "📌 ${link.title} (${link.type}: ${link.id})"
-                        }
+                    // ActionLink를 각각 별도 메시지로 표시 (클릭 가능한 버튼 포함)
+                    it.actionLinks.forEach { link ->
                         val linkMessage = ChatMessage(
                             id = finalMessages.size + 1,
-                            text = "관련 정보:\n$linksText",
-                            sender = MessageSender.BOT
+                            text = buildActionLinkText(link),
+                            sender = MessageSender.BOT,
+                            actionLink = link
                         )
                         finalMessages = finalMessages + linkMessage
                     }
@@ -501,6 +600,7 @@ private fun handleSend(
                 onMessagesChange(updatedMessages + errorMessage)
             }
         } catch (e: Exception) {
+            onLoadingChange(false)
             // 네트워크 오류 시 기본 응답
             val errorMessage = ChatMessage(
                 id = updatedMessages.size + 1,
@@ -509,6 +609,15 @@ private fun handleSend(
             )
             onMessagesChange(updatedMessages + errorMessage)
         }
+    }
+}
+
+private fun buildActionLinkText(link: ChatResponse.ActionLink): String {
+    val summary = link.summary?.takeIf { it.isNotBlank() } ?: ""
+    return if (summary.isNotBlank()) {
+        "${link.title}\n$summary"
+    } else {
+        link.title
     }
 }
 

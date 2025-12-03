@@ -338,12 +338,12 @@ fun PolicyListScreen(
             val response = com.example.app.network.NetworkModule.apiService.getRecommendedPolicies(
                 userId = userId,
                 category = categoryParam,
-                limit = 30  // 추천 정책만 받아오도록 limit 설정 (서버의 getPersonalizedPolicies에서 점수 계산 후 limit 적용)
+                limit = 100  // 맞춤 청년정책 화면에서는 100개까지 표시
             )
             if (response.isSuccessful && response.body()?.success == true) {
                 val policies = response.body()?.data ?: emptyList()
-                android.util.Log.d("PolicyListActivity", "추천 정책 받아옴: ${policies.size}개 (limit: 30, 프로필 있음: ${profile != null})")
-                if (policies.size > 30) {
+                android.util.Log.d("PolicyListActivity", "추천 정책 받아옴: ${policies.size}개 (limit: 100, 프로필 있음: ${profile != null})")
+                if (policies.size > 100) {
                     android.util.Log.w("PolicyListActivity", "⚠️ 서버에서 limit을 무시하고 전체 정책을 반환했습니다. 프로필이 없어서 전체 정책이 반환된 것으로 보입니다.")
                 }
                 // PolicyResponse를 PolicyItem으로 변환
@@ -417,7 +417,6 @@ fun PolicyListScreen(
                 currentScreen = "home",
                 onNavigateHome = onNavigateHome,
                 onNavigateCalendar = onNavigateCalendar,
-                onNavigateChatbot = onNavigateChatbot,
                 onNavigateBookmark = onNavigateBookmark,
                 onNavigateProfile = onNavigateProfile
             )
@@ -466,10 +465,20 @@ fun PolicyListScreen(
                         },
                         onHeartClick = {
                             if (!policy.isFavorite) {
+                                // 북마크 추가 (로컬 상태 즉시 업데이트)
+                                val updatedPolicies = policiesList.map { p ->
+                                    if (p.id == policy.id) p.copy(isFavorite = true) else p
+                                }
+                                policiesList = updatedPolicies
                                 selectedPolicy = policy
                                 showNotificationDialog = true
                             } else {
-                                // 북마크 제거
+                                // 북마크 제거 (로컬 상태 즉시 업데이트)
+                                val updatedPolicies = policiesList.map { p ->
+                                    if (p.id == policy.id) p.copy(isFavorite = false) else p
+                                }
+                                policiesList = updatedPolicies
+                                // 서버에 북마크 삭제 요청
                                 scope.launch {
                                     try {
                                         // 서버에서 북마크 목록 조회하여 해당 북마크 찾기
@@ -494,7 +503,7 @@ fun PolicyListScreen(
                                                     val refreshResponse = com.example.app.network.NetworkModule.apiService.getRecommendedPolicies(
                                                         userId = userId,
                                                         category = selectedCategory?.takeIf { it != "전체" },
-                                                        limit = 30
+                                                        limit = 100
                                                     )
                                                     if (refreshResponse.isSuccessful && refreshResponse.body()?.success == true) {
                                                         val policies = refreshResponse.body()?.data ?: emptyList()
@@ -616,7 +625,7 @@ fun PolicyListScreen(
             onNotificationsChange = { notifications = it },
             onSave = {
                 selectedPolicy?.let { policy ->
-                    // 북마크 상태 업데이트
+                    // 북마크 상태 업데이트 (이미 하트 클릭 시 업데이트됨)
                     bookmarkedPolicies = bookmarkedPolicies + policy.title
                     
                     // 서버에 북마크 저장

@@ -225,6 +225,31 @@ interface ApiService {
         @Query("lon") lon: Double? = null
     ): Response<ApiResponse<HousingResponse>>
     
+    /**
+     * 단지정보 목록 조회
+     * GET /api/housing/complexes
+     */
+    @GET("api/housing/complexes")
+    suspend fun getHousingComplexes(
+        @Header("X-User-Id") userId: String? = null,
+        @Query("userIdParam") userIdParam: String? = null,
+        @Query("lat") lat: Double? = null,
+        @Query("lon") lon: Double? = null,
+        @Query("radius") radius: Int? = null,
+        @Query("limit") limit: Int? = null
+    ): Response<ApiResponse<List<HousingComplexResponse>>>
+    
+    /**
+     * 공고문 목록 조회
+     * GET /api/housing/notices
+     */
+    @GET("api/housing/notices")
+    suspend fun getHousingNotices(
+        @Header("X-User-Id") userId: String? = null,
+        @Query("userIdParam") userIdParam: String? = null,
+        @Query("limit") limit: Int? = null
+    ): Response<ApiResponse<List<HousingNoticeResponse>>>
+    
     // ========== AI 추천 ==========
     
     /**

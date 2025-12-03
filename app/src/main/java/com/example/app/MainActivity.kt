@@ -59,8 +59,8 @@ class MainActivity : ComponentActivity() {
                         overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
                     },
                     onNavigateChatbot = {
-                        // HomeScreen 내부에서 이미 챗봇 다이얼로그를 관리하고 있음
-                        // BottomNavigationBar에서 호출 시 HomeScreen의 showChatbotDialog가 true로 설정됨
+                        // FloatingActionButton을 통해 챗봇 다이얼로그가 열림
+                        // HomeScreen 내부에서 handleChatbotClick으로 처리됨
                     },
                     onBack = {
                         val intent = Intent(this, LoginActivity::class.java)

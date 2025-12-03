@@ -182,7 +182,6 @@ fun HousingMapScreen(
     }
     
     // API 데이터
-    var housingList by remember { mutableStateOf<List<com.example.app.data.model.HousingResponse>>(emptyList()) }
     var apartmentsList by remember { mutableStateOf<List<ApartmentItem>>(emptyList()) }
     var announcementsList by remember { mutableStateOf<List<HousingAnnouncementItem>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
@@ -209,16 +208,15 @@ fun HousingMapScreen(
         )
     }
     
-    // 주택 목록 로드
+    // 주택 목록 로드 (단지 정보와 공고 정보를 분리된 API로 호출)
     LaunchedEffect(userId) {
         isLoading = true
         errorMessage = null
         
-        // 실제 서버 데이터 사용 (Mock 데이터 제거)
         try {
-            // 사용자 프로필/지역을 고려한 맞춤 임대주택 추천 목록 조회
-            val recommendedResponse = com.example.app.network.NetworkModule.apiService
-                .getRecommendedHousing(
+            // 단지 정보 조회 (housing 탭용)
+            val complexesResponse = com.example.app.network.NetworkModule.apiService
+                .getHousingComplexes(
                     userId = userId,
                     userIdParam = null,
                     lat = null,
@@ -226,112 +224,130 @@ fun HousingMapScreen(
                     radius = null,
                     limit = 50
                 )
-
-            if (recommendedResponse.isSuccessful && recommendedResponse.body()?.success == true) {
-                housingList = recommendedResponse.body()?.data ?: emptyList()
-            } else {
-                errorMessage = recommendedResponse.body()?.message ?: "주택 목록을 불러올 수 없습니다."
-                housingList = emptyList()
-            }
-
-            // HousingResponse를 ApartmentItem으로 변환 (안전한 변환)
-            apartmentsList = try {
-                housingList.mapIndexed { index, housing ->
-                    // housingId가 null인 경우 경고 로그 출력
-                    if (housing.housingId.isNullOrBlank()) {
-                        android.util.Log.w("HousingMapActivity", "⚠️ 서버에서 받은 데이터에 housingId가 없습니다: housing.name=${housing.name}")
+            
+            if (complexesResponse.isSuccessful && complexesResponse.body()?.success == true) {
+                val complexes = complexesResponse.body()?.data ?: emptyList()
+                android.util.Log.d("HousingMapActivity", "단지 정보 조회 성공: ${complexes.size}개")
+                
+                // HousingComplexResponse를 ApartmentItem으로 변환
+                apartmentsList = try {
+                    complexes.mapIndexed { index, complex ->
+                        ApartmentItem(
+                            id = index + 1,
+                            housingId = complex.complexId,
+                            name = complex.hsmpNm ?: "",
+                            distance = complex.distanceFromUser?.let { 
+                                try {
+                                    "${(it / 1000).toInt()}km"
+                                } catch (e: Exception) {
+                                    "거리 정보 없음"
+                                }
+                            } ?: "거리 정보 없음",
+                            deposit = try { (complex.deposit ?: 0) / 10000 } catch (e: Exception) { 0 },
+                            depositDisplay = try { "${(complex.deposit ?: 0) / 10000}만원" } catch (e: Exception) { "0만원" },
+                            monthlyRent = try { (complex.monthlyRent ?: 0) / 10000 } catch (e: Exception) { 0 },
+                            monthlyRentDisplay = try { "${(complex.monthlyRent ?: 0) / 10000}만원" } catch (e: Exception) { "0만원" },
+                            deadline = "", // 단지 정보에는 마감일이 없음
+                            address = complex.rnAdres ?: "",
+                            area = try { (complex.supplyArea?.toInt() ?: 0) } catch (e: Exception) { 0 },
+                            completionDate = complex.completeDate ?: "",
+                            organization = complex.insttNm ?: "",
+                            count = 0,
+                            region = complex.signguNm ?: complex.brtcNm ?: "",
+                            housingType = complex.houseTyNm ?: complex.suplyTyNm ?: "",
+                            heatingType = complex.heatMthdDetailNm ?: "",
+                            hasElevator = complex.elevator ?: false,
+                            parkingSpaces = complex.parkingSpaces ?: 0,
+                            convertibleDeposit = "",
+                            totalUnits = complex.totalUnits ?: 0,
+                            link = null, // 단지 정보에는 링크가 없음
+                            latitude = complex.latitude,
+                            longitude = complex.longitude
+                        )
                     }
-                    
-                    ApartmentItem(
-                        id = index + 1,
-                        housingId = housing.housingId, // 실제 임대주택 ID 저장
-                        name = housing.name,
-                        distance = housing.distanceFromUser?.let { 
-                            try {
-                                "${(it / 1000).toInt()}km"
-                            } catch (e: Exception) {
-                                "거리 정보 없음"
-                            }
-                        } ?: "거리 정보 없음",
-                        deposit = try { (housing.deposit ?: 0) / 10000 } catch (e: Exception) { 0 }, // 만원 단위
-                        depositDisplay = try { "${(housing.deposit ?: 0) / 10000}만원" } catch (e: Exception) { "0만원" },
-                        monthlyRent = try { (housing.monthlyRent ?: 0) / 10000 } catch (e: Exception) { 0 }, // 만원 단위
-                        monthlyRentDisplay = try { "${(housing.monthlyRent ?: 0) / 10000}만원" } catch (e: Exception) { "0만원" },
-                        deadline = housing.applicationEnd?.take(10)?.replace("-", ".") ?: "",
-                        address = housing.address ?: "",
-                        area = try { (housing.supplyArea?.toInt() ?: 0) } catch (e: Exception) { 0 },
-                        completionDate = housing.completeDate ?: "",
-                        organization = housing.organization ?: "",
-                        count = 0,
-                        region = extractRegionFromAddress(housing.address ?: ""),
-                        housingType = housing.housingType ?: "",
-                        heatingType = housing.heatingType ?: "",
-                        hasElevator = housing.elevator ?: false,
-                        parkingSpaces = housing.parkingSpaces ?: 0,
-                        convertibleDeposit = "",
-                        totalUnits = housing.totalUnits ?: 0,
-                        link = housing.link, // 신청 링크 추가
-                        latitude = housing.latitude, // 위도
-                        longitude = housing.longitude // 경도
-                    )
+                } catch (e: Exception) {
+                    android.util.Log.e("HousingMapActivity", "ApartmentItem 변환 오류: ${e.message}", e)
+                    emptyList()
                 }
-            } catch (e: Exception) {
-                android.util.Log.e("HousingMapActivity", "ApartmentItem 변환 오류: ${e.message}", e)
-                emptyList()
+            } else {
+                android.util.Log.e("HousingMapActivity", "단지 정보 조회 실패: ${complexesResponse.body()?.message}")
+                apartmentsList = emptyList()
             }
             
-            // HousingResponse를 HousingAnnouncementItem으로 변환 (공고 탭용, 안전한 변환)
-            announcementsList = try {
-                housingList.mapIndexed { index, housing ->
-                    val region = extractRegionFromAddress(housing.address ?: "")
-                    val applicationStart = housing.applicationStart?.take(10)?.replace("-", ".") ?: ""
-                    val applicationEnd = housing.applicationEnd?.take(10)?.replace("-", ".") ?: ""
-                    val now = Calendar.getInstance()
-                    val deadlineDate = try {
-                        if (applicationEnd.isNotEmpty()) {
-                            val dateFormat = SimpleDateFormat("yyyy.MM.dd", Locale.getDefault())
-                            dateFormat.parse(applicationEnd)
-                        } else null
-                    } catch (e: Exception) { null }
-                    
-                    val status = when {
-                        deadlineDate == null -> "예정"
-                        deadlineDate.before(now.time) -> "마감"
-                        else -> "접수중"
+            // 공고 정보 조회 (announcement 탭용)
+            val noticesResponse = com.example.app.network.NetworkModule.apiService
+                .getHousingNotices(
+                    userId = userId,
+                    userIdParam = null,
+                    limit = 50
+                )
+            
+            if (noticesResponse.isSuccessful && noticesResponse.body()?.success == true) {
+                val notices = noticesResponse.body()?.data ?: emptyList()
+                android.util.Log.d("HousingMapActivity", "공고 정보 조회 성공: ${notices.size}개")
+                
+                // HousingNoticeResponse를 HousingAnnouncementItem으로 변환
+                announcementsList = try {
+                    notices.mapIndexed { index, notice ->
+                        val region = notice.cnpCdNm ?: ""
+                        val applicationStart = notice.applicationStart?.take(10)?.replace("-", ".") ?: ""
+                        val applicationEnd = notice.applicationEnd?.take(10)?.replace("-", ".") ?: ""
+                        val now = Calendar.getInstance()
+                        val deadlineDate = try {
+                            if (applicationEnd.isNotEmpty()) {
+                                val dateFormat = SimpleDateFormat("yyyy.MM.dd", Locale.getDefault())
+                                dateFormat.parse(applicationEnd)
+                            } else null
+                        } catch (e: Exception) { null }
+                        
+                        val status = when {
+                            deadlineDate == null -> "예정"
+                            deadlineDate.before(now.time) -> "마감"
+                            else -> "접수중"
+                        }
+                        
+                        // 매칭된 단지 정보가 있으면 그 정보 사용, 없으면 공고 정보 사용
+                        val matchedComplex = notice.matchedComplex
+                        val supplyArea = matchedComplex?.supplyArea ?: 0.0
+                        val deposit = matchedComplex?.deposit ?: 0
+                        val monthlyRent = matchedComplex?.monthlyRent ?: 0
+                        val totalUnits = matchedComplex?.totalUnits ?: 0
+                        
+                        HousingAnnouncementItem(
+                            id = index + 1,
+                            title = notice.panNm ?: "${region} 입주자 모집",
+                            organization = matchedComplex?.insttNm ?: "",
+                            region = region,
+                            housingType = matchedComplex?.houseTyNm ?: notice.aisTpCdNm ?: "",
+                            status = status,
+                            deadline = applicationEnd,
+                            recruitmentPeriod = if (applicationStart.isNotEmpty() && applicationEnd.isNotEmpty()) {
+                                "$applicationStart ~ $applicationEnd"
+                            } else {
+                                applicationEnd
+                            },
+                            address = matchedComplex?.rnAdres ?: "",
+                            totalUnits = totalUnits,
+                            area = try { "${supplyArea.toInt()}㎡" } catch (e: Exception) { "0㎡" },
+                            deposit = try { deposit / 10000 } catch (e: Exception) { 0 },
+                            depositDisplay = try { "${deposit / 10000}만원" } catch (e: Exception) { "0만원" },
+                            monthlyRent = try { monthlyRent / 10000 } catch (e: Exception) { 0 },
+                            monthlyRentDisplay = try { "${monthlyRent / 10000}만원" } catch (e: Exception) { "0만원" },
+                            announcementDate = applicationStart,
+                            link = notice.dtlUrl
+                        )
                     }
-                    
-                    HousingAnnouncementItem(
-                        id = index + 1,
-                        title = "${region} ${housing.housingType ?: ""} 입주자 모집",
-                        organization = housing.organization ?: "",
-                        region = region,
-                        housingType = housing.housingType ?: "",
-                        status = status,
-                        deadline = applicationEnd,
-                        recruitmentPeriod = if (applicationStart.isNotEmpty() && applicationEnd.isNotEmpty()) {
-                            "$applicationStart ~ $applicationEnd"
-                        } else {
-                            applicationEnd
-                        },
-                        address = housing.address ?: "",
-                        totalUnits = housing.totalUnits ?: 0,
-                        area = try { "${(housing.supplyArea?.toInt() ?: 0)}㎡" } catch (e: Exception) { "0㎡" },
-                        deposit = try { (housing.deposit ?: 0) / 10000 } catch (e: Exception) { 0 },
-                        depositDisplay = try { "${(housing.deposit ?: 0) / 10000}만원" } catch (e: Exception) { "0만원" },
-                        monthlyRent = try { (housing.monthlyRent ?: 0) / 10000 } catch (e: Exception) { 0 },
-                        monthlyRentDisplay = try { "${(housing.monthlyRent ?: 0) / 10000}만원" } catch (e: Exception) { "0만원" },
-                        announcementDate = applicationStart,
-                        link = housing.link // 신청 링크 추가
-                    )
+                } catch (e: Exception) {
+                    android.util.Log.e("HousingMapActivity", "HousingAnnouncementItem 변환 오류: ${e.message}", e)
+                    emptyList()
                 }
-            } catch (e: Exception) {
-                android.util.Log.e("HousingMapActivity", "HousingAnnouncementItem 변환 오류: ${e.message}", e)
-                emptyList()
+            } else {
+                android.util.Log.e("HousingMapActivity", "공고 정보 조회 실패: ${noticesResponse.body()?.message}")
+                announcementsList = emptyList()
             }
         } catch (e: Exception) {
             android.util.Log.e("HousingMapActivity", "주택 목록 로드 오류: ${e.message}", e)
             errorMessage = "네트워크 오류: ${e.message}"
-            housingList = emptyList()
             apartmentsList = emptyList()
             announcementsList = emptyList()
         } finally {
