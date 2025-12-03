@@ -15,15 +15,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.wiseyoung.app.LoginActivity
 import com.wiseyoung.app.RegisterActivity
-import com.example.app.ui.theme.WiseYoungTheme
+import com.example.app.ui.theme.ThemeWrapper
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.BorderStroke
 
 
 class AuthActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            WiseYoungTheme {
+            ThemeWrapper {
                 AuthScreen(
                     onLogin = {
                         val intent = Intent(this, LoginActivity::class.java)
@@ -48,11 +49,11 @@ fun AuthScreen(onLogin: () -> Unit, onRegister: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // WY 로고
+        // WY 로고 - 크게 표시
         Image(
             painter = painterResource(id = R.drawable.wy_logo),
             contentDescription = "WY Logo",
-            modifier = Modifier.size(100.dp)
+            modifier = Modifier.size(180.dp)  // 100.dp -> 180.dp로 크게 변경
         )
 
         Spacer(modifier = Modifier.height(32.dp))
@@ -69,19 +70,20 @@ fun AuthScreen(onLogin: () -> Unit, onRegister: () -> Unit) {
         Button(
             onClick = onLogin,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF59ABF7))  // 라이트 블루 (메인 컬러)
         ) {
             Text("로그인", color = Color.White)
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Button(
+        OutlinedButton(
             onClick = onRegister,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.outlinedButtonColors()
+            colors = ButtonDefaults.outlinedButtonColors(),
+            border = BorderStroke(1.dp, Color(0xFF59ABF7))  // 라이트 블루 테두리
         ) {
-            Text("회원가입", color = Color(0xFF8B5CF6))
+            Text("회원가입", color = Color(0xFF59ABF7))
         }
     }
 }

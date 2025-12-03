@@ -1,20 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    package="com.wiseyoung.app"> <!-- 수정된 부분 -->
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- 인터넷 권한 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 카카오맵 위치 권한 -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <application
+        android:name=".YouthApplication"
+        android:usesCleartextTraffic="true"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@mipmap/wy_logo"
         android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
+        android:roundIcon="@mipmap/wy_logo_foreground"
         android:supportsRtl="true"
         android:theme="@style/Theme.WiseYoung"
-        tools:targetApi="31">
+        tools:targetApi="31"
+        android:networkSecurityConfig="@xml/network_security_config"
+        >
+        
+        <!-- 카카오맵 API 키 (네이티브 앱 키 - Android SDK용) -->
+        <meta-data
+            android:name="com.kakao.sdk.AppKey"
+            android:value="a6d711e7786442c3aaf2b5596af9ae04" />
+        
+        <!-- 카카오맵 SDK 초기화 -->
+        <meta-data
+            android:name="com.kakao.maps.open.AppKey"
+            android:value="a6d711e7786442c3aaf2b5596af9ae04" />
 
-        <!-- SplashActivity -->
+        <!-- SplashActivity (LAUNCHER) -->
         <activity
             android:name="com.wiseyoung.app.SplashActivity"
             android:exported="true"
@@ -25,11 +44,18 @@
             </intent-filter>
         </activity>
 
+        <!-- IntroActivity (앱 소개 화면) -->
+        <activity
+            android:name="com.wiseyoung.app.IntroActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WiseYoung.NoActionBar" />
+
         <!-- WelcomeActivity -->
         <activity
             android:name="com.wiseyoung.app.WelcomeActivity"
-            android:exported="true"
+            android:exported="false"
             android:theme="@style/Theme.WiseYoung" />
+
 
         <!-- AuthActivity (로그인 / 회원가입 화면) -->
         <activity
@@ -41,10 +67,81 @@
             android:name="com.wiseyoung.app.LoginActivity"
             android:exported="false" />
 
+        <!-- PasswordResetActivity (비밀번호 찾기 화면) -->
+        <activity
+            android:name="com.wiseyoung.app.PasswordResetActivity"
+            android:exported="false" />
+
         <!-- RegisterActivity (회원가입 화면) -->
         <activity
             android:name="com.wiseyoung.app.RegisterActivity"
             android:exported="false" />
+        <!-- MainActivity (로그인 이후 홈) -->
+        <activity
+            android:name="com.wiseyoung.app.MainActivity"
+            android:exported="false" />
+
+        <!-- ProfileSetupActivity (최초 Google 로그인 프로필) -->
+        <activity
+            android:name="com.wiseyoung.app.ProfileSetupActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WiseYoung.NoActionBar" />
+
+        <!-- CompleteActivity (프로필 완료 후 시작 화면) -->
+        <activity
+            android:name="com.wiseyoung.app.CompleteActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WiseYoung.NoActionBar" />
+
+        <!-- NotificationActivity (알림 화면) -->
+        <activity
+            android:name="com.wiseyoung.app.NotificationActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WiseYoung.NoActionBar" />
+
+        <!-- BookmarkActivity (북마크 화면) -->
+        <activity
+            android:name="com.wiseyoung.app.BookmarkActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WiseYoung.NoActionBar" />
+
+        <!-- CalendarActivity (캘린더 화면) -->
+        <activity
+            android:name="com.wiseyoung.app.CalendarActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WiseYoung.NoActionBar" />
+
+        <!-- ProfileActivity (프로필 화면) -->
+        <activity
+            android:name="com.wiseyoung.app.ProfileActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WiseYoung.NoActionBar" />
+
+        <!-- PolicyListActivity (정책 리스트 화면) -->
+        <activity
+            android:name="com.wiseyoung.app.PolicyListActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WiseYoung.NoActionBar" />
+
+        <!-- HousingMapActivity (임대주택 추천 화면) -->
+        <activity
+            android:name="com.wiseyoung.app.HousingMapActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WiseYoung.NoActionBar" />
+
+
+        <!-- FCM Service -->
+        <service
+            android:name="com.example.app.MyFirebaseMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
     </application>
+
+    <!-- 알림 권한 (Android 13 이상) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
 </manifest>
