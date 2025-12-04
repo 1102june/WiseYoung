@@ -804,7 +804,7 @@ private fun NicknameSection(
         OutlinedTextField(
             value = nickname,
             onValueChange = onNicknameChange,
-            placeholder = { Text("닉네임을 입력하세요") },
+            placeholder = { Text("닉네임", fontSize = 7.sp) },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(48.dp)

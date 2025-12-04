@@ -1,6 +1,5 @@
 package com.wiseyoung.app
 
-import androidx.compose.ui.tooling.preview.Preview
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
@@ -32,27 +31,17 @@ import com.example.app.ui.theme.Spacing
 import com.example.app.ui.theme.ThemeWrapper
 import com.example.app.ui.components.BottomNavigationBar
 import com.example.app.ui.components.ElevatedCard
-import com.example.app.ui.components.PrimaryButton
-import com.example.app.ui.components.SecondaryButton
-import androidx.compose.ui.platform.LocalContext
+import com.example.app.network.NetworkModule
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import androidx.compose.runtime.LaunchedEffect
-import com.example.app.network.NetworkModule
-import com.example.app.data.model.BookmarkResponse
 import android.util.Log
 import com.wiseyoung.app.PolicyItem
 import com.wiseyoung.app.ApartmentItem
-import com.wiseyoung.app.PolicyCard
-import com.wiseyoung.app.ApartmentCard
-import com.wiseyoung.app.PolicyDetailDialog
-import com.wiseyoung.app.ApartmentDetailDialog
-import com.example.app.data.CalendarRepository
-import com.example.app.data.CalendarEvent
-import com.example.app.data.EventType
+import androidx.compose.ui.tooling.preview.Preview
 
 // 북마크 데이터 모델
 data class BookmarkItem(
@@ -120,10 +109,9 @@ fun BookmarkScreen(
     onNavigateProfile: () -> Unit,
     onNavigateChatbot: () -> Unit
 ) {
-    val context = LocalContext.current
+    val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     var activeTab by remember { mutableStateOf("policy") }
-    var expandedCardId by remember { mutableStateOf<Int?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     
     // 상세 다이얼로그 상태
@@ -131,11 +119,6 @@ fun BookmarkScreen(
     var detailPolicy by remember { mutableStateOf<PolicyItem?>(null) }
     var showHousingDetailDialog by remember { mutableStateOf(false) }
     var detailHousing by remember { mutableStateOf<ApartmentItem?>(null) }
-    
-    // 북마크 상태 (서버 + 로컬 병합)
-    var bookmarks by remember {
-        mutableStateOf<List<BookmarkItem>>(emptyList())
-    }
     
     // 정책과 임대주택 아이템으로 변환 (기존 카드 컴포넌트 재사용용)
     var policyItems by remember {
@@ -146,44 +129,35 @@ fun BookmarkScreen(
         mutableStateOf<List<ApartmentItem>>(emptyList())
     }
     
-    // PolicyItem.id와 ApartmentItem.id에 이미 bookmarkId가 저장되어 있음
-    
     // 서버에서 북마크 가져오기 (상세 정보 포함)
     LaunchedEffect(userId) {
         Log.d("BookmarkActivity", "북마크 로딩 시작: userId=$userId")
         isLoading = true
         try {
             // 정책 북마크 가져오기
-            Log.d("BookmarkActivity", "정책 북마크 API 호출 시작")
             val policyResponse = NetworkModule.apiService.getBookmarks(
                 userId = userId,
                 contentType = "policy"
             )
-            Log.d("BookmarkActivity", "정책 북마크 API 응답: isSuccessful=${policyResponse.isSuccessful}, code=${policyResponse.code()}")
             
             // 임대주택 북마크 가져오기
-            Log.d("BookmarkActivity", "임대주택 북마크 API 호출 시작")
             val housingResponse = NetworkModule.apiService.getBookmarks(
                 userId = userId,
                 contentType = "housing"
             )
-            Log.d("BookmarkActivity", "임대주택 북마크 API 응답: isSuccessful=${housingResponse.isSuccessful}, code=${housingResponse.code()}")
             
-            val (bookmarksList, policiesList, apartmentsList) = coroutineScope {
-                val bookmarksList = mutableListOf<BookmarkItem>()
+            val (policiesList, apartmentsList) = coroutineScope {
                 val policiesList = mutableListOf<Pair<Int, PolicyItem>>() // bookmarkId to PolicyItem
                 val apartmentsList = mutableListOf<Pair<Int, ApartmentItem>>() // bookmarkId to ApartmentItem
                 
                 // 정책 북마크 변환 (상세 정보 조회 및 PolicyItem 생성)
                 if (policyResponse.isSuccessful && policyResponse.body()?.success == true) {
                     val policyBookmarks = policyResponse.body()?.data ?: emptyList()
-                    Log.d("BookmarkActivity", "서버에서 정책 북마크 ${policyBookmarks.size}개 가져옴")
                     
                     if (policyBookmarks.isNotEmpty()) {
                         val policyItems = policyBookmarks.map { bookmarkResponse ->
                             async {
                                 try {
-                                    Log.d("BookmarkActivity", "정책 상세 정보 조회 시작: contentId=${bookmarkResponse.contentId}")
                                     val detailResponse = NetworkModule.apiService.getPolicyById(
                                         policyId = bookmarkResponse.contentId,
                                         userId = userId
@@ -192,7 +166,6 @@ fun BookmarkScreen(
                                     if (detailResponse.isSuccessful && detailResponse.body()?.success == true) {
                                         val policy = detailResponse.body()?.data
                                         if (policy != null) {
-                                            Log.d("BookmarkActivity", "정책 상세 정보 조회 성공: ${policy.title}")
                                             // PolicyItem으로 변환
                                             val policyItem = PolicyItem(
                                                 id = bookmarkResponse.bookmarkId,
@@ -214,44 +187,29 @@ fun BookmarkScreen(
                                             )
                                             Pair(bookmarkResponse.bookmarkId, policyItem)
                                         } else {
-                                            Log.w("BookmarkActivity", "정책 상세 정보가 null: contentId=${bookmarkResponse.contentId}")
                                             null
                                         }
                                     } else {
-                                        Log.w("BookmarkActivity", "정책 상세 정보 조회 실패: contentId=${bookmarkResponse.contentId}, code=${detailResponse.code()}")
                                         null
                                     }
                                 } catch (e: Exception) {
-                                    Log.e("BookmarkActivity", "정책 상세 정보 조회 실패: contentId=${bookmarkResponse.contentId}, ${e.message}", e)
                                     null
                                 }
                             }
                         }
                         val fetchedPolicies = policyItems.awaitAll().filterNotNull()
                         policiesList.addAll(fetchedPolicies)
-                        Log.d("BookmarkActivity", "정책 북마크 변환 완료: ${fetchedPolicies.size}/${policyBookmarks.size}개 성공")
-                    } else {
-                        Log.d("BookmarkActivity", "정책 북마크가 없습니다.")
                     }
-                } else {
-                    Log.w("BookmarkActivity", "정책 북마크 조회 실패: isSuccessful=${policyResponse.isSuccessful}, success=${policyResponse.body()?.success}, code=${policyResponse.code()}")
                 }
                 
                 // 임대주택 북마크 변환 (상세 정보 조회 및 ApartmentItem 생성)
                 if (housingResponse.isSuccessful && housingResponse.body()?.success == true) {
                     val housingBookmarks = housingResponse.body()?.data ?: emptyList()
-                    Log.d("BookmarkActivity", "✅ 서버에서 임대주택 북마크 ${housingBookmarks.size}개 가져옴")
                     
                     if (housingBookmarks.isNotEmpty()) {
-                        Log.d("BookmarkActivity", "임대주택 북마크 상세 정보 조회 시작 (병렬 처리):")
-                        housingBookmarks.forEach { bookmark ->
-                            Log.d("BookmarkActivity", "  - bookmarkId=${bookmark.bookmarkId}, contentId=${bookmark.contentId}, title=${bookmark.title}")
-                        }
-                        
                         val apartmentItems = housingBookmarks.map { bookmarkResponse ->
                             async {
                                 try {
-                                    Log.d("BookmarkActivity", "🔍 임대주택 상세 정보 조회 시작: contentId=${bookmarkResponse.contentId}")
                                     val detailResponse = NetworkModule.apiService.getHousingById(
                                         housingId = bookmarkResponse.contentId,
                                         userIdParam = userId
@@ -260,12 +218,6 @@ fun BookmarkScreen(
                                     if (detailResponse.isSuccessful && detailResponse.body()?.success == true) {
                                         val housing = detailResponse.body()?.data
                                         if (housing != null && !housing.name.isNullOrBlank()) {
-                                            Log.d("BookmarkActivity", "✅ 임대주택 상세 정보 조회 성공: name=${housing.name}, housingId=${housing.housingId}")
-                                            
-                                            // housingId가 null이면 경고 로그 출력
-                                            if (housing.housingId.isNullOrBlank()) {
-                                                Log.w("BookmarkActivity", "⚠️ 임대주택 상세 정보에 housingId가 없습니다: name=${housing.name}")
-                                            }
                                             
                                             // ApartmentItem으로 변환
                                             fun extractRegionFromAddress(address: String): String {
@@ -307,84 +259,41 @@ fun BookmarkScreen(
                                             )
                                             Pair(bookmarkResponse.bookmarkId, apartmentItem)
                                         } else {
-                                            Log.w("BookmarkActivity", "임대주택 상세 정보가 null이거나 이름이 없음: contentId=${bookmarkResponse.contentId}")
                                             null
                                         }
                                     } else {
-                                        val errorBody = try {
-                                            detailResponse.errorBody()?.string()
-                                        } catch (e: Exception) {
-                                            null
-                                        }
-                                        Log.w("BookmarkActivity", "❌ 임대주택 상세 정보 조회 실패: contentId=${bookmarkResponse.contentId}, 응답 코드=${detailResponse.code()}, errorBody=$errorBody")
-                                        Log.w("BookmarkActivity", "⚠️ contentId가 잘못되었을 수 있습니다. 이 북마크는 건너뜁니다.")
-                                        // 잘못된 북마크는 건너뛰기
                                         null
                                     }
                                 } catch (e: Exception) {
-                                    Log.e("BookmarkActivity", "❌ 임대주택 상세 정보 조회 예외 발생: contentId=${bookmarkResponse.contentId}, ${e.message}", e)
-                                    e.printStackTrace()
-                                    Log.w("BookmarkActivity", "⚠️ 예외 발생으로 인해 이 북마크는 건너뜁니다.")
-                                    // 예외 발생 시 북마크 건너뛰기
                                     null
                                 }
                             }
                         }
                         val fetchedApartments = apartmentItems.awaitAll().filterNotNull()
                         apartmentsList.addAll(fetchedApartments)
-                        Log.d("BookmarkActivity", "임대주택 북마크 변환 완료: ${fetchedApartments.size}/${housingBookmarks.size}개 성공")
-                    } else {
-                        Log.d("BookmarkActivity", "임대주택 북마크가 없습니다.")
                     }
-                } else {
-                    Log.w("BookmarkActivity", "임대주택 북마크 조회 실패: isSuccessful=${housingResponse.isSuccessful}, success=${housingResponse.body()?.success}, code=${housingResponse.code()}")
                 }
                 
-                Triple(bookmarksList, policiesList, apartmentsList) // coroutineScope 블록의 반환값
+                Pair(policiesList, apartmentsList)
             }
             
             // PolicyItem과 ApartmentItem 리스트 설정 (id에 이미 bookmarkId가 저장됨)
             policyItems = policiesList.map { it.second }
             apartmentItems = apartmentsList.mapNotNull { it.second }
             
-            Log.d("BookmarkActivity", "✅ 북마크 로딩 완료: 정책 ${policyItems.size}개, 임대주택 ${apartmentItems.size}개")
-            if (apartmentItems.isNotEmpty()) {
-                Log.d("BookmarkActivity", "임대주택 카드 목록:")
-                apartmentItems.forEach { apartment ->
-                    Log.d("BookmarkActivity", "  - id=${apartment.id}, housingId=${apartment.housingId}, name=${apartment.name}")
-                }
-            } else {
-                Log.w("BookmarkActivity", "⚠️ 임대주택 카드가 비어있습니다. apartmentsList.size=${apartmentsList.size}")
-            }
         } catch (e: Exception) {
             Log.e("BookmarkActivity", "서버에서 북마크 가져오기 실패: ${e.message}", e)
-            e.printStackTrace()
-            // 실패 시 빈 리스트로 설정
             policyItems = emptyList()
             apartmentItems = emptyList()
         } finally {
             isLoading = false
-            Log.d("BookmarkActivity", "북마크 로딩 종료: isLoading=false")
         }
     }
     
-    // SharedPreferences 변경 감지는 제거 (서버 북마크만 사용)
-    
-    Scaffold(
-        bottomBar = {
-            BottomNavigationBar(
-                currentScreen = "bookmark",
-                onNavigateHome = onNavigateHome,
-                onNavigateCalendar = onNavigateCalendar,
-                onNavigateBookmark = {},
-                onNavigateProfile = onNavigateProfile
-            )
-        }
-    ) { paddingValues ->
+    // Scaffold 제거 -> MainActivity에서 처리
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
                 .background(MaterialTheme.colorScheme.background)
         ) {
             // Header
@@ -412,15 +321,26 @@ fun BookmarkScreen(
                             )
                         } else {
                             policyItems.forEach { policy ->
-                                PolicyCard(
-                                    policy = policy,
-                                    isBookmarked = true,
+                                PolicyBookmarkCard(
+                                    bookmark = BookmarkItem(
+                                        id = policy.id,
+                                        type = BookmarkType.POLICY,
+                                        title = policy.title,
+                                        organization = policy.organization,
+                                        age = policy.age,
+                                        period = policy.period,
+                                        content = policy.content,
+                                        applicationMethod = policy.applicationMethod,
+                                        deadline = policy.deadline,
+                                        link = policy.link1 ?: policy.link2,
+                                        contentId = policy.policyId
+                                    ),
                                     onShowDetail = {
                                         // PolicyItem을 직접 전달
                                         detailPolicy = policy
                                         showPolicyDetailDialog = true
                                     },
-                                    onHeartClick = {
+                                    onRemoveBookmark = {
                                         // 북마크 삭제 (policy.id에 이미 bookmarkId가 저장됨)
                                         scope.launch {
                                             try {
@@ -449,10 +369,28 @@ fun BookmarkScreen(
                             )
                         } else {
                             apartmentItems.forEach { apartment ->
-                                ApartmentCard(
-                                    apartment = apartment,
-                                    isBookmarked = true,
-                                    onHeartClick = {
+                                HousingBookmarkCard(
+                                    bookmark = BookmarkItem(
+                                        id = apartment.id,
+                                        type = BookmarkType.HOUSING,
+                                        title = apartment.name,
+                                        organization = apartment.organization,
+                                        address = apartment.address,
+                                        deposit = apartment.depositDisplay,
+                                        monthlyRent = apartment.monthlyRentDisplay,
+                                        area = "${apartment.area}㎡",
+                                        completionDate = apartment.completionDate,
+                                        distance = apartment.distance,
+                                        deadline = apartment.deadline,
+                                        link = apartment.link,
+                                        contentId = apartment.housingId
+                                    ),
+                                    onShowDetail = {
+                                        // ApartmentItem을 직접 전달
+                                        detailHousing = apartment
+                                        showHousingDetailDialog = true
+                                    },
+                                    onRemoveBookmark = {
                                         // 북마크 삭제 (apartment.id에 이미 bookmarkId가 저장됨)
                                         scope.launch {
                                             try {
@@ -468,14 +406,8 @@ fun BookmarkScreen(
                                             }
                                         }
                                     },
-                                    onDetailClick = {
-                                        // ApartmentItem을 직접 전달
-                                        detailHousing = apartment
-                                        showHousingDetailDialog = true
-                                    },
                                     modifier = Modifier.padding(bottom = Spacing.sm)
                                 )
-                            }
                         }
                     }
                 }
@@ -483,15 +415,30 @@ fun BookmarkScreen(
         }
     }
     
-    // Policy Detail Dialog (PolicyListActivity의 다이얼로그 재사용)
+    
+    // Policy Detail Dialog
     if (showPolicyDetailDialog && detailPolicy != null) {
+        // PolicyItem을 BookmarkItem으로 변환하여 전달
+        val bookmarkItem = BookmarkItem(
+            id = detailPolicy!!.id,
+            type = BookmarkType.POLICY,
+            title = detailPolicy!!.title,
+            organization = detailPolicy!!.organization,
+            age = detailPolicy!!.age,
+            period = detailPolicy!!.period,
+            content = detailPolicy!!.content,
+            applicationMethod = detailPolicy!!.applicationMethod,
+            deadline = detailPolicy!!.deadline,
+            link = detailPolicy!!.link1 ?: detailPolicy!!.link2,
+            contentId = detailPolicy!!.policyId
+        )
+        
         PolicyDetailDialog(
-            policy = detailPolicy!!,
+            bookmark = bookmarkItem,
             onDismiss = { showPolicyDetailDialog = false },
             onApply = {
                 // 정책 신청 링크 처리
-                val policy = detailPolicy
-                val link = policy?.link1 ?: policy?.link2
+                val link = bookmarkItem.link
                 if (!link.isNullOrEmpty()) {
                     try {
                         val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(link))
@@ -507,36 +454,34 @@ fun BookmarkScreen(
         )
     }
     
-    // Housing Detail Dialog (HousingMapActivity의 다이얼로그 재사용)
+    // Housing Detail Dialog
     if (showHousingDetailDialog && detailHousing != null) {
-        ApartmentDetailDialog(
-            apartment = detailHousing!!,
-            isBookmarked = true,
-            onHeartClick = {
-                // 북마크 삭제
-                val apartment = detailHousing
-                scope.launch {
-                    try {
-                        NetworkModule.apiService.deleteBookmark(
-                            userId = userId,
-                            bookmarkId = apartment?.id ?: 0
-                        )
-                        Log.d("BookmarkActivity", "서버 북마크 삭제 성공: ${apartment?.id}")
-                        // 목록에서 제거
-                        apartmentItems = apartmentItems.filter { it.id != apartment?.id }
-                        showHousingDetailDialog = false
-                    } catch (e: Exception) {
-                        Log.e("BookmarkActivity", "서버 북마크 삭제 실패: ${e.message}", e)
-                    }
-                }
-            },
-            onClose = { showHousingDetailDialog = false },
+        // ApartmentItem을 BookmarkItem으로 변환하여 전달
+        val bookmarkItem = BookmarkItem(
+            id = detailHousing!!.id,
+            type = BookmarkType.HOUSING,
+            title = detailHousing!!.name,
+            organization = detailHousing!!.organization,
+            address = detailHousing!!.address,
+            deposit = detailHousing!!.depositDisplay,
+            monthlyRent = detailHousing!!.monthlyRentDisplay,
+            area = "${detailHousing!!.area}㎡",
+            completionDate = detailHousing!!.completionDate,
+            distance = detailHousing!!.distance,
+            deadline = detailHousing!!.deadline,
+            link = detailHousing!!.link,
+            contentId = detailHousing!!.housingId
+        )
+        
+        HousingDetailDialog(
+            bookmark = bookmarkItem,
+            onDismiss = { showHousingDetailDialog = false },
             onApply = {
                 // 임대주택 신청 링크 처리
-                val apartment = detailHousing
-                if (!apartment?.link.isNullOrEmpty()) {
+                val link = bookmarkItem.link
+                if (!link.isNullOrEmpty()) {
                     try {
-                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(apartment.link))
+                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(link))
                         context.startActivity(intent)
                     } catch (e: Exception) {
                         android.util.Log.e("BookmarkActivity", "링크 열기 실패: ${e.message}", e)
@@ -740,7 +685,7 @@ private fun PolicyBookmarkCard(
                 ) {
                     // 북마크 데이터에 category가 없으므로 organization을 카테고리로 표시
                     bookmark.organization?.let {
-                        CategoryTag(it)
+                        BookmarkCategoryTag(it)
                     }
                 }
                 
@@ -768,24 +713,6 @@ private fun PolicyBookmarkCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                }
-            }
-            
-            // 상세보기 버튼 (오른쪽 하단, 작게)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                Button(
-                    onClick = onShowDetail,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.onSurface
-                    ),
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                    modifier = Modifier.height(32.dp)
-                ) {
-                    Text("상세보기", color = Color.White, fontSize = 12.sp)
                 }
             }
         }
@@ -835,12 +762,23 @@ private fun HousingBookmarkCard(
                     Column(
                         verticalArrangement = Arrangement.spacedBy(Spacing.xs)
                     ) {
-                        bookmark.distance?.let {
+                        bookmark.address?.let {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.LocationOn,
+                                    contentDescription = "위치",
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
                             Text(
-                                text = "📍 사용자로부터 $it",
+                                    text = it,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            }
                         }
                         if (bookmark.deposit != null && bookmark.monthlyRent != null) {
                             Text(
@@ -855,24 +793,6 @@ private fun HousingBookmarkCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                }
-            }
-            
-            // 상세보기 버튼 (오른쪽 하단, 작게)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                Button(
-                    onClick = onShowDetail,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.onSurface
-                    ),
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                    modifier = Modifier.height(32.dp)
-                ) {
-                    Text("상세보기", color = Color.White, fontSize = 12.sp)
                 }
             }
         }
@@ -927,33 +847,33 @@ private fun PolicyDetailDialog(
                 Spacer(modifier = Modifier.height(Spacing.sm))
                 
                 bookmark.organization?.let {
-                    CategoryTag(it)
+                    BookmarkCategoryTag(it)
                 }
                 
                 Spacer(modifier = Modifier.height(Spacing.lg))
                 
                 bookmark.organization?.let {
-                    PolicyDetailRow("주관기관명", it)
+                    BookmarkPolicyDetailRow("주관기관명", it)
                     Spacer(modifier = Modifier.height(Spacing.sm))
                 }
                 bookmark.age?.let {
-                    PolicyDetailRow("연령", it)
+                    BookmarkPolicyDetailRow("연령", it)
                     Spacer(modifier = Modifier.height(Spacing.sm))
                 }
                 bookmark.period?.let {
-                    PolicyDetailRow("신청기간", it)
+                    BookmarkPolicyDetailRow("신청기간", it)
                     Spacer(modifier = Modifier.height(Spacing.sm))
                 }
                 bookmark.deadline.takeIf { it.isNotEmpty() }?.let {
-                    PolicyDetailRow("마감일", it)
+                    BookmarkPolicyDetailRow("마감일", it)
                     Spacer(modifier = Modifier.height(Spacing.sm))
                 }
                 bookmark.content?.let {
-                    PolicyDetailRow("정책내용", it)
+                    BookmarkPolicyDetailRow("정책내용", it)
                     Spacer(modifier = Modifier.height(Spacing.sm))
                 }
                 bookmark.applicationMethod?.let {
-                    PolicyDetailRow("신청방법", it)
+                    BookmarkPolicyDetailRow("신청방법", it)
                 }
                 
                 Spacer(modifier = Modifier.height(Spacing.xl))
@@ -962,31 +882,17 @@ private fun PolicyDetailDialog(
                     onClick = onApply,
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.Transparent
+                        containerColor = Color(0xFF59ABF7) // 메인 컬러로 변경
                     ),
-                    contentPadding = PaddingValues(0.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                brush = Brush.horizontalGradient(
-                                    colors = listOf(
-                                        Color(0xFF59ABF7), // 시작 색상
-                                        Color(0xFF59ABF7)  // 끝 색상 (단색 효과)
-                                    )
-                                ),
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            .padding(vertical = 12.dp)
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(vertical = 12.dp)
                     ) {
                         Text(
                             "신청하기",
-                            color = MaterialTheme.colorScheme.surface,
+                        color = Color.White,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                             modifier = Modifier.fillMaxWidth()
                         )
-                    }
                 }
             }
         }
@@ -1041,26 +947,26 @@ private fun HousingDetailDialog(
                 Spacer(modifier = Modifier.height(Spacing.lg))
                 
                 bookmark.address?.let {
-                    PolicyDetailRow("위치 / 주소", it)
+                    BookmarkPolicyDetailRow("위치 / 주소", it)
                     Spacer(modifier = Modifier.height(Spacing.sm))
                 }
                 if (bookmark.deposit != null && bookmark.monthlyRent != null) {
-                    PolicyDetailRow("가격", "보증금 ${bookmark.deposit} / 월세 ${bookmark.monthlyRent}")
+                    BookmarkPolicyDetailRow("가격", "보증금 ${bookmark.deposit} / 월세 ${bookmark.monthlyRent}")
                     Spacer(modifier = Modifier.height(Spacing.sm))
                 }
                 bookmark.area?.let {
-                    PolicyDetailRow("공급전용면적", it)
+                    BookmarkPolicyDetailRow("공급전용면적", it)
                     Spacer(modifier = Modifier.height(Spacing.sm))
                 }
                 bookmark.completionDate?.let {
-                    PolicyDetailRow("준공날짜", it)
+                    BookmarkPolicyDetailRow("준공날짜", it)
                     Spacer(modifier = Modifier.height(Spacing.sm))
                 }
                 bookmark.organization?.let {
-                    PolicyDetailRow("기관명", it)
+                    BookmarkPolicyDetailRow("기관명", it)
                     Spacer(modifier = Modifier.height(Spacing.sm))
                 }
-                PolicyDetailRow("마감날짜", bookmark.deadline)
+                BookmarkPolicyDetailRow("마감날짜", bookmark.deadline)
                 
                 Spacer(modifier = Modifier.height(Spacing.xl))
                 
@@ -1068,31 +974,17 @@ private fun HousingDetailDialog(
                     onClick = onApply,
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.Transparent
+                        containerColor = Color(0xFF59ABF7) // 메인 컬러로 변경
                     ),
-                    contentPadding = PaddingValues(0.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                brush = Brush.horizontalGradient(
-                                    colors = listOf(
-                                        Color(0xFF59ABF7), // 시작 색상
-                                        Color(0xFF59ABF7)  // 끝 색상 (단색 효과)
-                                    )
-                                ),
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            .padding(vertical = 12.dp)
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(vertical = 12.dp)
                     ) {
                         Text(
                             "신청하기",
-                            color = MaterialTheme.colorScheme.surface,
+                        color = Color.White,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                             modifier = Modifier.fillMaxWidth()
                         )
-                    }
                 }
             }
         }
@@ -1100,7 +992,7 @@ private fun HousingDetailDialog(
 }
 
 @Composable
-private fun CategoryTag(text: String) {
+private fun BookmarkCategoryTag(text: String) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
@@ -1117,7 +1009,7 @@ private fun CategoryTag(text: String) {
 }
 
 @Composable
-private fun PolicyDetailRow(label: String, value: String) {
+private fun BookmarkPolicyDetailRow(label: String, value: String) {
     Column {
         Text(
             text = label,
@@ -1132,4 +1024,3 @@ private fun PolicyDetailRow(label: String, value: String) {
         )
     }
 }
-

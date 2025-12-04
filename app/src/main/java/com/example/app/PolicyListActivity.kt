@@ -33,6 +33,10 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.layout.ContentScale
+import com.wiseyoung.app.R
 import com.example.app.NotificationSettings
 import com.example.app.service.CalendarService
 import com.example.app.ui.components.BottomNavigationBar
@@ -417,35 +421,49 @@ fun PolicyListScreen(
                 currentScreen = "home",
                 onNavigateHome = onNavigateHome,
                 onNavigateCalendar = onNavigateCalendar,
-                onNavigateChatbot = onNavigateChatbot,
                 onNavigateBookmark = onNavigateBookmark,
                 onNavigateProfile = onNavigateProfile
             )
         }
     ) { paddingValues ->
         val scrollState = rememberScrollState()
-        Column(
+        // 고정 배경 이미지 (스크롤해도 고정)
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .background(MaterialTheme.colorScheme.background)
-                .verticalScroll(scrollState)
         ) {
-            // Header Section (스크롤 가능하도록 이동)
-            PolicyListHeader(
+            // 배경 이미지 (고정)
+            Image(
+                painter = painterResource(id = R.drawable.policy_background),
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .matchParentSize(),
+                contentScale = ContentScale.Crop
+            )
+            
+            // 스크롤 가능한 콘텐츠
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scrollState)
+            ) {
+                // Header Section (스크롤 가능하도록 이동)
+                PolicyListHeader(
                 profile = profile,
                 onBack = onNavigateHome,
                 onSearch = { /* TODO: 검색 로직 */ },
                 searchQuery = searchQuery,
                 onSearchQueryChange = { searchQuery = it }
-            )
-            
-            // Content
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.md)
-            ) {
+                )
+                
+                // Content
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.md)
+                ) {
                 // Category Filter
                 CategoryFilterRow(
                     categories = categories,
@@ -493,7 +511,7 @@ fun PolicyListScreen(
                                                 try {
                                                     val refreshResponse = com.example.app.network.NetworkModule.apiService.getRecommendedPolicies(
                                                         userId = userId,
-                                                        category = selectedCategory?.takeIf { it != "전체" },
+                                                        category = if (selectedCategory != "전체") selectedCategory else null,
                                                         limit = 30
                                                     )
                                                     if (refreshResponse.isSuccessful && refreshResponse.body()?.success == true) {
@@ -538,7 +556,8 @@ fun PolicyListScreen(
             }
         }
     }
-    
+}
+
     // Policy Detail Dialog (팝업)
     if (showDetailDialog && detailPolicy != null) {
         PolicyDetailDialog(
@@ -662,7 +681,7 @@ fun PolicyListScreen(
 // NotificationSettings는 com.example.app.NotificationSettings를 사용
 
 @Composable
-private fun PolicyNotificationDialog(
+fun PolicyNotificationDialog(
     notifications: NotificationSettings,
     onNotificationsChange: (NotificationSettings) -> Unit,
     onSave: () -> Unit,
@@ -742,7 +761,7 @@ private fun PolicyNotificationDialog(
 }
 
 @Composable
-private fun NotificationSettingRow(
+fun NotificationSettingRow(
     label: String,
     enabled: Boolean,
     time: String,
@@ -773,7 +792,7 @@ private fun NotificationSettingRow(
 }
 
 @Composable
-private fun CustomNotificationRow(
+fun CustomNotificationRow(
     enabled: Boolean,
     days: Int,
     time: String,
@@ -823,7 +842,7 @@ private fun CustomNotificationRow(
 }
 
 @Composable
-private fun TimePickerSection(
+fun TimePickerSection(
     time: String,
     onTimeChange: (String) -> Unit
 ) {
@@ -888,7 +907,7 @@ private fun TimePickerSection(
 }
 
 @Composable
-private fun WheelPicker(
+fun WheelPicker(
     items: List<Int>,
     selectedValue: Int,
     onValueSelected: (Int) -> Unit,
@@ -973,7 +992,7 @@ private fun WheelPicker(
 }
 
 @Composable
-private fun PolicyListHeader(
+fun PolicyListHeader(
     profile: com.example.app.data.model.UserProfileResponse?,
     onBack: () -> Unit,
     onSearch: () -> Unit,
@@ -1013,12 +1032,12 @@ private fun PolicyListHeader(
         Spacer(modifier = Modifier.height(Spacing.sm)) // 간격 축소
         
         // User Info Card (간추려서 표시)
-        UserInfoCard(profile)
+        PolicyListUserInfoCard(profile)
         
         Spacer(modifier = Modifier.height(Spacing.md))
         
         // Search Bar (작게)
-        SearchBar(
+        PolicyListSearchBar(
             query = searchQuery,
             onQueryChange = onSearchQueryChange,
             onSearch = onSearch
@@ -1027,7 +1046,7 @@ private fun PolicyListHeader(
 }
 
 @Composable
-private fun UserInfoCard(profile: com.example.app.data.model.UserProfileResponse?) {
+fun PolicyListUserInfoCard(profile: com.example.app.data.model.UserProfileResponse?) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -1160,7 +1179,7 @@ private fun UserInfoCard(profile: com.example.app.data.model.UserProfileResponse
 }
 
 @Composable
-private fun SearchBar(
+fun PolicyListSearchBar(
     query: String,
     onQueryChange: (String) -> Unit,
     onSearch: () -> Unit
@@ -1189,7 +1208,7 @@ private fun SearchBar(
 }
 
 @Composable
-private fun UrgentAlertButton(
+fun UrgentAlertButton(
     count: Int,
     onClick: () -> Unit
 ) {
@@ -1233,7 +1252,7 @@ private fun UrgentAlertButton(
 }
 
 @Composable
-private fun CategoryFilterRow(
+fun CategoryFilterRow(
     categories: List<String>,
     selectedCategory: String,
     onCategorySelected: (String) -> Unit,
@@ -1308,7 +1327,9 @@ fun PolicyCard(
     modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable { onShowDetail() },
         shape = RoundedCornerShape(16.dp),
         border = androidx.compose.foundation.BorderStroke(2.dp, AppColors.Purple.copy(alpha = 0.5f)),
         colors = CardDefaults.cardColors(
@@ -1376,24 +1397,6 @@ fun PolicyCard(
             }
             
             Spacer(modifier = Modifier.height(Spacing.md))
-            
-            // 상세보기 버튼 (오른쪽 하단, 작게)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                Button(
-                    onClick = onShowDetail,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = AppColors.TextPrimary
-                    ),
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                    modifier = Modifier.height(32.dp)
-                ) {
-                    Text("상세보기", color = Color.White, fontSize = 12.sp)
-                }
-            }
         }
     }
 }
@@ -1470,31 +1473,17 @@ fun PolicyDetailDialog(
                     onClick = onApply,
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.Transparent
+                        containerColor = Color(0xFF59ABF7) // 메인 컬러로 변경
                     ),
-                    contentPadding = PaddingValues(0.dp)
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(vertical = 12.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                    brush = Brush.horizontalGradient(
-                                    colors = listOf(
-                                        Color(0xFF59ABF7), // 시작 색상
-                                        Color(0xFF59ABF7)  // 끝 색상 (단색 효과)
-                                    )
-                                ),
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            .padding(vertical = 12.dp)
-                    ) {
-                        Text(
-                            "신청하기",
-                            color = Color.White,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
+                    Text(
+                        "신청하기",
+                        color = Color.White,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
         }
@@ -1502,7 +1491,7 @@ fun PolicyDetailDialog(
 }
 
 @Composable
-private fun CategoryTag(text: String) {
+fun CategoryTag(text: String) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
@@ -1519,7 +1508,7 @@ private fun CategoryTag(text: String) {
 }
 
 @Composable
-private fun SupportTag(text: String) {
+fun SupportTag(text: String) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
@@ -1536,7 +1525,7 @@ private fun SupportTag(text: String) {
 }
 
 @Composable
-private fun PolicyDetailRow(label: String, value: String) {
+fun PolicyDetailRow(label: String, value: String) {
     Column {
         Text(
             text = label,
@@ -1553,7 +1542,7 @@ private fun PolicyDetailRow(label: String, value: String) {
 }
 
 @Composable
-private fun InterestTag(
+fun InterestTag(
     text: String,
     backgroundColor: Color,
     textColor: Color,
@@ -1575,7 +1564,7 @@ private fun InterestTag(
 }
 
 @Composable
-private fun UrgentPoliciesDialog(
+fun UrgentPoliciesDialog(
     policies: List<PolicyItem>,
     bookmarkedPolicies: Set<String>,
     onHeartClick: (PolicyItem) -> Unit,
@@ -1638,7 +1627,7 @@ private fun UrgentPoliciesDialog(
 }
 
 @Composable
-private fun UrgentPolicyCard(
+fun UrgentPolicyCard(
     policy: PolicyItem,
     daysLeft: Int,
     isBookmarked: Boolean,

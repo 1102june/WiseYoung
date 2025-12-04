@@ -44,6 +44,9 @@ import com.example.app.ui.components.ElevatedCard
 import com.example.app.service.CalendarService
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.geometry.Offset
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.example.app.network.NetworkModule
@@ -81,18 +84,26 @@ fun HomeScreen(
     var showNotificationDialog by remember { mutableStateOf(false) }
     var showDetailDialog by remember { mutableStateOf(false) }
     var showChatbotDialog by remember { mutableStateOf(false) }
+
+    // onNavigateChatbot이 호출되면 챗봇 다이얼로그 열기
+    val handleChatbotClick = { showChatbotDialog = true }
     var selectedPolicy by remember { mutableStateOf<PolicyRecommendation?>(null) }
     var detailPolicy by remember { mutableStateOf<PolicyRecommendation?>(null) }
     var isTransitioning by remember { mutableStateOf(false) }
     val context = LocalContext.current
     var bookmarkedPolicies by remember { mutableStateOf(setOf<String>()) }
     val coroutineScope = rememberCoroutineScope()
-    
+
+    // 챗봇 버튼 위치 상태 (드래그 가능하게 만들기 위해)
+    val density = LocalDensity.current
+    var chatbotOffsetX by remember { mutableStateOf(0f) }
+    var chatbotOffsetY by remember { mutableStateOf(0f) }
+
     // API 데이터
     var aiRecommendationsList by remember { mutableStateOf<List<PolicyRecommendation>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-    
+
     var notifications by remember {
         mutableStateOf(
             NotificationSettings(
@@ -106,7 +117,7 @@ fun HomeScreen(
             )
         )
     }
-    
+
     // 메인 페이지 데이터 로드 (AI 추천 정책은 항상 서버 데이터만 사용)
     LaunchedEffect(userId) {
         if (userId != null) {
@@ -114,27 +125,43 @@ fun HomeScreen(
             errorMessage = null
             try {
                 val response = com.example.app.network.NetworkModule.apiService.getMainPage(userId)
+                android.util.Log.d("HomeScreen", "getMainPage 응답: isSuccessful=${response.isSuccessful}, success=${response.body()?.success}")
                 if (response.isSuccessful && response.body()?.success == true) {
                     val mainPageData = response.body()?.data
+                    android.util.Log.d("HomeScreen", "mainPageData: ${mainPageData != null}, aiRecommendedPolicies: ${mainPageData?.aiRecommendedPolicies?.size ?: 0}개")
                     mainPageData?.aiRecommendedPolicies?.let { recommendations ->
-                        // AIRecommendationResponse를 PolicyRecommendation으로 변환
-                        aiRecommendationsList = recommendations.mapNotNull { rec ->
+                        android.util.Log.d("HomeScreen", "AI 추천 정책 ${recommendations.size}개 수신")
+                        // AIRecommendationResponse를 PolicyRecommendation으로 변환 (Top 5개만)
+                        aiRecommendationsList = recommendations.take(5).mapNotNull { rec ->
                             rec.policy?.let { policy ->
                                 PolicyRecommendation(
                                     id = rec.recId?.toInt() ?: 0,
                                     title = policy.title,
-                                    date = "${policy.ageStart ?: 0}-${policy.ageEnd ?: 0}세 ${policy.applicationEnd?.take(10)?.replace("-", ".") ?: ""}",
+                                    date = "${policy.ageStart ?: 0}-${policy.ageEnd ?: 0}세 ${
+                                        policy.applicationEnd?.take(
+                                            10
+                                        )?.replace("-", ".") ?: ""
+                                    }",
                                     organization = policy.region ?: "",
                                     age = "만 ${policy.ageStart ?: 0}세 ~ ${policy.ageEnd ?: 0}세",
-                                    period = "${policy.applicationStart?.take(10)?.replace("-", ".") ?: ""} ~ ${policy.applicationEnd?.take(10)?.replace("-", ".") ?: ""}",
+                                    period = "${
+                                        policy.applicationStart?.take(10)?.replace("-", ".") ?: ""
+                                    } ~ ${
+                                        policy.applicationEnd?.take(10)?.replace("-", ".") ?: ""
+                                    }",
                                     content = policy.summary ?: "",
                                     applicationMethod = policy.link1 ?: "",
                                     deadline = policy.applicationEnd?.take(10) ?: ""
                                 )
                             }
                         }
+                        android.util.Log.d("HomeScreen", "변환된 추천 정책 ${aiRecommendationsList.size}개")
+                    } ?: run {
+                        android.util.Log.w("HomeScreen", "aiRecommendedPolicies가 null이거나 비어있음")
+                        aiRecommendationsList = emptyList()
                     }
                 } else {
+                    android.util.Log.e("HomeScreen", "getMainPage 실패: ${response.body()?.message}")
                     errorMessage = response.body()?.message ?: "데이터를 불러올 수 없습니다."
                 }
             } catch (e: Exception) {
@@ -147,15 +174,15 @@ fun HomeScreen(
             isLoading = false
         }
     }
-    
+
     val currentPolicy = aiRecommendationsList.getOrNull(
         if (aiRecommendationsList.isNotEmpty()) currentIndex % aiRecommendationsList.size else 0
     )
     val isBookmarked = currentPolicy?.let { bookmarkedPolicies.contains(it.title) } ?: false
-    
+
     // 시스템 뒤로가기 버튼 처리
     BackHandler(onBack = onBack)
-    
+
     // 자동 슬라이드 (3초마다)
     LaunchedEffect(isExpanded, aiRecommendationsList.size) {
         if (aiRecommendationsList.isNotEmpty()) {
@@ -170,153 +197,180 @@ fun HomeScreen(
             }
         }
     }
-    
-    Scaffold(
-        bottomBar = {
-            BottomNavigationBar(
-                currentScreen = "home",
-                onNavigateHome = {},
-                onNavigateCalendar = onNavigateCalendar,
-                onNavigateChatbot = { showChatbotDialog = true },
-                onNavigateBookmark = onNavigateBookmark,
-                onNavigateProfile = onNavigateProfile
-            )
-        }
-    ) { paddingValues ->
-        Column(
+
+    // Scaffold 제거 -> MainActivity에서 처리함
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.White)
-                .padding(paddingValues)
-                .verticalScroll(rememberScrollState())
+                .background(MaterialTheme.colorScheme.background)
         ) {
-            // Header
-            HomeHeader(
-                onBack = onBack,
-                onNotifications = onNavigateNotifications
-            )
-            
-            // Main Content
+            val boxWidth = constraints.maxWidth.toFloat()
+            val boxHeight = constraints.maxHeight.toFloat()
+
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.lg)
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
             ) {
-                // AI Recommendations Section
+                // Header
+                HomeHeader(
+                    onBack = onBack,
+                    onNotifications = onNavigateNotifications
+                )
+
+                // Main Content
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.md)
+                modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        text = "나와 비슷한 다른사람은 어떤한 정책을?",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = AppColors.TextPrimary
-                    )
-                    
-                    Text(
-                        text = "AI 추천 정책 모음",
-                        fontSize = 14.sp,
-                        color = AppColors.TextSecondary
-                    )
-                    
-                    // 슬라이드 카드
-                    if (currentPolicy != null) {
-                        PolicyCard(
-                            policy = currentPolicy,
-                            isTransitioning = isTransitioning,
-                            isBookmarked = isBookmarked,
-                            currentIndex = currentIndex,
-                            totalCount = aiRecommendationsList.size,
-                            onShowDetail = {
-                                detailPolicy = currentPolicy
-                                showDetailDialog = true
-                            },
-                            onPrevious = {
-                                if (aiRecommendationsList.isNotEmpty()) {
-                                    isTransitioning = true
-                                    coroutineScope.launch {
-                                        delay(300)
-                                        currentIndex = (currentIndex - 1 + aiRecommendationsList.size) % aiRecommendationsList.size
-                                        isTransitioning = false
-                                    }
-                                }
-                            },
-                            onNext = {
-                                if (aiRecommendationsList.isNotEmpty()) {
-                                    isTransitioning = true
-                                    coroutineScope.launch {
-                                        delay(300)
-                                        currentIndex = (currentIndex + 1) % aiRecommendationsList.size
-                                        isTransitioning = false
-                                    }
-                                }
-                            },
-                            onIndicatorClick = { index ->
-                                isTransitioning = true
-                                coroutineScope.launch {
-                                    delay(300)
-                                    currentIndex = index
-                                    isTransitioning = false
-                                }
-                            },
-                            onHeartClick = {
-                                if (!isBookmarked) {
-                                    selectedPolicy = currentPolicy
-                                    showNotificationDialog = true
-                                } else {
-                                    // 북마크 제거 (로컬 상태)
-                                    bookmarkedPolicies = bookmarkedPolicies - currentPolicy.title
-                                    // SharedPreferences에서도 제거
-                                    BookmarkPreferences.removeBookmark(
-                                        context,
-                                        currentPolicy.title,
-                                        BookmarkType.POLICY
-                                    )
-                                }
-                            }
-                        )
-                    } else {
+                    // AI Recommendations Section
+                    Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surface)
+                        .padding(vertical = Spacing.lg, horizontal = Spacing.screenHorizontal),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.md)
+                    ) {
                         Text(
-                            text = "현재 추천할 정책이 없습니다.",
+                            text = "나와 비슷한 다른사람은 어떤한 정책을?",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = AppColors.TextPrimary
+                        )
+
+                        Text(
+                            text = "AI 추천 정책 모음",
                             fontSize = 14.sp,
                             color = AppColors.TextSecondary
                         )
+
+                        // 슬라이드 카드
+                        if (currentPolicy != null) {
+                            PolicyCard(
+                                policy = currentPolicy,
+                                isTransitioning = isTransitioning,
+                                isBookmarked = isBookmarked,
+                                currentIndex = currentIndex,
+                                totalCount = aiRecommendationsList.size,
+                                onShowDetail = {
+                                    detailPolicy = currentPolicy
+                                    showDetailDialog = true
+                                },
+                                onPrevious = {
+                                    if (aiRecommendationsList.isNotEmpty()) {
+                                        isTransitioning = true
+                                        coroutineScope.launch {
+                                            delay(300)
+                                            currentIndex =
+                                                (currentIndex - 1 + aiRecommendationsList.size) % aiRecommendationsList.size
+                                            isTransitioning = false
+                                        }
+                                    }
+                                },
+                                onNext = {
+                                    if (aiRecommendationsList.isNotEmpty()) {
+                                        isTransitioning = true
+                                        coroutineScope.launch {
+                                            delay(300)
+                                            currentIndex =
+                                                (currentIndex + 1) % aiRecommendationsList.size
+                                            isTransitioning = false
+                                        }
+                                    }
+                                },
+                                onIndicatorClick = { index ->
+                                    isTransitioning = true
+                                    coroutineScope.launch {
+                                        delay(300)
+                                        currentIndex = index
+                                        isTransitioning = false
+                                    }
+                                },
+                                onHeartClick = {
+                                    if (!isBookmarked) {
+                                        selectedPolicy = currentPolicy
+                                        showNotificationDialog = true
+                                    } else {
+                                        // 북마크 제거 (로컬 상태)
+                                        bookmarkedPolicies =
+                                            bookmarkedPolicies - currentPolicy.title
+                                        // SharedPreferences에서도 제거
+                                        BookmarkPreferences.removeBookmark(
+                                            context,
+                                            currentPolicy.title,
+                                            BookmarkType.POLICY
+                                        )
+                                        // 서버에서도 북마크 제거
+                                        userId?.let { uid ->
+                                            coroutineScope.launch {
+                                                try {
+                                                    // 서버에서 북마크 목록 조회하여 해당 북마크 찾기
+                                                    val response = NetworkModule.apiService.getBookmarks(
+                                                        userId = uid,
+                                                        contentType = "policy"
+                                                    )
+                                                    if (response.isSuccessful && response.body()?.success == true) {
+                                                        val bookmarks = response.body()?.data ?: emptyList()
+                                                        val contentId = currentPolicy.id.toString()
+                                                        val bookmark = bookmarks.find { it.contentId == contentId }
+                                                        bookmark?.let {
+                                                            NetworkModule.apiService.deleteBookmark(
+                                                                userId = uid,
+                                                                bookmarkId = it.bookmarkId
+                                                            )
+                                                            android.util.Log.d("HomeScreen", "서버 북마크 제거 성공: ${currentPolicy.title}")
+                                                        }
+                                                    }
+                                                } catch (e: Exception) {
+                                                    android.util.Log.e("HomeScreen", "서버 북마크 제거 실패: ${e.message}", e)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            )
+                        } else {
+                            Text(
+                                text = "현재 추천할 정책이 없습니다.",
+                                fontSize = 14.sp,
+                                color = AppColors.TextSecondary
+                            )
+                        }
                     }
-                }
-                
-                Spacer(modifier = Modifier.height(Spacing.lg))
-                
-                // 바로가기 카드들
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(Spacing.md)
-                ) {
-                    QuickAccessCard(
-                        title = "맞춤 청년정책",
-                        subtitle = "나에게 딱 맞는 정책 찾기",
-                        icon = Icons.Default.CalendarToday,
-                        gradientColors = listOf(
-                            Color(0xFF59ABF7),  // 라이트 블루 (메인 컬러)
-                            Color(0xFF4A8FD9)  // 진한 블루
-                        ),
-                        onClick = onNavigatePolicy
-                    )
-                    
-                    QuickAccessCard(
-                        title = "맞춤 임대주택",
-                        subtitle = "내 주변 임대주택 찾기",
-                        icon = Icons.Default.Home,
-                        gradientColors = listOf(
-                            Color(0xFFFF9A5C),
-                            Color(0xFFFF6B2C)
-                        ),
-                        onClick = onNavigateHousing
-                    )
-                }
+
+                    Spacer(modifier = Modifier.height(Spacing.lg))
+
+                // 바로가기 카드들 (패딩 추가)
+                    Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.md),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.md)
+                    ) {
+                        QuickAccessCard(
+                            title = "맞춤 청년정책",
+                            subtitle = "나에게 딱 맞는 정책 찾기",
+                            icon = Icons.Default.CalendarToday,
+                            gradientColors = listOf(
+                                Color(0xFF59ABF7),  // 라이트 블루 (메인 컬러)
+                                Color(0xFF4A8FD9)  // 진한 블루
+                            ),
+                            onClick = onNavigatePolicy
+                        )
+
+                        QuickAccessCard(
+                            title = "맞춤 임대주택",
+                            subtitle = "내 주변 임대주택 찾기",
+                            icon = Icons.Default.Home,
+                            gradientColors = listOf(
+                                Color(0xFFFF9A5C),
+                                Color(0xFFFF6B2C)
+                            ),
+                            onClick = onNavigateHousing
+                )
             }
         }
     }
-    
+
     // Policy Detail Dialog (팝업)
     if (showDetailDialog && detailPolicy != null) {
         PolicyDetailDialog(
@@ -335,17 +389,48 @@ fun HomeScreen(
             }
         )
     }
-    
+
     // 알림 설정 다이얼로그
     val calendarService = remember { CalendarService(context) }
-    
+
     if (showNotificationDialog) {
         NotificationDialog(
             notifications = notifications,
             onNotificationsChange = { notifications = it },
             onSave = {
                 selectedPolicy?.let { policy ->
-                    // ... (기존 저장 로직)
+                        // 북마크 상태 업데이트
+                        bookmarkedPolicies = bookmarkedPolicies + policy.title
+                        
+                        // 서버에 북마크 저장
+                        userId?.let { uid ->
+                            coroutineScope.launch {
+                                try {
+                                    val contentId = policy.id.toString()
+                                    val bookmarkResponse = NetworkModule.apiService.addBookmark(
+                                        userId = uid,
+                                        request = com.example.app.data.model.BookmarkRequest(
+                                            userId = uid,
+                                            contentType = "policy",
+                                            contentId = contentId
+                                        )
+                                    )
+                                    android.util.Log.d("HomeScreen", "서버 북마크 저장 성공: ${policy.title} (contentId: $contentId)")
+                                } catch (e: Exception) {
+                                    android.util.Log.e("HomeScreen", "서버 북마크 저장 실패: ${e.message}", e)
+                                }
+                            }
+                        }
+                        
+                        // 캘린더에 일정 추가
+                        calendarService.addPolicyToCalendar(
+                            title = policy.title,
+                            organization = policy.organization,
+                            deadline = policy.deadline,
+                            policyId = policy.id.toString(),
+                            notificationSettings = notifications
+                        )
+                        android.widget.Toast.makeText(context, "북마크 및 캘린더에 추가되었습니다.", android.widget.Toast.LENGTH_SHORT).show()
                 }
                 showNotificationDialog = false
                 selectedPolicy = null
@@ -356,14 +441,8 @@ fun HomeScreen(
             }
         )
     }
-    
-    // 챗봇 다이얼로그
-    ChatbotDialog(
-        isOpen = showChatbotDialog,
-        onClose = { showChatbotDialog = false },
-        context = ChatbotContext.NONE
-    )
-}
+    }
+} // End of HomeScreen
 
 // NotificationSettings는 com.example.app.NotificationSettings를 사용
 
@@ -374,7 +453,7 @@ private fun HomeHeader(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = Color.White,
+        color = MaterialTheme.colorScheme.surface,
         shadowElevation = 1.dp
     ) {
         Row(
@@ -392,7 +471,7 @@ private fun HomeHeader(
                     tint = AppColors.TextPrimary
                 )
             }
-            
+
             Image(
                 painter = painterResource(id = R.drawable.wy_logo),
                 contentDescription = "WY Logo",
@@ -401,7 +480,7 @@ private fun HomeHeader(
                     .clip(CircleShape),
                 contentScale = ContentScale.Crop
             )
-            
+
             IconButton(
                 onClick = onNotifications,
                 modifier = Modifier
@@ -423,17 +502,17 @@ private fun HomeHeader(
 @Composable
 fun PolicyCardPreview() {
     val samplePolicy = PolicyRecommendation(
-        id = 1,
-        title = "청년 월세 지원",
-        date = "2023.01.01 ~ 2023.12.31",
-        organization = "서울시",
-        age = "만 19세 ~ 34세",
-        period = "2023년 연중",
-        content = "월 20만원 지원",
-        applicationMethod = "온라인 신청",
-        deadline = "2023-12-31"
-    )
-    
+            id = 1,
+            title = "청년 월세 지원",
+            date = "2023.01.01 ~ 2023.12.31",
+            organization = "서울시",
+            age = "만 19세 ~ 34세",
+            period = "2023년 연중",
+            content = "월 20만원 지원",
+            applicationMethod = "온라인 신청",
+            deadline = "2023-12-31"
+        )
+
     PolicyCard(
         policy = samplePolicy,
         isTransitioning = false,
@@ -450,29 +529,40 @@ fun PolicyCardPreview() {
 
 @Composable
 private fun PolicyCard(
-    policy: PolicyRecommendation,
-    isTransitioning: Boolean,
-    isBookmarked: Boolean,
-    currentIndex: Int,
-    totalCount: Int,
-    onShowDetail: () -> Unit,
-    onPrevious: () -> Unit,
-    onNext: () -> Unit,
-    onIndicatorClick: (Int) -> Unit,
-    onHeartClick: () -> Unit
+        policy: PolicyRecommendation,
+        isTransitioning: Boolean,
+        isBookmarked: Boolean,
+        currentIndex: Int,
+        totalCount: Int,
+        onShowDetail: () -> Unit,
+        onPrevious: () -> Unit,
+        onNext: () -> Unit,
+        onIndicatorClick: (Int) -> Unit,
+        onHeartClick: () -> Unit
 ) {
     val alpha by animateFloatAsState(
         targetValue = if (isTransitioning) 0f else 1f,
         animationSpec = tween(300),
         label = "card_alpha"
     )
-    
+
     ElevatedCard(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color.White) // 배경색 흰색으로 명시적 지정
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onShowDetail() }, // 카드 전체 클릭 시 상세보기 호출
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFDEDBB4)) // AI 추천 카드 색상 #dedbb4
     ) {
+        // 카드 배경 이미지와 콘텐츠를 함께 배치
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp)
+        ) {
+            // 콘텐츠 (텍스트, 버튼 등)
         Column(
-            modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(Spacing.md)
         ) {
             // 상단: 좋아요 버튼과 제목
             Box(modifier = Modifier.fillMaxWidth()) {
@@ -488,7 +578,7 @@ private fun PolicyCard(
                         fontWeight = FontWeight.Bold,
                         color = AppColors.TextPrimary
                     )
-                    
+
                     Text(
                         text = policy.date,
                         fontSize = 14.sp,
@@ -496,7 +586,7 @@ private fun PolicyCard(
                         modifier = Modifier.padding(top = 4.dp)
                     )
                 }
-                
+
                 // 좋아요 버튼
                 IconButton(
                     onClick = onHeartClick,
@@ -505,18 +595,17 @@ private fun PolicyCard(
                     Icon(
                         imageVector = if (isBookmarked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                         contentDescription = "Bookmark",
-                        tint = if (isBookmarked) AppColors.TextPrimary else AppColors.TextTertiary,
+                            tint = if (isBookmarked) Color(0xFFFF6B6B) else AppColors.TextSecondary,
                         modifier = Modifier.size(28.dp)
                     )
                 }
             }
-            
-            // 네비게이션 버튼
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                // 네비게이션 버튼과 인디케이터
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp)
-                    .padding(vertical = Spacing.md)
+                    modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
                     modifier = Modifier
@@ -529,43 +618,43 @@ private fun PolicyCard(
                         modifier = Modifier
                             .size(32.dp)
                             .background(
-                                AppColors.TextPrimary.copy(alpha = 0.7f),
+                                    AppColors.Border,
                                 CircleShape
                             )
                     ) {
                         Icon(
                             imageVector = Icons.Default.ChevronLeft,
                             contentDescription = "Previous",
-                            tint = Color.White,
+                                tint = AppColors.TextPrimary,
                             modifier = Modifier.size(20.dp)
                         )
                     }
-                    
+
                     Spacer(modifier = Modifier.weight(1f))
-                    
+
                     IconButton(
                         onClick = onNext,
                         modifier = Modifier
                             .size(32.dp)
                             .background(
-                                AppColors.TextPrimary.copy(alpha = 0.7f),
+                                    Color.White.copy(alpha = 0.7f),
                                 CircleShape
                             )
                     ) {
                         Icon(
                             imageVector = Icons.Default.ChevronRight,
                             contentDescription = "Next",
-                            tint = Color.White,
+                                tint = AppColors.TextPrimary,
                             modifier = Modifier.size(20.dp)
                         )
                     }
                 }
-                
+
                 // 인디케이터
                 Row(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(bottom = Spacing.md),
+                            .padding(bottom = Spacing.sm),
                     horizontalArrangement = Arrangement.Center
                 ) {
                     repeat(totalCount) { index ->
@@ -576,45 +665,24 @@ private fun PolicyCard(
                                 .padding(horizontal = 3.dp)
                                 .clip(RoundedCornerShape(3.dp))
                                 .background(
-                                    if (index == currentIndex) AppColors.TextPrimary else AppColors.Border
+                                        if (index == currentIndex) Color.White else Color.White.copy(alpha = 0.5f)
                                 )
                                 .clickable { onIndicatorClick(index) }
                         )
                     }
                 }
             }
-            
-            // 버튼 (오른쪽 하단 배치)
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = Spacing.md),
-                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    Button(
-                        onClick = onShowDetail,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = AppColors.TextPrimary
-                        ),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text("상세보기", color = Color.White)
-                    }
-                }
             }
         }
+        
     }
 }
 
 @Composable
 private fun PolicyDetailDialog(
-    policy: PolicyRecommendation,
-    onDismiss: () -> Unit,
-    onApply: () -> Unit
+        policy: PolicyRecommendation,
+        onDismiss: () -> Unit,
+        onApply: () -> Unit
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -622,7 +690,7 @@ private fun PolicyDetailDialog(
                 .fillMaxWidth()
                 .heightIn(max = 600.dp),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             Column(
                 modifier = Modifier
@@ -645,51 +713,38 @@ private fun PolicyDetailDialog(
                         Icon(Icons.Default.Close, contentDescription = "Close")
                     }
                 }
-                
+
                 Spacer(modifier = Modifier.height(Spacing.md))
-                
+
                 Text(
                     text = policy.title,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = AppColors.TextPrimary
                 )
-                
+
                 Spacer(modifier = Modifier.height(Spacing.lg))
-                
-                PolicyDetailRow("주관기관명", policy.organization)
+
+                HomePolicyDetailRow("주관기관명", policy.organization)
                 Spacer(modifier = Modifier.height(Spacing.sm))
-                PolicyDetailRow("연령", policy.age)
+                HomePolicyDetailRow("연령", policy.age)
                 Spacer(modifier = Modifier.height(Spacing.sm))
-                PolicyDetailRow("신청기간", policy.period)
+                HomePolicyDetailRow("신청기간", policy.period)
                 Spacer(modifier = Modifier.height(Spacing.sm))
-                PolicyDetailRow("정책내용", policy.content)
+                HomePolicyDetailRow("정책내용", policy.content)
                 Spacer(modifier = Modifier.height(Spacing.sm))
-                PolicyDetailRow("신청방법", policy.applicationMethod)
-                
+                HomePolicyDetailRow("신청방법", policy.applicationMethod)
+
                 Spacer(modifier = Modifier.height(Spacing.xl))
-                
+
                 Button(
                     onClick = onApply,
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.Transparent
+                        containerColor = Color(0xFF59ABF7) // 메인 컬러로 변경
                     ),
-                    contentPadding = PaddingValues(0.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                brush = Brush.horizontalGradient(
-                                    colors = listOf(
-                                        AppColors.LightBlue,
-                                        AppColors.Orange
-                                    )
-                                ),
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            .padding(vertical = 12.dp)
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(vertical = 12.dp) // 패딩 직접 지정
                     ) {
                         Text(
                             "신청하기",
@@ -701,11 +756,44 @@ private fun PolicyDetailDialog(
                 }
             }
         }
+}
+
+@Composable
+private fun HomeCategoryTag(text: String) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xFF59ABF7).copy(alpha = 0.1f))
+            .padding(horizontal = Spacing.sm, vertical = 4.dp)
+    ) {
+        Text(
+            text = text,
+            fontSize = 12.sp,
+            color = Color(0xFF59ABF7),
+            fontWeight = FontWeight.Medium
+        )
     }
 }
 
 @Composable
-private fun PolicyDetailRow(label: String, value: String) {
+private fun HomeSupportTag(text: String) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(AppColors.BackgroundGradientStart.copy(alpha = 0.1f))
+            .padding(horizontal = Spacing.sm, vertical = 4.dp)
+    ) {
+        Text(
+            text = text,
+            fontSize = 12.sp,
+            color = AppColors.BackgroundGradientStart,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+@Composable
+private fun HomePolicyDetailRow(label: String, value: String) {
     Column {
         Text(
             text = label,
@@ -764,7 +852,7 @@ private fun QuickAccessCard(
                         modifier = Modifier.padding(top = 4.dp)
                     )
                 }
-                
+
                 Box(
                     modifier = Modifier
                         .size(64.dp)
@@ -786,16 +874,15 @@ private fun QuickAccessCard(
     }
 }
 
-
 @Composable
 private fun NotificationDialog(
-    notifications: NotificationSettings,
-    onNotificationsChange: (NotificationSettings) -> Unit,
-    onSave: () -> Unit,
-    onDismiss: () -> Unit
+        notifications: NotificationSettings,
+        onNotificationsChange: (NotificationSettings) -> Unit,
+        onSave: () -> Unit,
+        onDismiss: () -> Unit
 ) {
     var localNotifications by remember { mutableStateOf(notifications) }
-    
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("알림 설정") },
@@ -805,7 +892,7 @@ private fun NotificationDialog(
                 verticalArrangement = Arrangement.spacedBy(Spacing.md)
             ) {
                 // 7일전 알림
-                NotificationSettingRow(
+                HomeNotificationSettingRow(
                     label = "7일전 알림",
                     enabled = localNotifications.sevenDays,
                     time = localNotifications.sevenDaysTime,
@@ -816,9 +903,9 @@ private fun NotificationDialog(
                         localNotifications = localNotifications.copy(sevenDaysTime = it)
                     }
                 )
-                
+
                 // 1일전 알림
-                NotificationSettingRow(
+                HomeNotificationSettingRow(
                     label = "1일전 알림",
                     enabled = localNotifications.oneDay,
                     time = localNotifications.oneDayTime,
@@ -829,9 +916,9 @@ private fun NotificationDialog(
                         localNotifications = localNotifications.copy(oneDayTime = it)
                     }
                 )
-                
+
                 // 사용자 지정 알림
-                CustomNotificationRow(
+                HomeCustomNotificationRow(
                     enabled = localNotifications.custom,
                     days = localNotifications.customDays,
                     time = localNotifications.customTime,
@@ -847,7 +934,7 @@ private fun NotificationDialog(
                 )
             }
         },
-        containerColor = Color.White, // 팝업창 배경 흰색으로 변경
+        containerColor = MaterialTheme.colorScheme.surface,
         confirmButton = {
             Button(
                 onClick = {
@@ -870,7 +957,7 @@ private fun NotificationDialog(
 }
 
 @Composable
-private fun NotificationSettingRow(
+private fun HomeNotificationSettingRow(
     label: String,
     enabled: Boolean,
     time: String,
@@ -889,9 +976,9 @@ private fun NotificationSettingRow(
                 onCheckedChange = onEnabledChange
             )
         }
-        
+
         if (enabled) {
-            TimePickerSection(
+            HomeTimePickerSection(
                 time = time,
                 onTimeChange = onTimeChange
             )
@@ -900,7 +987,7 @@ private fun NotificationSettingRow(
 }
 
 @Composable
-private fun CustomNotificationRow(
+private fun HomeCustomNotificationRow(
     enabled: Boolean,
     days: Int,
     time: String,
@@ -920,7 +1007,7 @@ private fun CustomNotificationRow(
                 onCheckedChange = onEnabledChange
             )
         }
-        
+
         if (enabled) {
             Column(
                 modifier = Modifier.padding(start = Spacing.md, top = Spacing.sm)
@@ -938,8 +1025,8 @@ private fun CustomNotificationRow(
                     )
                     Text("일 전", fontSize = 14.sp)
                 }
-                
-                TimePickerSection(
+
+                HomeTimePickerSection(
                     time = time,
                     onTimeChange = onTimeChange
                 )
@@ -949,24 +1036,24 @@ private fun CustomNotificationRow(
 }
 
 @Composable
-private fun TimePickerSection(
+private fun HomeTimePickerSection(
     time: String,
     onTimeChange: (String) -> Unit
 ) {
     val parts = time.split(":").mapNotNull { it.toIntOrNull() }
     var selectedHour by remember(time) { mutableStateOf(if (parts.size == 2) parts[0] else 9) }
     var selectedMinute by remember(time) { mutableStateOf(if (parts.size == 2) parts[1] else 0) }
-    
+
     LaunchedEffect(selectedHour, selectedMinute) {
         val newTime = String.format("%02d:%02d", selectedHour, selectedMinute)
         if (newTime != time) {
             onTimeChange(newTime)
         }
     }
-    
+
     val hours = (0..23).toList()
     val minutes = (0..55 step 5).toList()
-    
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -976,7 +1063,7 @@ private fun TimePickerSection(
             fontSize = 12.sp,
             color = AppColors.TextSecondary
         )
-        
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -989,20 +1076,20 @@ private fun TimePickerSection(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                WheelPicker(
+                HomeWheelPicker(
                     items = hours,
                     selectedValue = selectedHour,
                     onValueSelected = { selectedHour = it },
                     label = "시"
                 )
-                
+
                 Text(
-                    ":", 
+                    ":",
                     modifier = Modifier.padding(horizontal = 8.dp),
                     fontWeight = FontWeight.Bold
                 )
-                
-                WheelPicker(
+
+                HomeWheelPicker(
                     items = minutes,
                     selectedValue = selectedMinute,
                     onValueSelected = { selectedMinute = it },
@@ -1014,7 +1101,7 @@ private fun TimePickerSection(
 }
 
 @Composable
-private fun WheelPicker(
+private fun HomeWheelPicker(
     items: List<Int>,
     selectedValue: Int,
     onValueSelected: (Int) -> Unit,
@@ -1025,35 +1112,35 @@ private fun WheelPicker(
         initialFirstVisibleItemIndex = items.indexOf(selectedValue).coerceAtLeast(0)
     )
     val density = LocalDensity.current
-    
+
     LaunchedEffect(listState.isScrollInProgress) {
         if (!listState.isScrollInProgress) {
             val scrollOffset = with(density) { listState.firstVisibleItemScrollOffset.toDp() }
             val itemIndex = listState.firstVisibleItemIndex
-            
+
             val targetIndex = if (scrollOffset < itemHeight / 2) {
                 itemIndex
             } else {
                 (itemIndex + 1).coerceAtMost(items.size - 1)
             }
-            
+
             if (targetIndex >= 0 && targetIndex < items.size) {
                 val value = items[targetIndex]
                 if (value != selectedValue) {
                     onValueSelected(value)
                 }
-                listState.animateScrollToItem(targetIndex)
+                listState.scrollToItem(targetIndex)
             }
         }
     }
-    
+
     LaunchedEffect(selectedValue) {
         val index = items.indexOf(selectedValue)
         if (index >= 0 && !listState.isScrollInProgress && listState.firstVisibleItemIndex != index) {
             listState.scrollToItem(index)
         }
     }
-    
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.width(60.dp)
@@ -1070,7 +1157,7 @@ private fun WheelPicker(
                     .align(Alignment.Center)
                     .background(AppColors.LightBlue.copy(alpha = 0.1f))
             )
-            
+
             LazyColumn(
                 state = listState,
                 contentPadding = PaddingValues(vertical = itemHeight),
@@ -1097,4 +1184,3 @@ private fun WheelPicker(
         Text(label, fontSize = 12.sp, color = AppColors.TextSecondary)
     }
 }
-

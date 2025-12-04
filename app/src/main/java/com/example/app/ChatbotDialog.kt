@@ -59,9 +59,7 @@ data class QuickChip(
 val quickChips = listOf(
     QuickChip(1, "AI 추천", "🤖"),
     QuickChip(2, "정책 검색", "🔍"),
-    QuickChip(3, "임대주택", "🏠"),
-    QuickChip(4, "일정", "📅"),
-    QuickChip(5, "도움말", "❓")
+    QuickChip(3, "임대주택", "🏠")
 )
 
 @Composable
@@ -164,7 +162,7 @@ private fun ChatbotContent(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .height(600.dp),
+            .fillMaxHeight(0.9f),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
@@ -188,26 +186,26 @@ private fun ChatbotContent(
                 }
             }
             
-            // Quick Chips
+            // Quick Chips - 3개 버튼 한 줄로 표시
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = Spacing.md, vertical = Spacing.sm),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
             ) {
-                quickChips.forEach { chip ->
-            QuickChipButton(
-                chip = chip,
-                onClick = {
-                    handleSend(
-                        chip.label,
-                        messages,
-                        coroutineScope,
-                        userId,
-                        onMessagesChange = { messages = it }
+                quickChips.take(3).forEach { chip ->
+                    QuickChipButton(
+                        chip = chip,
+                        onClick = {
+                            handleSend(
+                                chip.label,
+                                messages,
+                                coroutineScope,
+                                userId,
+                                onMessagesChange = { messages = it }
+                            )
+                        }
                     )
-                }
-            )
                 }
             }
             
@@ -237,14 +235,7 @@ private fun ChatbotHeader(onClose: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(
-                brush = Brush.horizontalGradient(
-                    colors = listOf(
-                        AppColors.Purple,
-                        AppColors.BackgroundGradientStart
-                    )
-                )
-            )
+            .background(Color(0xFF59ABF7)) // 메인 컬러로 통일
             .padding(Spacing.md),
         contentAlignment = Alignment.Center
     ) {
@@ -335,24 +326,26 @@ private fun MessageBubble(message: ChatMessage) {
 }
 
 @Composable
-private fun QuickChipButton(
+private fun RowScope.QuickChipButton(
     chip: QuickChip,
     onClick: () -> Unit
 ) {
     Surface(
-        modifier = Modifier.clickable { onClick() },
-        shape = RoundedCornerShape(20.dp),
+        modifier = Modifier
+            .weight(1f)
+            .clickable { onClick() },
+        shape = RoundedCornerShape(16.dp),
         color = AppColors.Border,
         border = androidx.compose.foundation.BorderStroke(1.dp, AppColors.BorderDark)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
+            modifier = Modifier.padding(horizontal = Spacing.md, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = chip.icon,
-                fontSize = 14.sp
+                fontSize = 12.sp
             )
             Text(
                 text = chip.label,

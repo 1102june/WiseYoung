@@ -1,24 +1,33 @@
 package com.wiseyoung.app
 
+import android.content.Intent
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.example.app.NotificationSettings
 import com.example.app.data.model.HousingResponse
 import com.example.app.network.NetworkModule
@@ -63,6 +72,8 @@ fun HousingListScreen(
     var showRecommended by remember { mutableStateOf(false) }
     var showNotificationDialog by remember { mutableStateOf(false) }
     var selectedHousing by remember { mutableStateOf<HousingResponse?>(null) }
+    var detailHousing by remember { mutableStateOf<HousingResponse?>(null) } // 상세 보기용
+    var showDetailDialog by remember { mutableStateOf(false) } // 상세 다이얼로그 상태
     var notifications by remember {
         mutableStateOf(
             NotificationSettings(
@@ -187,6 +198,10 @@ fun HousingListScreen(
                     HousingCard(
                         housing = housing,
                         userId = userId,
+                        onCardClick = {
+                            detailHousing = housing
+                            showDetailDialog = true
+                        },
                         onBookmarkClick = {
                             if (!housing.isBookmarked) {
                                 selectedHousing = housing
@@ -199,6 +214,27 @@ fun HousingListScreen(
         }
     }
     
+    // Housing Detail Dialog
+    if (showDetailDialog && detailHousing != null) {
+        HousingDetailDialog(
+            housing = detailHousing!!,
+            onDismiss = { showDetailDialog = false },
+            onApply = {
+                val url = detailHousing!!.link
+                if (!url.isNullOrEmpty()) {
+                    try {
+                        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "링크를 열 수 없습니다.", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    Toast.makeText(context, "신청 링크가 제공되지 않았습니다.", Toast.LENGTH_SHORT).show()
+                }
+            }
+        )
+    }
+
     // Notification Dialog
     val calendarService = remember { CalendarService(context) }
     
@@ -302,32 +338,36 @@ fun HousingListScreen(
 fun HousingCard(
     housing: HousingResponse,
     userId: String,
+    onCardClick: () -> Unit,
     onBookmarkClick: () -> Unit = {}
 ) {
     var isBookmarked by remember { mutableStateOf(housing.isBookmarked) }
     val scope = rememberCoroutineScope()
     
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        onClick = {
-            // TODO: 주택 상세 화면으로 이동
-            // 사용자 활동 로그: VIEW
-            scope.launch {
-                try {
-                    NetworkModule.apiService.logActivity(
-                        userId,
-                        com.example.app.data.model.UserActivityRequest(
-                            activityType = "VIEW",
-                            contentType = "housing",
-                            contentId = housing.housingId
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+                // 상세 화면 표시
+                onCardClick()
+                
+                // 사용자 활동 로그: VIEW
+                scope.launch {
+                    try {
+                        NetworkModule.apiService.logActivity(
+                            userId,
+                            com.example.app.data.model.UserActivityRequest(
+                                activityType = "VIEW",
+                                contentType = "housing",
+                                contentId = housing.housingId
+                            )
                         )
-                    )
-                } catch (e: Exception) {
-                    // 로그 실패는 무시
+                    } catch (e: Exception) {
+                        // 로그 실패는 무시
+                    }
                 }
-            }
-        }
+            },
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
@@ -447,16 +487,6 @@ fun HousingCard(
                 }
             }
             
-            // 거리 정보
-            housing.distanceFromUser?.let { distance ->
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "거리: ${String.format("%.1f", distance / 1000)}km",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-            
             // 신청 기간
             housing.applicationEnd?.let { endDate ->
                 Spacer(modifier = Modifier.height(8.dp))
@@ -467,6 +497,117 @@ fun HousingCard(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun HousingDetailDialog(
+    housing: HousingResponse,
+    onDismiss: () -> Unit,
+    onApply: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 600.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(Spacing.md)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "임대주택 상세 정보",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AppColors.TextPrimary
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(Spacing.md))
+
+                Text(
+                    text = housing.name,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = AppColors.TextPrimary
+                )
+                
+                Spacer(modifier = Modifier.height(Spacing.lg))
+                
+                housing.address?.let {
+                    DetailRow("위치 / 주소", it)
+                    Spacer(modifier = Modifier.height(Spacing.sm))
+                }
+                if (housing.deposit != null && housing.monthlyRent != null) {
+                    DetailRow("가격", "보증금 ${housing.deposit / 10000}만원 / 월세 ${housing.monthlyRent / 10000}만원")
+                    Spacer(modifier = Modifier.height(Spacing.sm))
+                }
+                housing.supplyArea?.let {
+                    DetailRow("공급전용면적", "${it}㎡")
+                    Spacer(modifier = Modifier.height(Spacing.sm))
+                }
+                housing.completeDate?.let {
+                    DetailRow("준공날짜", it)
+                    Spacer(modifier = Modifier.height(Spacing.sm))
+                }
+                housing.organization?.let {
+                    DetailRow("기관명", it)
+                    Spacer(modifier = Modifier.height(Spacing.sm))
+                }
+                housing.applicationEnd?.let {
+                    DetailRow("마감날짜", it)
+                }
+                
+                Spacer(modifier = Modifier.height(Spacing.xl))
+                
+                Button(
+                    onClick = onApply,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFF9A5C) // 주황색
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(vertical = 12.dp)
+                ) {
+                    Text(
+                        "신청하기",
+                        color = Color.White,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailRow(label: String, value: String) {
+    Column {
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            color = AppColors.TextTertiary
+        )
+        Text(
+            text = value,
+            fontSize = 14.sp,
+            color = AppColors.TextPrimary,
+            modifier = Modifier.padding(top = 2.dp)
+        )
     }
 }
 
@@ -487,7 +628,7 @@ private fun HousingNotificationDialog(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(Spacing.md)
             ) {
-                NotificationSettingRow(
+                HousingNotificationSettingRow(
                     label = "7일전 알림",
                     enabled = localNotifications.sevenDays,
                     time = localNotifications.sevenDaysTime,
@@ -499,7 +640,7 @@ private fun HousingNotificationDialog(
                     }
                 )
                 
-                NotificationSettingRow(
+                HousingNotificationSettingRow(
                     label = "1일전 알림",
                     enabled = localNotifications.oneDay,
                     time = localNotifications.oneDayTime,
@@ -511,7 +652,7 @@ private fun HousingNotificationDialog(
                     }
                 )
                 
-                CustomNotificationRow(
+                HousingCustomNotificationRow(
                     enabled = localNotifications.custom,
                     days = localNotifications.customDays,
                     time = localNotifications.customTime,
@@ -549,7 +690,7 @@ private fun HousingNotificationDialog(
 }
 
 @Composable
-private fun NotificationSettingRow(
+private fun HousingNotificationSettingRow(
     label: String,
     enabled: Boolean,
     time: String,
@@ -584,7 +725,7 @@ private fun NotificationSettingRow(
 }
 
 @Composable
-private fun CustomNotificationRow(
+private fun HousingCustomNotificationRow(
     enabled: Boolean,
     days: Int,
     time: String,
@@ -632,4 +773,3 @@ private fun CustomNotificationRow(
         }
     }
 }
-

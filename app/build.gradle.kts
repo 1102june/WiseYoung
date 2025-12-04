@@ -21,8 +21,8 @@ android {
 
     buildTypes {
         debug {
-            // 개발 환경: 로컬 서버 사용
-            buildConfigField("String", "BASE_URL", "\"http://127.0.0.1:8080/\"")
+            // 개발 환경: 로컬 서버 사용 (USB 연결 기기용 - PC의 로컬 IP 주소 사용)
+            buildConfigField("String", "BASE_URL", "\"http://172.16.1.112:8080/\"")
         }
         release {
             isMinifyEnabled = false
@@ -102,6 +102,9 @@ dependencies {
 
     // 🔹 Activity result
     implementation("androidx.activity:activity-ktx:1.11.0")
+    
+    // 🔹 Navigation Compose
+    implementation("androidx.navigation:navigation-compose:2.8.4")
 
     // 🔹 Room Database
     val roomVersion = "2.6.1"

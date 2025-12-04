@@ -37,23 +37,8 @@ class WelcomeActivity : ComponentActivity() {
             WiseYoungTheme {
                 WelcomeScreen(
                     onNext = {
-                        // 첫 로그인 플래그를 false로 설정 (온보딩을 한 번만 보여줌)
-                        ProfilePreferences.setFirstLogin(this, false)
-                        
-                        // 로그인 상태 확인
-                        val currentUser = FirebaseAuth.getInstance().currentUser
-                        val hasCompletedProfile = ProfilePreferences.hasCompletedProfile(this)
-                        
-                        val nextActivity = when {
-                            // 로그인되어 있고 프로필 완료 -> MainActivity
-                            currentUser != null && hasCompletedProfile -> MainActivity::class.java
-                            // 로그인되어 있고 프로필 미완료 -> ProfileSetupActivity
-                            currentUser != null && !hasCompletedProfile -> ProfileSetupActivity::class.java
-                            // 미로그인 -> AuthActivity (로그인 화면)
-                            else -> AuthActivity::class.java
-                        }
-                        
-                        val intent = Intent(this, nextActivity)
+                        // Welcome 화면 다음은 무조건 IntroActivity(앱 정보)로 이동
+                        val intent = Intent(this, IntroActivity::class.java)
                         startActivity(intent)
                         overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
                         finish()

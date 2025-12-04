@@ -1,5 +1,6 @@
 package com.wiseyoung.app
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -37,12 +38,40 @@ import com.example.app.ui.theme.AppColors
 import com.example.app.ui.theme.ThemeWrapper
 import com.wiseyoung.app.R
 
+import com.google.firebase.auth.FirebaseAuth
+import com.wiseyoung.app.MainActivity
+import com.wiseyoung.app.ProfileSetupActivity
+import com.wiseyoung.app.AuthActivity
+import com.wiseyoung.app.ProfilePreferences
+
 class IntroActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             ThemeWrapper {
-                IntroScreen(onClose = { finish() })
+                IntroScreen(onClose = {
+                    // 첫 로그인 플래그를 false로 설정 (온보딩 완료)
+                    ProfilePreferences.setFirstLogin(this, false)
+
+                    // 로그인 상태 확인 후 이동
+                    val currentUser = FirebaseAuth.getInstance().currentUser
+                    val hasCompletedProfile = ProfilePreferences.hasCompletedProfile(this)
+
+                    val nextActivity = when {
+                        // 로그인되어 있고 프로필 완료 -> MainActivity
+                        currentUser != null && hasCompletedProfile -> MainActivity::class.java
+                        // 로그인되어 있고 프로필 미완료 -> ProfileSetupActivity
+                        currentUser != null && !hasCompletedProfile -> ProfileSetupActivity::class.java
+                        // 미로그인 -> AuthActivity (로그인 화면)
+                        else -> AuthActivity::class.java
+                    }
+
+                    val intent = Intent(this, nextActivity)
+                    // 이전 스택(WelcomeActivity 등)을 모두 지우고 시작
+                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    startActivity(intent)
+                    finish()
+                })
             }
         }
     }

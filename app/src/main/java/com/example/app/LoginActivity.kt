@@ -858,13 +858,13 @@ fun LoginScreen(
                         Text(
                             "이메일을 입력하세요", 
                             color = Color.Gray, 
-                            fontSize = 10.sp,
+                            fontSize = 13.sp,
                             maxLines = 1
                         ) 
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp)
+                        .heightIn(min = 56.dp)
                         .background(Color.White, MaterialTheme.shapes.small),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
@@ -896,14 +896,14 @@ fun LoginScreen(
                         Text(
                             "비밀번호를 입력하세요", 
                             color = Color.Gray, 
-                            fontSize = 10.sp,
+                            fontSize = 13.sp,
                             maxLines = 1
                         ) 
                     },
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp)
+                        .heightIn(min = 56.dp)
                         .background(Color.White, MaterialTheme.shapes.small),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(

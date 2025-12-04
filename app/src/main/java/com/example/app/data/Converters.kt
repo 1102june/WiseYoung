@@ -33,5 +33,25 @@ class Converters {
     fun toLocalDateTime(value: String?): LocalDateTime? {
         return value?.let { LocalDateTime.parse(it, dateTimeFormatter) }
     }
+    
+    @TypeConverter
+    fun fromEventType(value: EventType?): String? {
+        return value?.name
+    }
+    
+    @TypeConverter
+    fun toEventType(value: String?): EventType? {
+        return value?.let { EventType.valueOf(it) }
+    }
+    
+    @TypeConverter
+    fun fromNotificationType(value: NotificationType?): String? {
+        return value?.name
+    }
+    
+    @TypeConverter
+    fun toNotificationType(value: String?): NotificationType? {
+        return value?.let { NotificationType.valueOf(it) }
+    }
 }
 

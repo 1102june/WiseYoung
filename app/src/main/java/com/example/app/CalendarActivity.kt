@@ -245,23 +245,11 @@ fun CalendarScreen(
         }
     }
     
-    Scaffold(
-        bottomBar = {
-            BottomNavigationBar(
-                currentScreen = "calendar",
-                onNavigateHome = onNavigateHome,
-                onNavigateCalendar = {},
-                onNavigateBookmark = onNavigateBookmark,
-                onNavigateProfile = onNavigateProfile
-            )
-        }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .background(MaterialTheme.colorScheme.background)
-        ) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
             // Header
             CalendarHeader()
             
@@ -336,10 +324,9 @@ fun CalendarScreen(
                 }
             }
         }
-    }
-    
-    // Delete Dialog
-    if (deleteDialogOpen) {
+        
+        // Delete Dialog
+        if (deleteDialogOpen) {
         AlertDialog(
             onDismissRequest = { deleteDialogOpen = false },
             title = { Text("삭제하시겠습니까?") },
@@ -776,7 +763,7 @@ private fun NotificationEditDialog(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(Spacing.md)
             ) {
-                NotificationSettingRow(
+                CalendarNotificationSettingRow(
                     label = "7일전 알림",
                     enabled = localNotifications.sevenDays,
                     time = localNotifications.sevenDaysTime,
@@ -788,7 +775,7 @@ private fun NotificationEditDialog(
                     }
                 )
                 
-                NotificationSettingRow(
+                CalendarNotificationSettingRow(
                     label = "1일전 알림",
                     enabled = localNotifications.oneDay,
                     time = localNotifications.oneDayTime,
@@ -800,7 +787,7 @@ private fun NotificationEditDialog(
                     }
                 )
                 
-                CustomNotificationRow(
+                CalendarCustomNotificationRow(
                     enabled = localNotifications.custom,
                     days = localNotifications.customDays,
                     time = localNotifications.customTime,
@@ -838,7 +825,7 @@ private fun NotificationEditDialog(
 }
 
 @Composable
-private fun NotificationSettingRow(
+private fun CalendarNotificationSettingRow(
     label: String,
     enabled: Boolean,
     time: String,
@@ -860,7 +847,7 @@ private fun NotificationSettingRow(
         
         if (enabled) {
             // 시간 선택기 (Wheel Picker 스타일)
-            TimePickerSection(
+            CalendarTimePickerSection(
                 time = time,
                 onTimeChange = onTimeChange
             )
@@ -869,7 +856,7 @@ private fun NotificationSettingRow(
 }
 
 @Composable
-private fun CustomNotificationRow(
+private fun CalendarCustomNotificationRow(
     enabled: Boolean,
     days: Int,
     time: String,
@@ -910,7 +897,7 @@ private fun CustomNotificationRow(
                 }
                 
                 // 시간 선택
-                TimePickerSection(
+                CalendarTimePickerSection(
                     time = time,
                     onTimeChange = onTimeChange
                 )
@@ -920,7 +907,7 @@ private fun CustomNotificationRow(
 }
 
 @Composable
-private fun TimePickerSection(
+private fun CalendarTimePickerSection(
     time: String,
     onTimeChange: (String) -> Unit
 ) {
@@ -962,7 +949,7 @@ private fun TimePickerSection(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // 시
-                WheelPicker(
+                CalendarWheelPicker(
                     items = hours,
                     selectedValue = selectedHour,
                     onValueSelected = { selectedHour = it },
@@ -976,7 +963,7 @@ private fun TimePickerSection(
                 )
                 
                 // 분
-                WheelPicker(
+                CalendarWheelPicker(
                     items = minutes,
                     selectedValue = selectedMinute,
                     onValueSelected = { selectedMinute = it },
@@ -988,7 +975,7 @@ private fun TimePickerSection(
 }
 
 @Composable
-private fun WheelPicker(
+private fun CalendarWheelPicker(
     items: List<Int>,
     selectedValue: Int,
     onValueSelected: (Int) -> Unit,

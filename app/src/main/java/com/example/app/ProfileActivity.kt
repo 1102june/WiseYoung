@@ -6,18 +6,19 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.example.app.ui.theme.AppColors
 import com.example.app.ui.theme.Spacing
 import com.example.app.ui.theme.ThemeWrapper
@@ -44,10 +46,10 @@ import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import android.widget.Toast
-import androidx.compose.ui.platform.LocalContext
 import com.wiseyoung.app.R
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import com.example.app.data.model.OtpRequest
 
 class ProfileActivity : ComponentActivity() {
     private val auth = FirebaseAuth.getInstance()
@@ -104,6 +106,7 @@ fun ProfileScreen(
     val scope = rememberCoroutineScope()
     var themeMode by remember { mutableStateOf(ThemePreferences.getThemeMode(context)) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showDeleteVerification by remember { mutableStateOf(false) } // 이메일 인증 다이얼로그 상태
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var deletePassword by remember { mutableStateOf("") }
     var profile by remember { mutableStateOf<com.example.app.data.model.UserProfileResponse?>(null) }
@@ -165,34 +168,23 @@ fun ProfileScreen(
         }
     }
     
-    Scaffold(
-        bottomBar = {
-            BottomNavigationBar(
-                currentScreen = "profile",
-                onNavigateHome = onNavigateHome,
-                onNavigateCalendar = onNavigateCalendar,
-                onNavigateBookmark = onNavigateBookmark,
-                onNavigateProfile = {}
-            )
-        }
-    ) { paddingValues ->
+    // Scaffold 제거 -> MainActivity에서 처리함
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState())
+    ) {
+        // Header
+        ProfileHeader()
+        
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .background(MaterialTheme.colorScheme.background)
-                .verticalScroll(rememberScrollState())
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.md),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
-            // Header
-            ProfileHeader()
-            
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.md),
-                verticalArrangement = Arrangement.spacedBy(Spacing.md)
-            ) {
-                // User Info Card
+            // User Info Card
                 UserInfoCard(
                     profile = profile,
                     isLoading = isLoadingProfile,
@@ -309,7 +301,7 @@ fun ProfileScreen(
                 }
             }
         }
-    }
+    
     
     // Logout Confirmation Dialog
     if (showLogoutDialog) {
@@ -373,11 +365,30 @@ fun ProfileScreen(
             onPasswordChange = { deletePassword = it },
             onConfirm = {
                 showDeleteDialog = false
-                showDeleteConfirm = true
+                // 비밀번호 확인 후 이메일 인증으로 이동
+                showDeleteVerification = true
             },
             onDismiss = {
                 deletePassword = ""
                 showDeleteDialog = false
+            }
+        )
+    }
+
+    // Delete Account - Email Verification (New)
+    if (showDeleteVerification) {
+        val currentUser = auth.currentUser
+        val email = currentUser?.email ?: ""
+        
+        DeleteAccountVerificationDialog(
+            email = email,
+            onVerified = {
+                showDeleteVerification = false
+                showDeleteConfirm = true
+            },
+            onDismiss = {
+                showDeleteVerification = false
+                deletePassword = "" // 취소 시 비밀번호도 초기화
             }
         )
     }
@@ -478,24 +489,72 @@ fun ProfileScreen(
     }
 
     // Edit Profile Dialog
-    if (showEditProfileDialog && profile != null) {
+    if (showEditProfileDialog) {
         EditProfileDialog(
-            currentProfile = profile!!,
+            currentProfile = profile ?: com.example.app.data.model.UserProfileResponse(
+                userId = auth.currentUser?.uid ?: "",
+                nickname = "",
+                age = null,
+                region = "",
+                education = null,
+                jobStatus = "",
+                interests = emptyList()
+            ),
             onDismiss = { showEditProfileDialog = false },
             onSave = { nickname, region, jobStatus, interests ->
-                // TODO: 프로필 업데이트 API 호출
-                // 임시로 로컬 상태 업데이트
-                profile = profile!!.copy(
-                    nickname = nickname,
-                    region = region,
-                    jobStatus = jobStatus,
-                    interests = interests
-                )
+                scope.launch {
+                    try {
+                        val currentUser = auth.currentUser
+                        if (currentUser != null) {
+                            // Firebase ID Token 가져오기
+                            val idToken = try {
+                                currentUser.getIdToken(true).await().token
+                                    ?: run {
+                                        Toast.makeText(context, "인증 토큰을 가져올 수 없습니다.", Toast.LENGTH_SHORT).show()
+                                        return@launch
+                                    }
+                            } catch (e: Exception) {
+                                android.util.Log.e("ProfileActivity", "ID Token 발급 실패: ${e.message}", e)
+                                Toast.makeText(context, "인증 토큰 발급 실패", Toast.LENGTH_SHORT).show()
+                                return@launch
+                            }
+                            
+                            // region을 province와 city로 분리 (간단한 처리)
+                            val regionParts = region.split(" ")
+                            val province = regionParts.getOrNull(0) ?: region
+                            val city = regionParts.drop(1).joinToString(" ") ?: region
+                            
+                            // 프로필 업데이트 API 호출
+                            val updateRequest = com.example.app.data.model.ProfileRequest(
+                                idToken = idToken,
+                                nickname = nickname,
+                                province = province,
+                                city = city,
+                                employment = jobStatus,
+                                interests = interests
+                            )
+                            val response = NetworkModule.apiService.saveProfile(updateRequest)
+                            if (response.isSuccessful && response.body()?.success == true) {
+                                // 성공 시 프로필 다시 로드
+                                val profileResponse = NetworkModule.apiService.getUserProfile(currentUser.uid)
+                                if (profileResponse.isSuccessful && profileResponse.body()?.success == true) {
+                                    profile = profileResponse.body()?.data
+                                }
+                                Toast.makeText(context, "프로필이 업데이트되었습니다.", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "프로필 업데이트에 실패했습니다.", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("ProfileActivity", "프로필 업데이트 실패: ${e.message}", e)
+                        Toast.makeText(context, "프로필 업데이트 중 오류가 발생했습니다.", Toast.LENGTH_SHORT).show()
+                    }
+                }
                 showEditProfileDialog = false
             }
         )
     }
-}
+} // End of ProfileScreen
 
 @Composable
 private fun EditProfileDialog(
@@ -504,13 +563,16 @@ private fun EditProfileDialog(
     onSave: (String, String, String, List<String>) -> Unit
 ) {
     var nickname by remember { mutableStateOf(currentProfile.nickname ?: "") }
-    var region by remember { mutableStateOf(currentProfile.region ?: "") }
+    // region을 province와 city로 분리
+    val regionParts = (currentProfile.region ?: "").split(" ")
+    var province by remember { mutableStateOf(regionParts.getOrNull(0) ?: "") }
+    var city by remember { mutableStateOf(regionParts.drop(1).joinToString(" ") ?: "") }
     var jobStatus by remember { mutableStateOf(currentProfile.jobStatus ?: "") }
-    // 관심사는 리스트로 관리 (콤마로 구분된 문자열 처리)
-    var interests by remember { mutableStateOf(currentProfile.interests) }
+    // 관심사는 Set으로 관리
+    var interests by remember { mutableStateOf(currentProfile.interests.toSet()) }
 
-    val jobOptions = listOf("대학생", "취업준비생", "재직자", "창업", "기타")
-    val interestOptions = listOf("일자리", "주거", "복지문화", "교육")
+    val cityMap = remember { provinceCities }
+    val provinceDisplayMap = remember { provinceDisplayNames }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -535,97 +597,97 @@ private fun EditProfileDialog(
                 )
 
                 // 닉네임
-                OutlinedTextField(
-                    value = nickname,
-                    onValueChange = { nickname = it },
-                    label = { Text("닉네임") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                NicknameSection(
+                    nickname = nickname,
+                    onNicknameChange = { nickname = it }
                 )
-                Spacer(modifier = Modifier.height(Spacing.md))
 
-                // 거주 지역
-                OutlinedTextField(
-                    value = region,
-                    onValueChange = { region = it },
-                    label = { Text("거주 지역 (예: 경기도 수원시)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // 거주 지역 (도)
+                DropdownSection(
+                    label = "거주 지역 (도)",
+                    value = province,
+                    options = cityMap.keys.toList(),
+                    displayMap = provinceDisplayMap,
+                    placeholder = "도 선택",
+                    onValueChange = {
+                        province = it
+                        city = ""
+                    }
                 )
-                Spacer(modifier = Modifier.height(Spacing.md))
 
-                // 취업 상태 (Dropdown 또는 RadioButton)
-                Text("취업 상태", fontSize = 14.sp, color = AppColors.TextSecondary)
-                Spacer(modifier = Modifier.height(Spacing.xs))
-                Column {
-                    jobOptions.forEach { option ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { jobStatus = option }
-                                .padding(vertical = 4.dp)
-                        ) {
-                            RadioButton(
-                                selected = (jobStatus == option),
-                                onClick = { jobStatus = option }
-                            )
-                            Text(text = option, fontSize = 14.sp)
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(Spacing.md))
-
-                // 관심사 (Checkbox)
-                Text("관심 분야 (중복 선택 가능)", fontSize = 14.sp, color = AppColors.TextSecondary)
-                Spacer(modifier = Modifier.height(Spacing.xs))
-                Column {
-                    interestOptions.forEach { option ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    if (interests.contains(option)) {
-                                        interests = interests - option
-                                    } else {
-                                        interests = interests + option
-                                    }
-                                }
-                                .padding(vertical = 4.dp)
-                        ) {
-                            Checkbox(
-                                checked = interests.contains(option),
-                                onCheckedChange = { checked ->
-                                    if (checked) {
-                                        interests = interests + option
-                                    } else {
-                                        interests = interests - option
-                                    }
-                                }
-                            )
-                            Text(text = option, fontSize = 14.sp)
-                        }
-                    }
+                // 거주 지역 (시)
+                if (province.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(24.dp))
+                    DropdownSection(
+                        label = "거주 지역 (시)",
+                        value = city,
+                        options = cityMap[province].orEmpty(),
+                        placeholder = "시 선택",
+                        onValueChange = { city = it }
+                    )
                 }
 
-                Spacer(modifier = Modifier.height(Spacing.lg))
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // 직업/고용 상태
+                DropdownSection(
+                    label = "직업/고용 상태",
+                    value = jobStatus,
+                    options = listOf("학생", "직장인", "구직자", "자영업자"),
+                    placeholder = "선택해주세요",
+                    onValueChange = { jobStatus = it }
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // 관심분야
+                InterestSection(
+                    selected = interests,
+                    onToggle = { interest ->
+                        interests = if (interests.contains(interest)) {
+                            interests - interest
+                        } else {
+                            interests + interest
+                        }
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
 
                 // 버튼
-                Row(
-                    horizontalArrangement = Arrangement.End,
+                Button(
+                    onClick = {
+                        val regionText = if (province.isNotBlank() && city.isNotBlank()) {
+                            "${provinceDisplayMap[province] ?: province} ${city}"
+                        } else {
+                            ""
+                        }
+                        onSave(nickname, regionText, jobStatus, interests.toList())
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF59ABF7),
+                        disabledContainerColor = Color(0xFF59ABF7).copy(alpha = 0.4f)
+                    ),
+                    enabled = nickname.isNotBlank() && province.isNotBlank() && city.isNotBlank() && jobStatus.isNotBlank() && interests.isNotEmpty()
+                ) {
+                    Text(
+                        text = "저장",
+                        color = Color.White
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                TextButton(
+                    onClick = onDismiss,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    TextButton(onClick = onDismiss) {
-                        Text("취소")
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
-                        onClick = { onSave(nickname, region, jobStatus, interests) },
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.TextPrimary)
-                    ) {
-                        Text("저장", color = Color.White)
-                    }
+                    Text("취소")
                 }
             }
         }
@@ -789,7 +851,7 @@ private fun UserInfoCard(
                         val userInterests = listOf("일자리", "주거", "복지문화", "교육")
                         val interests = profile?.interests?.takeIf { it.isNotEmpty() } ?: userInterests.take(3)
                         interests.take(3).forEach { interest -> // PolicyListActivity와 동일하게 최대 3개
-                            InterestTag(
+                            ProfileInterestTag(
                                 text = interest,
                                 backgroundColor = AppColors.LightBlue.copy(alpha = 0.2f), // PolicyListActivity와 동일
                                 textColor = AppColors.LightBlue, // PolicyListActivity와 동일
@@ -831,7 +893,7 @@ private fun getInterestTagTextColor(interest: String): Color {
 }
 
 @Composable
-private fun InterestTag(
+private fun ProfileInterestTag(
     text: String,
     backgroundColor: Color,
     textColor: Color,
@@ -939,6 +1001,176 @@ private fun ThemeToggleButton(
             fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal
         )
     }
+}
+
+@Composable
+private fun DeleteAccountVerificationDialog(
+    email: String,
+    onVerified: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    var otp by remember { mutableStateOf("") }
+    var otpSent by remember { mutableStateOf(false) }
+    var timer by remember { mutableStateOf(300) }
+    var isTimerExpired by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    // 타이머 로직
+    LaunchedEffect(otpSent) {
+        if (otpSent) {
+            timer = 300
+            isTimerExpired = false
+            while (timer > 0) {
+                kotlinx.coroutines.delay(1000)
+                timer--
+            }
+            isTimerExpired = true
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("탈퇴 인증") },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(Spacing.md)
+            ) {
+                Text(
+                    text = "안전한 탈퇴를 위해 이메일 인증을 진행해주세요.",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                // 이메일 표시
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("이메일") },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        disabledTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    enabled = false
+                )
+
+                if (!otpSent) {
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                isLoading = true
+                                try {
+                                    val response = NetworkModule.apiService.sendOtp(OtpRequest(email = email))
+                                    if (response.isSuccessful && response.body()?.success == true) {
+                                        otpSent = true
+                                        Toast.makeText(context, "인증번호가 발송되었습니다.", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, "발송 실패: ${response.body()?.message}", Toast.LENGTH_SHORT).show()
+                                    }
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "오류 발생: ${e.message}", Toast.LENGTH_SHORT).show()
+                                } finally {
+                                    isLoading = false
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isLoading,
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.LightBlue)
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White)
+                        } else {
+                            Text("인증번호 발송")
+                        }
+                    }
+                } else {
+                    // 인증번호 입력
+                    OutlinedTextField(
+                        value = otp,
+                        onValueChange = { otp = it },
+                        label = { Text("인증번호") },
+                        placeholder = { Text("인증번호 6자리") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        trailingIcon = {
+                            Text(
+                                text = String.format("%02d:%02d", timer / 60, timer % 60),
+                                color = if (timer < 60) Color.Red else AppColors.LightBlue,
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                        }
+                    )
+                    
+                    if (isTimerExpired) {
+                        Text("인증 시간이 만료되었습니다. 재발송해주세요.", color = Color.Red, fontSize = 12.sp)
+                        TextButton(
+                            onClick = {
+                                scope.launch {
+                                    isLoading = true
+                                    try {
+                                        val response = NetworkModule.apiService.sendOtp(OtpRequest(email = email))
+                                        if (response.isSuccessful && response.body()?.success == true) {
+                                            timer = 300
+                                            isTimerExpired = false
+                                            Toast.makeText(context, "인증번호가 재발송되었습니다.", Toast.LENGTH_SHORT).show()
+                                        }
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "재발송 실패: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    } finally {
+                                        isLoading = false
+                                    }
+                                }
+                            }
+                        ) {
+                            Text("인증번호 재발송")
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (otpSent) {
+                Button(
+                    onClick = {
+                        scope.launch {
+                            isLoading = true
+                            try {
+                                val response = NetworkModule.apiService.verifyOtp(OtpRequest(email = email, otp = otp))
+                                if (response.isSuccessful && response.body()?.success == true) {
+                                    Toast.makeText(context, "인증되었습니다.", Toast.LENGTH_SHORT).show()
+                                    onVerified()
+                                } else {
+                                    Toast.makeText(context, "인증 실패: ${response.body()?.message}", Toast.LENGTH_SHORT).show()
+                                }
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "오류 발생: ${e.message}", Toast.LENGTH_SHORT).show()
+                            } finally {
+                                isLoading = false
+                            }
+                        }
+                    },
+                    enabled = otp.isNotEmpty() && !isTimerExpired && !isLoading,
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.LightBlue)
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White)
+                    } else {
+                        Text("인증하기")
+                    }
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("취소")
+            }
+        }
+    )
 }
 
 @Composable
@@ -1078,3 +1310,225 @@ private fun DeleteConfirmDialog(
     )
 }
 
+// ProfileSetupActivity와 동일한 UI 컴포넌트들
+@Composable
+private fun NicknameSection(
+    nickname: String,
+    onNicknameChange: (String) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "닉네임",
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color(0xFF1A1A1A)
+        )
+        OutlinedTextField(
+            value = nickname,
+            onValueChange = onNicknameChange,
+            placeholder = { Text("닉네임", fontSize = 12.sp) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .background(Color.White, MaterialTheme.shapes.small)
+                .padding(horizontal = 4.dp),
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = Color.White,
+                unfocusedContainerColor = Color.White,
+                disabledContainerColor = Color(0xFFF5F5F5),
+                focusedTextColor = Color.Black,
+                unfocusedTextColor = Color.Black
+            ),
+            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp)
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DropdownSection(
+    label: String,
+    value: String,
+    options: List<String>,
+    placeholder: String,
+    onValueChange: (String) -> Unit,
+    displayMap: Map<String, String>? = null
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color(0xFF1A1A1A)
+        )
+        Box {
+            OutlinedButton(
+                onClick = { expanded = !expanded },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = if (value.isBlank()) Color.Gray else Color.Black
+                ),
+                border = BorderStroke(2.dp, Color(0xFFE5E7EB))
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (value.isBlank()) {
+                            placeholder
+                        } else {
+                            displayMap?.get(value) ?: value
+                        },
+                        color = if (value.isBlank()) Color.Gray else Color.Black,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Icon(
+                        imageVector = if (expanded) Icons.Filled.ArrowDropUp else Icons.Filled.ArrowDropDown,
+                        contentDescription = null
+                    )
+                }
+            }
+
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                options.forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(displayMap?.get(option) ?: option) },
+                        onClick = {
+                            onValueChange(option)
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun InterestSection(selected: Set<String>, onToggle: (String) -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "관심분야",
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color(0xFF1A1A1A)
+        )
+        val interests = listOf("일자리", "주거", "복지문화", "교육")
+        
+        // 한 줄로 배치 (가로 스크롤)
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(interests) { interest ->
+                InterestButton(
+                    interest = interest,
+                    isSelected = selected.contains(interest),
+                    onToggle = { onToggle(interest) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun InterestButton(
+    interest: String,
+    isSelected: Boolean,
+    onToggle: () -> Unit
+) {
+    if (isSelected) {
+        Button(
+            onClick = onToggle,
+            modifier = Modifier
+                .height(36.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF59ABF7),
+                contentColor = Color.White
+            ),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp)
+        ) {
+            Text(
+                text = interest,
+                fontSize = 13.sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        }
+    } else {
+        OutlinedButton(
+            onClick = onToggle,
+            modifier = Modifier
+                .height(36.dp),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = Color(0xFF59ABF7)
+            ),
+            border = BorderStroke(1.dp, Color(0xFF59ABF7)),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp)
+        ) {
+            Text(
+                text = interest,
+                fontSize = 13.sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        }
+    }
+}
+
+private val provinceCities = mapOf(
+    "서울" to listOf("서울특별시"),
+    "부산" to listOf("부산광역시"),
+    "경기" to listOf(
+        "고양시", "과천시", "광명시", "광주시", "구리시", "군포시", "김포시", "남양주시", "동두천시", "부천시",
+        "성남시", "수원시", "시흥시", "안산시", "안성시", "안양시", "양주시", "여주시", "오산시", "용인시",
+        "의왕시", "의정부시", "이천시", "파주시", "평택시", "포천시", "하남시", "화성시"
+    ),
+    "인천" to listOf("인천광역시"),
+    "대구" to listOf("대구광역시"),
+    "광주" to listOf("광주광역시"),
+    "대전" to listOf("대전광역시"),
+    "울산" to listOf("울산광역시"),
+    "강원" to listOf("강릉시", "동해시", "삼척시", "속초시", "원주시", "춘천시", "태백시"),
+    "충북" to listOf("제천시", "청주시", "충주시"),
+    "충남" to listOf("계룡시", "공주시", "논산시", "당진시", "보령시", "서산시", "아산시", "천안시"),
+    "전북" to listOf("군산시", "김제시", "남원시", "익산시", "전주시", "정읍시"),
+    "전남" to listOf("광양시", "나주시", "목포시", "순천시", "여수시"),
+    "경북" to listOf("경산시", "경주시", "구미시", "김천시", "문경시", "상주시", "안동시", "영주시", "영천시", "포항시"),
+    "경남" to listOf("거제시", "김해시", "밀양시", "사천시", "양산시", "진주시", "창원시", "통영시"),
+    "제주" to listOf("제주시", "서귀포시")
+)
+
+private val provinceDisplayNames = mapOf(
+    "서울" to "서울특별시",
+    "부산" to "부산광역시",
+    "경기" to "경기도",
+    "인천" to "인천광역시",
+    "대구" to "대구광역시",
+    "광주" to "광주광역시",
+    "대전" to "대전광역시",
+    "울산" to "울산광역시",
+    "강원" to "강원도",
+    "충북" to "충청북도",
+    "충남" to "충청남도",
+    "전북" to "전라북도",
+    "전남" to "전라남도",
+    "경북" to "경상북도",
+    "경남" to "경상남도",
+    "제주" to "제주특별자치도"
+)

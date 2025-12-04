@@ -9,7 +9,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -324,7 +327,8 @@ fun RegisterScreen(
     Column(
         Modifier
             .fillMaxSize()
-            .padding(24.dp),
+            .padding(24.dp)
+            .verticalScroll(rememberScrollState()), // 스크롤 추가
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
 
@@ -368,7 +372,7 @@ fun RegisterScreen(
 
         Spacer(Modifier.height(24.dp))
 
-        /* 이메일 입력칸 */
+            /* 이메일 입력칸 */
         OutlinedTextField(
             value = email,
             onValueChange = {
@@ -379,6 +383,13 @@ fun RegisterScreen(
                 isEmailDuplicate = false
             },
             label = { Text("이메일 주소") },
+            placeholder = { 
+                Text(
+                    "이메일을 입력하세요", 
+                    color = Color.Gray, 
+                    fontSize = 10.sp
+                ) 
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Color.White, MaterialTheme.shapes.small),
@@ -489,15 +500,16 @@ fun RegisterScreen(
             val seconds = remainingTime % 60
             val timerText = String.format("%02d:%02d", minutes, seconds)
             
+            // 인증번호 입력칸과 재발송 버튼을 옆에 배치
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-            OutlinedTextField(
-                value = otp,
-                onValueChange = { otp = it },
-                label = { Text("인증번호 입력") },
+                OutlinedTextField(
+                    value = otp,
+                    onValueChange = { otp = it },
+                    label = { Text("인증번호 입력") },
                     modifier = Modifier
                         .weight(1f)
                         .background(Color.White, MaterialTheme.shapes.small),
@@ -528,9 +540,8 @@ fun RegisterScreen(
                     }
                 )
                 
-                // 재발송 버튼 (SquareButton) - 크기 더 크게
-                SquareButton(
-                    text = "재발송",
+                // 재발송 버튼 - 옆에 배치
+                Button(
                     onClick = {
                         sendOtpToServer(email, context) { success ->
                             if (success) {
@@ -542,11 +553,14 @@ fun RegisterScreen(
                             }
                         }
                     },
-                    enabled = !isTimerExpired, // 만료된 경우에도 재발송 가능
-                    backgroundColor = Color(0xFF59ABF7),  // 라이트 블루 (메인 컬러)
-                    textColor = Color.White,
-                    size = 64.dp  // 56.dp -> 64.dp로 증가
-                )
+                    enabled = true, // 항상 재발송 가능
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF59ABF7)  // 라이트 블루 (메인 컬러)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("재발송", color = Color.White)
+                }
             }
 
             Spacer(Modifier.height(8.dp))
@@ -577,7 +591,14 @@ fun RegisterScreen(
         OutlinedTextField(
             value = password,
             onValueChange = { password = it },
-            label = { Text("비밀번호 (영어/숫자/특수문자 포함)") },
+            label = { Text("비밀번호") },
+            placeholder = { 
+                Text(
+                    "비밀번호를 입력하세요 (8자 이상)", 
+                    color = Color.Gray, 
+                    fontSize = 10.sp
+                ) 
+            },
             visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier
                 .fillMaxWidth()
@@ -606,6 +627,13 @@ fun RegisterScreen(
             value = passwordCheck,
             onValueChange = { passwordCheck = it },
             label = { Text("비밀번호 확인") },
+            placeholder = { 
+                Text(
+                    "비밀번호를 다시 입력하세요", 
+                    color = Color.Gray, 
+                    fontSize = 10.sp
+                ) 
+            },
             visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier
                 .fillMaxWidth()
