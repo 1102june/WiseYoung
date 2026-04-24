@@ -14,7 +14,7 @@ android {
         applicationId = "com.wiseyoung.pro"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
+        versionCode = 4
         versionName = "1.0.1"  // manifest에서 AD_ID차단
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         multiDexEnabled = true
