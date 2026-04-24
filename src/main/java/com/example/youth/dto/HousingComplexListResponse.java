@@ -1,4 +1,4 @@
-package com.example.youth.dto;
+package com.wiseyoung.youth.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

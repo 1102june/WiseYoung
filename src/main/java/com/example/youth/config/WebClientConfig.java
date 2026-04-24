@@ -1,4 +1,4 @@
-package com.example.youth.config;
+package com.wiseyoung.youth.config;
 
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;

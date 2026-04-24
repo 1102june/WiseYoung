@@ -7,28 +7,28 @@ plugins {
 }
 
 android {
-    namespace = "com.wiseyoung.app"
+    namespace = "com.wiseyoung.pro"
     compileSdk = 36 // 안정 버전
 
     defaultConfig {
-        applicationId = "com.wiseyoung.app"
+        applicationId = "com.wiseyoung.pro"
         minSdk = 26
-        targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        targetSdk = 35
+        versionCode = 3
+        versionName = "1.0.1"  // manifest에서 AD_ID차단
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         multiDexEnabled = true
     }
 
     buildTypes {
         debug {
-            // 개발 환경: 로컬 서버 사용 (USB 연결 기기용 - PC의 로컬 IP 주소 사용)
-            buildConfigField("String", "BASE_URL", "\"http://172.16.1.112:8080/\"")
+            // 개발 환경: 로컬 개발용 (ADB 포트 포워딩 사용)
+            buildConfigField("String", "BASE_URL", "\"http://127.0.0.1:8080/\"")
         }
         release {
             isMinifyEnabled = false
-            // 배포 환경: 실제 서버 사용
-            buildConfigField("String", "BASE_URL", "\"http://210.104.76.139:8080/\"")
+            // 배포 환경: 로컬 개발용 (테스트용)
+            buildConfigField("String", "BASE_URL", "\"http://127.0.0.1:8080/\"")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
