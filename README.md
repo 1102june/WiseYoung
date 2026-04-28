@@ -140,7 +140,13 @@ MariaDB
 👥 팀 구성
 
 박선호 – Backend (Spring Boot 서버 운영)
+
 서예준 – Frontend (Android UI)
+
+전체 구조도
+
+<img width="1920" height="1080" alt="슬기로운청년생활 전체구조도" src="https://github.com/user-attachments/assets/59acba01-cfcd-4fbe-bc54-ffe2849a67ce" />
+
 
 ▶️ 실행 방법
 git clone https://github.com/1102june/WiseYoung
