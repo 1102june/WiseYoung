@@ -76,6 +76,5 @@
 ```bash
 git clone [https://github.com/1102june/WiseYoung](https://github.com/1102june/WiseYoung)
 
-# Android Studio에서 프로젝트 열기
-# google-services.json 추가 필요 (Firebase)
-# AWS 서버 주소 설정 (Constants.kt)
+## Open In AndroidStudio
+```
