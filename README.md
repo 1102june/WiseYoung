@@ -1,4 +1,3 @@
-<img width="709" height="516" alt="google signin" src="https://github.com/user-attachments/assets/1b82b178-73fb-4239-b14c-cdb77a216aae" />
 # 📱 WiseYoung (슬기로운 청년생활)
 > **"흩어진 청년 정책과 주거 정보를 한 눈에, 맞춤형 정책 큐레이션 플랫폼"**
 
@@ -72,6 +71,9 @@
 
 ### 🎨 전체 구조도
 <img width="1920" height="1080" alt="슬기로운청년생활 전체구조도" src="https://github.com/user-attachments/assets/6a837487-91aa-4ba2-91e4-ca5f7a66be51" />
+
+### 🔒 Login Flow
+<img width="709" height="516" alt="google signin" src="https://github.com/user-attachments/assets/1b82b178-73fb-4239-b14c-cdb77a216aae" />
 
 ---
 ## 🛠 Troubleshooting & Optimization
