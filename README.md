@@ -1,3 +1,4 @@
+<img width="709" height="516" alt="google signin" src="https://github.com/user-attachments/assets/1b82b178-73fb-4239-b14c-cdb77a216aae" />
 # 📱 WiseYoung (슬기로운 청년생활)
 > **"흩어진 청년 정책과 주거 정보를 한 눈에, 맞춤형 정책 큐레이션 플랫폼"**
 
