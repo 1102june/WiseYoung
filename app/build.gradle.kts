@@ -14,8 +14,8 @@ android {
         applicationId = "com.wiseyoung.pro"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "1.0.2"  // json file 교체
+        versionCode = 6
+        versionName = "1.0.3"  // google-services + prod 서버 URL
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         multiDexEnabled = true
     }
@@ -27,8 +27,8 @@ android {
         }
         release {
             isMinifyEnabled = false
-            // 배포 환경: 로컬 개발용 (테스트용)
-            buildConfigField("String", "BASE_URL", "\"http://127.0.0.1:8080/\"")
+            // Play 내부/비공개 테스트: 배포 서버
+            buildConfigField("String", "BASE_URL", "\"http://210.104.76.139:8080/\"")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
