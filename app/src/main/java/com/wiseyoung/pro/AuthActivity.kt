@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import com.wiseyoung.pro.ui.theme.ThemeWrapper
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.BorderStroke
+import java.nio.file.WatchEvent
 
 
 class AuthActivity : ComponentActivity() {
@@ -47,7 +48,7 @@ fun AuthScreen(onLogin: () -> Unit, onRegister: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // WY 로고 - 크게 표시
+        // WiseYoung Logo
         Image(
             painter = painterResource(id = R.drawable.wy_logo),
             contentDescription = "WY Logo",
@@ -64,24 +65,13 @@ fun AuthScreen(onLogin: () -> Unit, onRegister: () -> Unit) {
 
         Spacer(modifier = Modifier.height(48.dp))
 
-        // 로그인 및 회원가입 버튼
+        //Local 로그인만 남기기
         Button(
             onClick = onLogin,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF59ABF7))  // 라이트 블루 (메인 컬러)
+            colors = ButtonDefaults.buttonColors(containerColor =  Color(0xFF59ABF7))
         ) {
-            Text("로그인", color = Color.White)
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        OutlinedButton(
-            onClick = onRegister,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.outlinedButtonColors(),
-            border = BorderStroke(1.dp, Color(0xFF59ABF7))  // 라이트 블루 테두리
-        ) {
-            Text("회원가입", color = Color(0xFF59ABF7))
+            Text("구글계정으로 시작",color = Color.White)
         }
     }
 }
