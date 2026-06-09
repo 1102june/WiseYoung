@@ -1269,158 +1269,12 @@ fun LoginScreen(
             )
         }
 
-        // 폼 (간격도 줄임)
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(16.dp)  // 24.dp -> 16.dp
-        ) {
-            // 이메일 (입력 필드 크기 줄임)
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = "이메일",
-                    style = MaterialTheme.typography.bodySmall,  // bodyMedium -> bodySmall
-                    color = Color(0xFF1A1A1A),
-                    fontSize = 13.sp
-                )
-                OutlinedTextField(
-                    value = email,
-                    onValueChange = { email = it },
-                    placeholder = { 
-                        Text(
-                            "이메일을 입력하세요", 
-                            color = Color.Gray, 
-                            fontSize = 13.sp,
-                            maxLines = 1
-                        ) 
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 56.dp)
-                        .background(Color.White, MaterialTheme.shapes.small),
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White,
-                        disabledContainerColor = Color(0xFFF5F5F5),
-                        focusedTextColor = Color.Black,
-                        unfocusedTextColor = Color.Black
-                    ),
-                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp)
-                )
-            }
-
-            // 비밀번호 (입력 필드 크기 줄임)
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = "비밀번호",
-                    style = MaterialTheme.typography.bodySmall,  // bodyMedium -> bodySmall
-                    color = Color(0xFF1A1A1A),
-                    fontSize = 13.sp
-                )
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    placeholder = { 
-                        Text(
-                            "비밀번호를 입력하세요", 
-                            color = Color.Gray, 
-                            fontSize = 13.sp,
-                            maxLines = 1
-                        ) 
-                    },
-                    visualTransformation = PasswordVisualTransformation(),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 56.dp)
-                        .background(Color.White, MaterialTheme.shapes.small),
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White,
-                        disabledContainerColor = Color(0xFFF5F5F5),
-                        focusedTextColor = Color.Black,
-                        unfocusedTextColor = Color.Black
-                    ),
-                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp)
-                )
-            }
-
-            // 이메일 저장 + 비밀번호 찾기
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Checkbox(
-                        checked = saveEmail,
-                        onCheckedChange = { saveEmail = it }
-                    )
-                    Text(
-                        text = "이메일 저장",
-                        fontSize = 14.sp,
-                        color = Color(0xFF666666)
-                    )
-                }
-
-                TextButton(onClick = onPasswordReset) {
-                    Text(
-                        text = "비밀번호 찾기",
-                        fontSize = 14.sp,
-                        color = Color(0xFF666666)
-                    )
-                }
-            }
-
-            // 로그인 버튼
-            Button(
-                onClick = { onComplete(email, password) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF59ABF7)  // 라이트 블루 (메인 컬러)
-                )
-            ) {
-                Text("로그인", color = Color.White)
-            }
-
             // 소셜 로그인
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Spacer(modifier = Modifier.height(16.dp))
-
-                // "또는" 구분선
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    HorizontalDivider(
-                        modifier = Modifier.weight(1f),
-                        color = Color(0xFFE5E7EB)
-                    )
-                    Text(
-                        text = "또는",
-                        modifier = Modifier.padding(horizontal = 8.dp),
-                        fontSize = 12.sp,
-                        color = Color(0xFF666666)
-                    )
-                    HorizontalDivider(
-                        modifier = Modifier.weight(1f),
-                        color = Color(0xFFE5E7EB)
-                    )
-                }
 
                 // Google Login 로그인 버튼
                 OutlinedButton(
@@ -1463,26 +1317,7 @@ fun LoginScreen(
                 }
             }
 
-            // 하단 회원가입 링크
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "아직 회원이 아니신가요? ",
-                    fontSize = 14.sp,
-                    color = Color(0xFF666666)
-                )
-                TextButton(onClick = onRegister) {
-                    Text(
-                        text = "회원가입",
-                        fontSize = 14.sp,
-                        color = Color(0xFF59ABF7)  // 라이트 블루 (메인 컬러)
-                    )
-                }
-            }
+
         }
     }
-}
+
