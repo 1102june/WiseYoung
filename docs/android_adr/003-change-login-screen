@@ -1,0 +1,17 @@
+#3. 로그인 화면 수정 local 로그인화면 제거, google login/ samsung PASS login만 남기기
+
+Date: 2026-06-09
+
+## Status
+Accepted
+
+## Context (배경)
+* 002번을 수행하기 위함
+* 로컬로그인을 날리기위해선 로그인화면에서부터 로컬로그인 관련내용 완전히 날려야함
+
+## Decision (결정)
+*  과거 로그인입력창과 로그인 버튼 "또는" 밑에 적힌 구글로그인과 saumsungpass로그인만 남긴다
+
+## Consequences (결과)
+* **Positive:** 훨씬 깔끔해진화면
+* **Negative:** UI가 너무 비어보이는 상태, 로그인의 다양성 없음.
