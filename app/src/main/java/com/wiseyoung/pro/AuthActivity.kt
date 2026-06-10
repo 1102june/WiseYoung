@@ -58,7 +58,7 @@ fun AuthScreen(onLogin: () -> Unit, onRegister: () -> Unit) {
         Spacer(modifier = Modifier.height(32.dp))
         Text(
             text = "슬기로운 청년생활을 위한 첫걸음\n간편한 가입으로 문을 열어주세요!",
-            color = Color.Gray,
+            color = Color.Black,
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center
         )
@@ -71,7 +71,7 @@ fun AuthScreen(onLogin: () -> Unit, onRegister: () -> Unit) {
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor =  Color(0xFF59ABF7))
         ) {
-            Text("구글계정으로 시작",color = Color.White)
+            Text("지금 바로 시작하기!",color = Color.White)
         }
     }
 }
