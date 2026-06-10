@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -1242,7 +1243,7 @@ fun LoginScreen(
             Box(
                 modifier = Modifier
                     .size(200.dp)
-                    .clip(CircleShape)
+                    .clip(RectangleShape)
                     .background(Color.White),
                 contentAlignment = Alignment.Center
             ) {
@@ -1250,8 +1251,7 @@ fun LoginScreen(
                     painter = painterResource(id = R.drawable.wy_logo),
                     contentDescription = "WY Logo",
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(12.dp), // 패딩을 추가하여 로고가 잘리지 않도록
+                        .fillMaxSize(), // 패딩을 추가하여 로고가 잘리지 않도록
                     contentScale = ContentScale.Fit // Crop 대신 Fit 사용
                 )
             }
