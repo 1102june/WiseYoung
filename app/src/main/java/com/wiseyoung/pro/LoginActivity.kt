@@ -1241,7 +1241,7 @@ fun LoginScreen(
         ) {
             Box(
                 modifier = Modifier
-                    .size(96.dp)
+                    .size(200.dp)
                     .clip(CircleShape)
                     .background(Color.White),
                 contentAlignment = Alignment.Center
@@ -1293,7 +1293,7 @@ fun LoginScreen(
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Google Login 로그인")
+                    Text("Google 로그인")
                 }
 
                 // Samsung Pass Login 버튼
@@ -1313,7 +1313,7 @@ fun LoginScreen(
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Samsung Pass Login 로그인")
+                    Text("Samsung Pass 로그인")
                 }
             }
 
