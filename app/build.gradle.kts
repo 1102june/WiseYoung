@@ -22,13 +22,13 @@ android {
 
     buildTypes {
         debug {
-            // 개발 환경: 로컬 개발용 (ADB 포트 포워딩 사용)
-            buildConfigField("String", "BASE_URL", "\"http://127.0.0.1:8080/\"")
+            // Local Testing 할땐 포트포워딩
+            buildConfigField("String", "BASE_URL", "\"https://127.0.0.1:8080/\"")
         }
         release {
             isMinifyEnabled = false
             // Play 내부/비공개 테스트: 배포 서버
-            buildConfigField("String", "BASE_URL", "\"http://210.104.76.139:8080/\"")
+            buildConfigField("String", "BASE_URL", "\"https://port-0-spring-mq9aqs5s2228915a.sel3.cloudtype.app/\"")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

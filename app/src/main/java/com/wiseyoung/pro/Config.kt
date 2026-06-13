@@ -1,9 +1,6 @@
 package com.wiseyoung.pro
 
-/**
- * API 엔드포인트 및 서버 URL.
- * BASE_URL은 [BuildConfig.BASE_URL]과 동기화 (debug=로컬, release=배포 서버).
- */
+
 object Config {
 
     val BASE_URL: String = BuildConfig.BASE_URL.trimEnd('/')
