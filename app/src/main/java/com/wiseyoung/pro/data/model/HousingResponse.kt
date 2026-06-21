@@ -9,6 +9,8 @@ data class HousingResponse(
     val organization: String? = null,
     val applicationStart: String? = null,  // ISO 형식 날짜 문자열
     val applicationEnd: String? = null,    // ISO 형식 날짜 문자열
+    val applicationPeriodText: String? = null,
+    val applicationPeriod: String? = null,
     val heatingType: String? = null,
     val elevator: Boolean? = null,
     val parkingSpaces: Int? = null,

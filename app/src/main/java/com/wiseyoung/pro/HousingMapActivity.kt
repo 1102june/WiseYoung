@@ -36,6 +36,7 @@ import kotlinx.coroutines.withContext
 import com.wiseyoung.pro.ui.theme.AppColors
 import com.wiseyoung.pro.ui.theme.Spacing
 import com.wiseyoung.pro.ui.theme.ThemeWrapper
+import com.wiseyoung.pro.data.model.displayApplicationPeriod
 import com.wiseyoung.pro.ui.components.BottomNavigationBar
 import com.wiseyoung.pro.service.CalendarService
 import androidx.compose.ui.platform.LocalContext
@@ -333,11 +334,7 @@ fun HousingMapScreen(
                             housingType = matchedComplex?.houseTyNm ?: notice.aisTpCdNm ?: "",
                             status = status,
                             deadline = applicationEnd,
-                            recruitmentPeriod = if (applicationStart.isNotEmpty() && applicationEnd.isNotEmpty()) {
-                                "$applicationStart ~ $applicationEnd"
-                            } else {
-                                applicationEnd
-                            },
+                            recruitmentPeriod = notice.displayApplicationPeriod(),
                             address = matchedComplex?.rnAdres ?: "",
                             totalUnits = totalUnits,
                             area = try { "${supplyArea.toInt()}㎡" } catch (e: Exception) { "0㎡" },

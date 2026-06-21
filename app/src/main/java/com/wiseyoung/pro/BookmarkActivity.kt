@@ -27,6 +27,7 @@ import androidx.compose.material3.MaterialTheme
 import com.wiseyoung.pro.ui.theme.AppColors
 import com.wiseyoung.pro.ui.theme.Spacing
 import com.wiseyoung.pro.ui.theme.ThemeWrapper
+import com.wiseyoung.pro.data.model.displayApplicationPeriod
 import com.wiseyoung.pro.ui.components.ElevatedCard
 import com.wiseyoung.pro.network.NetworkModule
 import com.google.firebase.auth.FirebaseAuth
@@ -192,7 +193,7 @@ fun BookmarkScreen(
                                                 isFavorite = true, // 북마크 화면이므로 항상 true
                                                 organization = policy.region ?: "",
                                                 age = "만 ${policy.ageStart ?: 0}세 ~ ${policy.ageEnd ?: 0}세",
-                                                period = "${policy.applicationStart?.take(10)?.replace("-", ".") ?: ""} ~ ${policy.applicationEnd?.take(10)?.replace("-", ".") ?: ""}",
+                                                period = policy.displayApplicationPeriod(),
                                                 content = policy.summary ?: "",
                                                 applicationMethod = policy.eligibility ?: "",
                                                 deadline = policy.applicationEnd?.take(10)?.replace("-", ".") ?: "",
@@ -250,7 +251,7 @@ fun BookmarkScreen(
                                             housingType = notice.aisTpCdNm ?: "",
                                             status = notice.panSs ?: "공고중",
                                             deadline = notice.applicationEnd?.take(10)?.replace("-", ".") ?: "",
-                                            recruitmentPeriod = "${notice.applicationStart?.take(10)?.replace("-", ".") ?: ""} ~ ${notice.applicationEnd?.take(10)?.replace("-", ".") ?: ""}",
+                                            recruitmentPeriod = notice.displayApplicationPeriod(),
                                             address = "",
                                             totalUnits = 0,
                                             area = "",
@@ -344,7 +345,7 @@ fun BookmarkScreen(
                                     housingType = notice.aisTpCdNm ?: "",
                                     status = notice.panSs ?: "공고중",
                                     deadline = notice.applicationEnd?.take(10)?.replace("-", ".") ?: "",
-                                    recruitmentPeriod = "${notice.applicationStart?.take(10)?.replace("-", ".") ?: ""} ~ ${notice.applicationEnd?.take(10)?.replace("-", ".") ?: ""}",
+                                    recruitmentPeriod = notice.displayApplicationPeriod(),
                                     address = "",
                                     totalUnits = 0,
                                     area = "",

@@ -46,6 +46,8 @@ import android.widget.Toast
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import retrofit2.Response
+import com.wiseyoung.pro.data.model.ApiResponse
 
 class ProfileActivity : ComponentActivity() {
     private val auth = FirebaseAuth.getInstance()
@@ -416,90 +418,178 @@ fun ProfileScreen(
             ),
             onDismiss = { showEditProfileDialog = false },
             onSave = { nickname, provinceKey, cityKey, jobStatus, interests ->
-                scope.launch {
-                    try {
-                        val currentUser = auth.currentUser
-                        if (currentUser != null) {
-                            val idToken = try {
-                                currentUser.getIdToken(true).await().token
-                                    ?: run {
-                                        Toast.makeText(context, "인증 토큰을 가져올 수 없습니다.", Toast.LENGTH_SHORT).show()
-                                        return@launch
-                                    }
-                            } catch (e: Exception) {
-                                android.util.Log.e("ProfileActivity", "ID Token 발급 실패: ${e.message}", e)
-                                Toast.makeText(context, "인증 토큰 발급 실패", Toast.LENGTH_SHORT).show()
-                                return@launch
-                            }
-
-                            val updateRequest = com.wiseyoung.pro.data.model.ProfileRequest(
-                                idToken = idToken,
-                                nickname = nickname,
-                                province = provinceKey,
-                                city = cityKey,
-                                education = profile?.education,
-                                employment = jobStatus,
-                                interests = interests,
-                                appVersion = DeviceInfo.getAppVersion(context),
-                                deviceId = DeviceInfo.getDeviceId(context)
-                            )
-                            android.util.Log.d("ProfileActivity", "프로필 업데이트 요청: province=$provinceKey, city=$cityKey")
-                            val response = NetworkModule.apiService.saveProfile(updateRequest)
-                            if (response.isSuccessful && response.body()?.success == true) {
-                                val profileResponse = NetworkModule.apiService.getUserProfile(currentUser.uid)
-                                if (profileResponse.isSuccessful && profileResponse.body()?.success == true) {
-                                    profile = profileResponse.body()?.data
-                                }
-                                Toast.makeText(context, "프로필이 업데이트되었습니다.", Toast.LENGTH_SHORT).show()
-                                showEditProfileDialog = false
-                                onProfileUpdated()
-                            } else {
-                                val errorMsg = response.body()?.message ?: "HTTP ${response.code()}"
-                                android.util.Log.e("ProfileActivity", "프로필 업데이트 실패: $errorMsg")
-                                Toast.makeText(context, "프로필 업데이트에 실패했습니다.", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    } catch (e: Exception) {
-                        android.util.Log.e("ProfileActivity", "프로필 업데이트 실패: ${e.message}", e)
-                        Toast.makeText(context, "프로필 업데이트 중 오류가 발생했습니다.", Toast.LENGTH_SHORT).show()
-                    }
+                val success = saveProfileUpdate(
+                    context = context,
+                    auth = auth,
+                    currentEducation = profile?.education,
+                    nickname = nickname,
+                    provinceKey = provinceKey,
+                    cityKey = cityKey,
+                    jobStatus = jobStatus,
+                    interests = interests,
+                    onProfileRefreshed = { updated -> profile = updated }
+                )
+                if (success) {
+                    onProfileUpdated()
                 }
+                success
             }
         )
     }
-} // End of ProfileScreen
+}
+
+private suspend fun saveProfileUpdate(
+    context: android.content.Context,
+    auth: FirebaseAuth,
+    currentEducation: String?,
+    nickname: String,
+    provinceKey: String,
+    cityKey: String,
+    jobStatus: String,
+    interests: List<String>,
+    onProfileRefreshed: (UserProfileResponse?) -> Unit
+): Boolean {
+    val currentUser = auth.currentUser ?: return false
+
+    val idToken = try {
+        currentUser.getIdToken(true).await().token
+    } catch (e: Exception) {
+        android.util.Log.e("ProfileActivity", "ID Token 발급 실패: ${e.message}", e)
+        Toast.makeText(context, "인증 토큰 발급 실패", Toast.LENGTH_SHORT).show()
+        return false
+    }
+
+    if (idToken.isNullOrBlank()) {
+        Toast.makeText(context, "인증 토큰을 가져올 수 없습니다.", Toast.LENGTH_SHORT).show()
+        return false
+    }
+
+    val updateRequest = com.wiseyoung.pro.data.model.ProfileRequest(
+        idToken = idToken,
+        nickname = nickname,
+        province = provinceKey,
+        city = cityKey,
+        education = currentEducation,
+        employment = jobStatus,
+        interests = interests,
+        appVersion = DeviceInfo.getAppVersion(context),
+        deviceId = DeviceInfo.getDeviceId(context)
+    )
+
+    android.util.Log.d("ProfileActivity", "프로필 업데이트 요청: province=$provinceKey, city=$cityKey")
+
+    return try {
+        val response = NetworkModule.apiService.saveProfile(updateRequest)
+        android.util.Log.d(
+            "ProfileActivity",
+            "saveProfile 응답: code=${response.code()}, success=${response.body()?.success}, message=${response.body()?.message}"
+        )
+
+        val saved = isProfileSaveSuccessful(response)
+        if (saved) {
+            refreshProfileAfterSave(currentUser.uid, onProfileRefreshed)
+            Toast.makeText(context, "프로필이 업데이트되었습니다.", Toast.LENGTH_SHORT).show()
+            true
+        } else {
+            val errorMsg = response.body()?.message ?: "HTTP ${response.code()}"
+            android.util.Log.e("ProfileActivity", "프로필 업데이트 실패: $errorMsg")
+            Toast.makeText(context, "프로필 업데이트에 실패했습니다.", Toast.LENGTH_SHORT).show()
+            false
+        }
+    } catch (e: Exception) {
+        android.util.Log.e("ProfileActivity", "프로필 업데이트 실패: ${e.message}", e)
+        val verified = verifyProfileSaved(currentUser.uid, nickname, jobStatus, onProfileRefreshed)
+        if (verified) {
+            Toast.makeText(context, "프로필이 업데이트되었습니다.", Toast.LENGTH_SHORT).show()
+            true
+        } else {
+            Toast.makeText(context, "프로필 업데이트 중 오류가 발생했습니다.", Toast.LENGTH_SHORT).show()
+            false
+        }
+    }
+}
+
+private suspend fun refreshProfileAfterSave(
+    userId: String,
+    onProfileRefreshed: (UserProfileResponse?) -> Unit
+) {
+    try {
+        val profileResponse = NetworkModule.apiService.getUserProfile(userId)
+        if (profileResponse.isSuccessful && profileResponse.body()?.success == true) {
+            onProfileRefreshed(profileResponse.body()?.data)
+        }
+    } catch (e: Exception) {
+        android.util.Log.w("ProfileActivity", "저장 후 프로필 재조회 실패 (무시): ${e.message}")
+    }
+}
+
+private suspend fun verifyProfileSaved(
+    userId: String,
+    nickname: String,
+    jobStatus: String,
+    onProfileRefreshed: (UserProfileResponse?) -> Unit
+): Boolean {
+    return try {
+        kotlinx.coroutines.delay(400)
+        val profileResponse = NetworkModule.apiService.getUserProfile(userId)
+        val data = profileResponse.body()?.data
+        val matches = profileResponse.isSuccessful &&
+            profileResponse.body()?.success == true &&
+            data?.nickname == nickname &&
+            data.jobStatus == jobStatus
+        if (matches) {
+            onProfileRefreshed(data)
+        }
+        matches
+    } catch (e: Exception) {
+        false
+    }
+}
+
+/** HTTP 200이면 저장 성공으로 간주. body.success가 명시적으로 false일 때만 실패 처리 */
+private fun <T> isProfileSaveSuccessful(response: Response<ApiResponse<T>>): Boolean {
+    if (!response.isSuccessful) return false
+    return response.body()?.success != false
+}
 
 @Composable
 private fun EditProfileDialog(
     currentProfile: UserProfileResponse,
     onDismiss: () -> Unit,
-    onSave: (String, String, String, String, List<String>) -> Unit
+    onSave: suspend (String, String, String, String, List<String>) -> Boolean
 ) {
     var nickname by remember { mutableStateOf(currentProfile.nickname ?: "") }
     val (initialProvince, initialCity) = parseRegionToKeys(currentProfile.region)
     var province by remember { mutableStateOf(initialProvince) }
     var city by remember { mutableStateOf(initialCity) }
     var jobStatus by remember { mutableStateOf(currentProfile.jobStatus ?: "") }
-    // 관심사는 Set으로 관리
     var interests by remember { mutableStateOf(currentProfile.interests.toSet()) }
+    var isSaving by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     val cityMap = remember { provinceCities }
     val provinceDisplayMap = remember { provinceDisplayNames }
+    val isFormValid = nickname.isNotBlank() &&
+        province.isNotBlank() &&
+        city.isNotBlank() &&
+        jobStatus.isNotBlank() &&
+        interests.isNotEmpty()
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(onDismissRequest = { if (!isSaving) onDismiss() }) {
         Card(
             modifier = Modifier
-                .fillMaxWidth(0.9f) // 가로 크기 90%로 증가
-                .fillMaxHeight(0.75f), // 세로 크기 축소 (0.85 -> 0.75)
+                .fillMaxWidth(0.9f)
+                .fillMaxHeight(0.75f),
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White)
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = Spacing.md, top = Spacing.md, end = Spacing.md, bottom = 0.dp)
-                    .verticalScroll(rememberScrollState())
-            ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = Spacing.md, top = Spacing.md, end = Spacing.md, bottom = 0.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
                 Text(
                     text = "내 정보 수정",
                     fontSize = 18.sp,
@@ -571,7 +661,23 @@ private fun EditProfileDialog(
                 // 버튼
                 Button(
                     onClick = {
-                        onSave(nickname, province, city, jobStatus, interests.toList())
+                        scope.launch {
+                            isSaving = true
+                            try {
+                                val success = onSave(
+                                    nickname,
+                                    province,
+                                    city,
+                                    jobStatus,
+                                    interests.toList()
+                                )
+                                if (success) {
+                                    onDismiss()
+                                }
+                            } finally {
+                                isSaving = false
+                            }
+                        }
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -580,27 +686,60 @@ private fun EditProfileDialog(
                         containerColor = Color(0xFF59ABF7),
                         disabledContainerColor = Color(0xFF59ABF7).copy(alpha = 0.4f)
                     ),
-                    enabled = nickname.isNotBlank() && province.isNotBlank() && city.isNotBlank() && jobStatus.isNotBlank() && interests.isNotEmpty()
+                    enabled = isFormValid && !isSaving
                 ) {
-                    Text(
-                        text = "저장",
-                        color = Color.White,
-                        fontSize = 14.sp
-                    )
+                    if (isSaving) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text(
+                            text = "저장",
+                            color = Color.White,
+                            fontSize = 14.sp
+                        )
+                    }
                 }
-                
+
                 Spacer(modifier = Modifier.height(8.dp))
-                
+
                 TextButton(
                     onClick = onDismiss,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(40.dp)
+                        .height(40.dp),
+                    enabled = !isSaving
                 ) {
                     Text(
                         text = "취소",
                         fontSize = 14.sp
                     )
+                }
+            }
+
+                if (isSaving) {
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .background(Color.White.copy(alpha = 0.92f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(Spacing.md)
+                        ) {
+                            CircularProgressIndicator(color = AppColors.LightBlue)
+                            Text(
+                                text = "프로필을 저장하는 중이에요!\n잠시만 기다려주세요!",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = AppColors.TextPrimary,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        }
+                    }
                 }
             }
         }

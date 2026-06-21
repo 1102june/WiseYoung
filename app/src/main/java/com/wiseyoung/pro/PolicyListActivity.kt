@@ -44,6 +44,7 @@ import com.wiseyoung.pro.ui.components.BottomNavigationBar
 import com.wiseyoung.pro.ui.theme.AppColors
 import com.wiseyoung.pro.ui.theme.Spacing
 import com.wiseyoung.pro.ui.theme.ThemeWrapper
+import com.wiseyoung.pro.data.model.displayApplicationPeriod
 import com.google.firebase.auth.FirebaseAuth
 import java.text.SimpleDateFormat
 import java.util.*
@@ -359,7 +360,7 @@ fun PolicyListScreen(
                         isFavorite = policy.isBookmarked,
                         organization = policy.region ?: "",
                         age = "만 ${policy.ageStart ?: 0}세 ~ ${policy.ageEnd ?: 0}세",
-                        period = "${policy.applicationStart?.take(10)?.replace("-", ".") ?: ""} ~ ${policy.applicationEnd?.take(10)?.replace("-", ".") ?: ""}",
+                        period = policy.displayApplicationPeriod(),
                         content = policy.summary ?: "",
                         // eligibility에는 지원내용/신청방법 등이 포함되어 있어 상세 정보로 사용
                         applicationMethod = policy.eligibility ?: "",
@@ -529,7 +530,7 @@ fun PolicyListScreen(
                                                                 isFavorite = p.isBookmarked,
                                                                 organization = p.region ?: "",
                                                                 age = "만 ${p.ageStart ?: 0}세 ~ ${p.ageEnd ?: 0}세",
-                                                                period = "${p.applicationStart?.take(10)?.replace("-", ".") ?: ""} ~ ${p.applicationEnd?.take(10)?.replace("-", ".") ?: ""}",
+                                                                period = p.displayApplicationPeriod(),
                                                                 content = p.summary ?: "",
                                                                 applicationMethod = p.eligibility ?: "",
                                                                 deadline = p.applicationEnd?.take(10) ?: "",

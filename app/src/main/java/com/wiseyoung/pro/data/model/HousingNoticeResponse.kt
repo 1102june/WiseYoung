@@ -35,6 +35,12 @@ data class HousingNoticeResponse(
     
     @SerializedName("applicationEnd")
     val applicationEnd: String? = null, // 신청 종료일
+
+    @SerializedName("applicationPeriodText")
+    val applicationPeriodText: String? = null,
+
+    @SerializedName("applicationPeriod")
+    val applicationPeriod: String? = null,
     
     @SerializedName("cnpCdNm")
     val cnpCdNm: String? = null, // 지역명

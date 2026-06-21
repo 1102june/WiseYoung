@@ -37,6 +37,7 @@ import com.wiseyoung.pro.ui.theme.Spacing
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.wiseyoung.pro.data.model.displayApplicationPeriod
 
 data class PolicyRecommendation(
     val id: Int,
@@ -112,11 +113,7 @@ fun HomeScreen(
                                     }",
                                     organization = policy.region ?: "",
                                     age = "만 ${policy.ageStart ?: 0}세 ~ ${policy.ageEnd ?: 0}세",
-                                    period = "${
-                                        policy.applicationStart?.take(10)?.replace("-", ".") ?: ""
-                                    } ~ ${
-                                        policy.applicationEnd?.take(10)?.replace("-", ".") ?: ""
-                                    }",
+                                    period = policy.displayApplicationPeriod(),
                                     content = policy.summary ?: "",
                                     applicationMethod = policy.link1 ?: "",
                                     deadline = policy.applicationEnd?.take(10) ?: ""
