@@ -35,7 +35,6 @@ import androidx.compose.ui.window.Dialog
 import com.wiseyoung.pro.ui.theme.AppColors
 import com.wiseyoung.pro.ui.theme.Spacing
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -55,44 +54,44 @@ data class PolicyRecommendation(
 @Composable
 fun HomeScreen(
     userId: String?,
+    refreshTrigger: Int = 0,
     onNavigateNotifications: () -> Unit,
     onNavigatePolicy: () -> Unit = {},
     onNavigateHousing: () -> Unit = {},
     onNavigateCalendar: () -> Unit = {},
     onNavigateBookmark: () -> Unit = {},
     onNavigateProfile: () -> Unit = {},
-    onNavigateChatbot: () -> Unit = {},
     onBack: () -> Unit = {}
 ) {
     var currentIndex by remember { mutableStateOf(0) }
     var isExpanded by remember { mutableStateOf(false) }
     var showDetailDialog by remember { mutableStateOf(false) }
-    var showChatbotDialog by remember { mutableStateOf(false) }
-
-    // onNavigateChatbot이 호출되면 챗봇 다이얼로그 열기
-    val handleChatbotClick = { showChatbotDialog = true }
     var detailPolicy by remember { mutableStateOf<PolicyRecommendation?>(null) }
     var isTransitioning by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
-    // 챗봇 버튼 위치 상태 (드래그 가능하게 만들기 위해)
-    val density = LocalDensity.current
-    var chatbotOffsetX by remember { mutableStateOf(0f) }
-    var chatbotOffsetY by remember { mutableStateOf(0f) }
-
     // API 데이터
     var aiRecommendationsList by remember { mutableStateOf<List<PolicyRecommendation>>(emptyList()) }
+    var nickname by remember { mutableStateOf("슬기로운 청년") }
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
 
     // 메인 페이지 데이터 로드 (AI 추천 정책은 항상 서버 데이터만 사용)
-    LaunchedEffect(userId) {
+    LaunchedEffect(userId, refreshTrigger) {
         if (userId != null) {
             isLoading = true
             errorMessage = null
+            currentIndex = 0
             try {
+                val profileResponse = com.wiseyoung.pro.network.NetworkModule.apiService.getUserProfile(userId)
+                if (profileResponse.isSuccessful && profileResponse.body()?.success == true) {
+                    profileResponse.body()?.data?.nickname?.takeIf { it.isNotBlank() }?.let {
+                        nickname = it
+                    }
+                }
+
                 val response = com.wiseyoung.pro.network.NetworkModule.apiService.getMainPage(userId)
                 android.util.Log.d("HomeScreen", "getMainPage 응답: isSuccessful=${response.isSuccessful}, success=${response.body()?.success}")
                 if (response.isSuccessful && response.body()?.success == true) {
@@ -167,6 +166,7 @@ fun HomeScreen(
     }
 
     // Scaffold 제거 -> MainActivity에서 처리함
+    Box(modifier = Modifier.fillMaxSize()) {
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
@@ -199,16 +199,10 @@ fun HomeScreen(
                         verticalArrangement = Arrangement.spacedBy(Spacing.md)
                     ) {
                         Text(
-                            text = "나와 비슷한 다른사람은 어떤한 정책을?",
+                            text = "${nickname}님이 무조건 봐야할 정책!!",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color = AppColors.TextPrimary
-                        )
-
-                        Text(
-                            text = "AI 추천 정책 모음",
-                            fontSize = 14.sp,
-                            color = if (MaterialTheme.colorScheme.background == Color(0xFF121212) || MaterialTheme.colorScheme.background == Color(0xFF0D1A2A)) Color.White else AppColors.TextSecondary
                         )
 
                         // 슬라이드 카드
@@ -291,9 +285,33 @@ fun HomeScreen(
                                 Color(0xFFFF6B2C)
                             ),
                             onClick = onNavigateHousing
-                )
+                        )
+                    }
+                }
             }
         }
+
+        if (isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background.copy(alpha = 0.95f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(Spacing.md)
+                ) {
+                    CircularProgressIndicator(color = Color(0xFF59ABF7))
+                    Text(
+                        text = "${nickname}님에게 맞는 정책을 찾는중이에요!\n잠시만 기다려주세요!",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = AppColors.TextPrimary,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
+            }
         }
     }
 

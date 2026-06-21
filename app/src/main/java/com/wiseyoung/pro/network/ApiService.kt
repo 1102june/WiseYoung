@@ -59,10 +59,7 @@ interface ApiService {
     /**
      * 회원탈퇴
      * DELETE /auth/account
-     * 이메일과 OTP를 받아서 검증 후 탈퇴 처리
-     * 
-     * 참고: Retrofit의 @DELETE는 기본적으로 body를 지원하지 않으므로
-     * @HTTP 어노테이션을 사용하여 DELETE 메서드에 body를 포함시킵니다.
+     * Google 재로그인 idToken으로 본인 확인 후 탈퇴 처리
      */
     @HTTP(method = "DELETE", path = "auth/account", hasBody = true)
     suspend fun deleteAccount(

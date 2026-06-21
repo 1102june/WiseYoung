@@ -88,9 +88,6 @@ class BookmarkActivity : ComponentActivity() {
                     onNavigateProfile = {
                         startActivity(Intent(this, ProfileActivity::class.java))
                         finish()
-                    },
-                    onNavigateChatbot = {
-                        // TODO: Chatbot 화면으로 이동
                     }
                 )
             }
@@ -103,8 +100,7 @@ fun BookmarkScreen(
     userId: String,
     onNavigateHome: () -> Unit,
     onNavigateCalendar: () -> Unit,
-    onNavigateProfile: () -> Unit,
-    onNavigateChatbot: () -> Unit
+    onNavigateProfile: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()

@@ -14,8 +14,8 @@ android {
         applicationId = "com.wiseyoung.pro"
         minSdk = 26
         targetSdk = 35
-        versionCode = 6
-        versionName = "1.0.3"  // google-services + prod 서버 URL
+        versionCode = 9
+        versionName = "1.2.0"  // google-services + prod 서버 URL
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         multiDexEnabled = true
     }
@@ -23,7 +23,9 @@ android {
     buildTypes {
         debug {
             // Local Testing 할땐 포트포워딩
-            buildConfigField("String", "BASE_URL", "\"https://127.0.0.1:8080/\"")
+            //buildConfigField("String", "BASE_URL", "\"https://127.0.0.1:8080/\"")
+            buildConfigField("String", "BASE_URL", "\"https://port-0-spring-mq9aqs5s2228915a.sel3.cloudtype.app/\"")
+            // 배포서버 연결후 테스팅
         }
         release {
             isMinifyEnabled = false

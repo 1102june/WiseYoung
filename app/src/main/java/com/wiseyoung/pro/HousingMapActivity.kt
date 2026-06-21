@@ -159,9 +159,6 @@ class HousingMapActivity : ComponentActivity() {
                     onNavigateProfile = {
                         startActivity(Intent(this, ProfileActivity::class.java))
                         finish()
-                    },
-                    onNavigateChatbot = {
-                        // TODO: 챗봇 다이얼로그 표시
                     }
                 )
             }
@@ -175,8 +172,7 @@ fun HousingMapScreen(
     onNavigateHome: () -> Unit,
     onNavigateCalendar: () -> Unit,
     onNavigateBookmark: () -> Unit,
-    onNavigateProfile: () -> Unit,
-    onNavigateChatbot: () -> Unit
+    onNavigateProfile: () -> Unit
 ) {
     var activeTab by remember { mutableStateOf<String>("housing") }
     var showDetailDialog by remember { mutableStateOf(false) }
@@ -184,13 +180,7 @@ fun HousingMapScreen(
     var showNotificationDialog by remember { mutableStateOf(false) }
     var showFilterDialog by remember { mutableStateOf(false) }
     var selectedHousing by remember { mutableStateOf<Any?>(null) }
-    var showChatbotDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
-    
-    // 챗봇 버튼 위치 상태 (드래그 가능)
-    val density = LocalDensity.current
-    var chatbotOffsetX by remember { mutableStateOf(0f) }
-    var chatbotOffsetY by remember { mutableStateOf(0f) }
     
     // 북마크 초기 상태 불러오기
     var bookmarkedHousings by remember {
@@ -256,8 +246,8 @@ fun HousingMapScreen(
                         ApartmentItem(
                             id = index + 1,
                             housingId = complex.complexId,
-                            name = complex.hsmpNm ?: "",
-                            distance = complex.distanceFromUser?.let { 
+                            name = complex.displayName(),
+                            distance = complex.distanceFromUser?.let {
                                 try {
                                     "${(it / 1000).toInt()}km"
                                 } catch (e: Exception) {
@@ -268,20 +258,20 @@ fun HousingMapScreen(
                             depositDisplay = try { "${(complex.deposit ?: 0) / 10000}만원" } catch (e: Exception) { "0만원" },
                             monthlyRent = try { (complex.monthlyRent ?: 0) / 10000 } catch (e: Exception) { 0 },
                             monthlyRentDisplay = try { "${(complex.monthlyRent ?: 0) / 10000}만원" } catch (e: Exception) { "0만원" },
-                            deadline = "", // 단지 정보에는 마감일이 없음
-                            address = complex.rnAdres ?: "",
+                            deadline = "",
+                            address = complex.displayAddress(),
                             area = try { (complex.supplyArea?.toInt() ?: 0) } catch (e: Exception) { 0 },
-                            completionDate = complex.completeDate ?: "",
-                            organization = complex.insttNm ?: "",
+                            completionDate = complex.displayCompletionDate(),
+                            organization = complex.displayOrganization(),
                             count = 0,
-                            region = complex.signguNm ?: complex.brtcNm ?: "",
-                            housingType = complex.houseTyNm ?: complex.suplyTyNm ?: "",
-                            heatingType = complex.heatMthdDetailNm ?: "",
-                            hasElevator = complex.elevator ?: false,
+                            region = complex.displayRegion(),
+                            housingType = complex.displayHousingType(),
+                            heatingType = complex.displayHeatingType(),
+                            hasElevator = complex.displayHasElevator(),
                             parkingSpaces = complex.parkingSpaces ?: 0,
                             convertibleDeposit = "",
                             totalUnits = complex.totalUnits ?: 0,
-                            link = null, // 단지 정보에는 링크가 없음
+                            link = null,
                             latitude = complex.latitude,
                             longitude = complex.longitude
                         )
@@ -402,32 +392,6 @@ fun HousingMapScreen(
                 onNavigateProfile = onNavigateProfile
             )
         },
-        floatingActionButton = {
-            // 챗봇 버튼 (드래그 기능 포함)
-            FloatingActionButton(
-                onClick = { showChatbotDialog = true },
-                containerColor = Color(0xFF59ABF7),
-                contentColor = Color.White,
-                modifier = Modifier
-                    .offset(
-                        x = with(density) { chatbotOffsetX.toDp() },
-                        y = with(density) { chatbotOffsetY.toDp() }
-                    )
-                    .pointerInput(Unit) {
-                        detectDragGestures { change, dragAmount ->
-                            change.consume()
-                            chatbotOffsetX += dragAmount.x
-                            chatbotOffsetY += dragAmount.y
-                        }
-                    }
-            ) {
-                Icon(
-                    imageVector = Icons.Default.SmartToy,
-                    contentDescription = "챗봇",
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-        }
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -448,10 +412,10 @@ fun HousingMapScreen(
             when (activeTab) {
                 "housing" -> {
                     Column(
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
                     ) {
-                        // Map Container를 LazyColumn 밖으로 분리하여 스크롤과 독립적으로 유지
-                        // 이렇게 하면 지도가 스크롤과 독립적으로 유지되어 재생성되지 않음
                         MapContainer(
                             onFilterClick = null,
                             totalCount = filteredApartments.size,
@@ -466,14 +430,39 @@ fun HousingMapScreen(
                                 .padding(horizontal = Spacing.screenHorizontal)
                                 .padding(bottom = Spacing.md)
                         )
-                        
-                        // 아파트 리스트만 스크롤 가능
-                        LazyColumn(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = Spacing.screenHorizontal)
-                        ) {
-                            items(filteredApartments) { apartment ->
+
+                        if (isLoading) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(color = Color(0xFF59ABF7))
+                            }
+                        } else if (filteredApartments.isEmpty()) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth()
+                                    .padding(horizontal = Spacing.screenHorizontal),
+                                contentAlignment = Alignment.TopCenter
+                            ) {
+                                Text(
+                                    text = errorMessage ?: "표시할 임대주택 단지가 없습니다.",
+                                    fontSize = 14.sp,
+                                    color = AppColors.TextSecondary,
+                                    modifier = Modifier.padding(top = Spacing.md)
+                                )
+                            }
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth()
+                                    .padding(horizontal = Spacing.screenHorizontal)
+                            ) {
+                                items(filteredApartments) { apartment ->
                                 ApartmentCard(
                                     apartment = apartment,
                                     isBookmarked = bookmarkedHousings.contains(apartment.name),
@@ -523,13 +512,12 @@ fun HousingMapScreen(
                         }
                     }
                 }
-                "announcement"
-
-
-                            -> {
+                }
+                "announcement" -> {
                     LazyColumn(
                         modifier = Modifier
-                            .fillMaxSize()
+                            .weight(1f)
+                            .fillMaxWidth()
                             .padding(horizontal = Spacing.screenHorizontal)
                     ) {
                         items(filteredAnnouncements) { announcement ->
@@ -880,13 +868,6 @@ fun HousingMapScreen(
             onDismiss = { showFilterDialog = false }
         )
     }
-    
-    // 챗봇 다이얼로그
-    ChatbotDialog(
-        isOpen = showChatbotDialog,
-        onClose = { showChatbotDialog = false },
-        context = ChatbotContext.NONE
-    )
 }
 
 @Composable

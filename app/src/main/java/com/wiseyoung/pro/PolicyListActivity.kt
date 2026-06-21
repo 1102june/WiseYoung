@@ -246,9 +246,6 @@ class PolicyListActivity : ComponentActivity() {
                     onNavigateProfile = {
                         startActivity(Intent(this, ProfileActivity::class.java))
                         finish()
-                    },
-                    onNavigateChatbot = {
-                        // TODO: 챗봇 다이얼로그 표시
                     }
                 )
             }
@@ -262,8 +259,7 @@ fun PolicyListScreen(
     onNavigateHome: () -> Unit,
     onNavigateCalendar: () -> Unit,
     onNavigateBookmark: () -> Unit,
-    onNavigateProfile: () -> Unit,
-    onNavigateChatbot: () -> Unit
+    onNavigateProfile: () -> Unit
 ) {
     var selectedCategory by remember { mutableStateOf("전체") }
     var expandedCardId by remember { mutableStateOf<Int?>(null) }
@@ -275,12 +271,6 @@ fun PolicyListScreen(
     
     var showDetailDialog by remember { mutableStateOf(false) }
     var detailPolicy by remember { mutableStateOf<PolicyItem?>(null) }
-    var showChatbotDialog by remember { mutableStateOf(false) }
-    
-    // 챗봇 버튼 위치 상태 (드래그 가능)
-    val density = LocalDensity.current
-    var chatbotOffsetX by remember { mutableStateOf(0f) }
-    var chatbotOffsetY by remember { mutableStateOf(0f) }
     
     // API 데이터
     var policiesList by remember { mutableStateOf<List<PolicyItem>>(emptyList()) }
@@ -349,7 +339,7 @@ fun PolicyListScreen(
             val response = com.wiseyoung.pro.network.NetworkModule.apiService.getRecommendedPolicies(
                 userId = userId,
                 category = categoryParam,
-                limit = 30  // 추천 정책만 받아오도록 limit 설정 (서버의 getPersonalizedPolicies에서 점수 계산 후 limit 적용)
+                limit = 30
             )
             if (response.isSuccessful && response.body()?.success == true) {
                 val policies = response.body()?.data ?: emptyList()
@@ -422,6 +412,7 @@ fun PolicyListScreen(
     
     val urgentPolicies = filteredPolicies.filter { it.isUrgent }
     
+    Box(modifier = Modifier.fillMaxSize()) {
     Scaffold(
         bottomBar = {
             BottomNavigationBar(
@@ -432,32 +423,7 @@ fun PolicyListScreen(
                 onNavigateProfile = onNavigateProfile
             )
         },
-        floatingActionButton = {
-            // 챗봇 버튼 (드래그 기능 포함)
-            FloatingActionButton(
-                onClick = { showChatbotDialog = true },
-                containerColor = Color(0xFF59ABF7),
-                contentColor = Color.White,
-                modifier = Modifier
-                    .offset(
-                        x = with(density) { chatbotOffsetX.toDp() },
-                        y = with(density) { chatbotOffsetY.toDp() }
-                    )
-                    .pointerInput(Unit) {
-                        detectDragGestures { change, dragAmount ->
-                            change.consume()
-                            chatbotOffsetX += dragAmount.x
-                            chatbotOffsetY += dragAmount.y
-                        }
-                    }
-            ) {
-                Icon(
-                    imageVector = Icons.Default.SmartToy,
-                    contentDescription = "챗봇",
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-        }
+        modifier = Modifier.fillMaxSize()
     ) { paddingValues ->
         val scrollState = rememberScrollState()
         // 고정 배경 이미지 (스크롤해도 고정)
@@ -592,7 +558,33 @@ fun PolicyListScreen(
             }
         }
     }
-}
+    }
+
+    if (isLoading) {
+        val loadingNickname = profile?.nickname?.takeIf { it.isNotBlank() } ?: "슬기로운 청년"
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White.copy(alpha = 0.95f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(Spacing.md),
+                modifier = Modifier.padding(horizontal = Spacing.lg)
+            ) {
+                CircularProgressIndicator(color = Color(0xFF59ABF7))
+                Text(
+                    text = "${loadingNickname}님에게 맞는 정책을 찾는중이에요!\n잠시만 기다려주세요!",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = AppColors.TextPrimary,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
+        }
+    }
+    }
 
     // Policy Detail Dialog (팝업)
     if (showDetailDialog && detailPolicy != null) {
@@ -760,13 +752,6 @@ fun PolicyListScreen(
             }
         )
     }
-    
-    // 챗봇 다이얼로그
-    ChatbotDialog(
-        isOpen = showChatbotDialog,
-        onClose = { showChatbotDialog = false },
-        context = ChatbotContext.NONE
-    )
 }
 
 // NotificationSettings는 com.example.app.NotificationSettings를 사용

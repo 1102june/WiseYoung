@@ -7,18 +7,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.size
 import androidx.compose.material3.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -56,13 +47,7 @@ fun MainScreen(userId: String, calendarRepository: CalendarRepository) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: "home"
-    
-    var showChatbotDialog by remember { mutableStateOf(false) }
-    
-    // 챗봇 버튼 위치 상태 (드래그 가능)
-    val density = LocalDensity.current
-    var chatbotOffsetX by remember { mutableStateOf(0f) }
-    var chatbotOffsetY by remember { mutableStateOf(0f) }
+    var homeRefreshTrigger by remember { mutableIntStateOf(0) }
     
     Scaffold(
         bottomBar = {
@@ -97,32 +82,6 @@ fun MainScreen(userId: String, calendarRepository: CalendarRepository) {
                     }
                 }
             )
-        },
-        floatingActionButton = {
-            // 챗봇 버튼 (드래그 기능 포함)
-            FloatingActionButton(
-                onClick = { showChatbotDialog = true },
-                containerColor = Color(0xFF59ABF7),
-                contentColor = Color.White,
-                modifier = Modifier
-                    .offset(
-                        x = with(density) { chatbotOffsetX.toDp() },
-                        y = with(density) { chatbotOffsetY.toDp() }
-                    )
-                    .pointerInput(Unit) {
-                        detectDragGestures { change, dragAmount ->
-                            change.consume()
-                            chatbotOffsetX += dragAmount.x
-                            chatbotOffsetY += dragAmount.y
-                        }
-                    }
-            ) {
-                Icon(
-                    imageVector = Icons.Default.SmartToy,
-                    contentDescription = "챗봇",
-                    modifier = Modifier.size(24.dp)
-                )
-            }
         }
     ) { paddingValues ->
         NavHost(
@@ -136,6 +95,7 @@ fun MainScreen(userId: String, calendarRepository: CalendarRepository) {
                 val context = androidx.compose.ui.platform.LocalContext.current
                 HomeScreen(
                     userId = userId,
+                    refreshTrigger = homeRefreshTrigger,
                     onNavigateNotifications = {
                         val intent = Intent(context, NotificationActivity::class.java)
                         context.startActivity(intent)
@@ -148,14 +108,10 @@ fun MainScreen(userId: String, calendarRepository: CalendarRepository) {
                         val intent = Intent(context, HousingMapActivity::class.java)
                         context.startActivity(intent)
                     },
-                    // 내부 내비게이션 사용
                     onNavigateCalendar = { navController.navigate("calendar") },
                     onNavigateBookmark = { navController.navigate("bookmark") },
                     onNavigateProfile = { navController.navigate("profile") },
-                    onNavigateChatbot = { showChatbotDialog = true },
                     onBack = {
-                        // 홈에서 뒤로가기 시 앱 종료 또는 로그아웃 화면으로?
-                        // LoginActivity로 이동
                         val intent = Intent(context, LoginActivity::class.java)
                         context.startActivity(intent)
                         (context as? android.app.Activity)?.finish()
@@ -169,7 +125,6 @@ fun MainScreen(userId: String, calendarRepository: CalendarRepository) {
                     onNavigateHome = { navController.navigate("home") },
                     onNavigateBookmark = { navController.navigate("bookmark") },
                     onNavigateProfile = { navController.navigate("profile") },
-                    onNavigateChatbot = { showChatbotDialog = true },
                     showScaffold = false
                 )
             }
@@ -179,8 +134,7 @@ fun MainScreen(userId: String, calendarRepository: CalendarRepository) {
                     userId = userId,
                     onNavigateHome = { navController.navigate("home") },
                     onNavigateCalendar = { navController.navigate("calendar") },
-                    onNavigateProfile = { navController.navigate("profile") },
-                    onNavigateChatbot = { showChatbotDialog = true }
+                    onNavigateProfile = { navController.navigate("profile") }
                 )
             }
             
@@ -191,23 +145,13 @@ fun MainScreen(userId: String, calendarRepository: CalendarRepository) {
                     onNavigateCalendar = { navController.navigate("calendar") },
                     onNavigateBookmark = { navController.navigate("bookmark") },
                     onNavigateEditProfile = { /* 다이얼로그로 처리됨 */ },
-                    onNavigateChatbot = { showChatbotDialog = true },
                     onNavigateIntro = {
                         val intent = Intent(context, IntroActivity::class.java)
                         context.startActivity(intent)
                     },
-                    onThemeModeChange = { mode ->
-                        com.wiseyoung.pro.ui.theme.ThemePreferences.setThemeMode(context, mode)
-                    }
+                    onProfileUpdated = { homeRefreshTrigger++ }
                 )
             }
         }
-        
-        // 챗봇 다이얼로그 (전역)
-        ChatbotDialog(
-            isOpen = showChatbotDialog,
-            onClose = { showChatbotDialog = false },
-            context = ChatbotContext.NONE // 필요시 컨텍스트 전달 가능
-        )
     }
 }

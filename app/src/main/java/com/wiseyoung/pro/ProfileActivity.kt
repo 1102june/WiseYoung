@@ -1,9 +1,12 @@
 package com.wiseyoung.pro
 
+import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -25,26 +28,24 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.wiseyoung.pro.ui.theme.AppColors
 import com.wiseyoung.pro.ui.theme.Spacing
 import com.wiseyoung.pro.ui.theme.ThemeWrapper
-import com.wiseyoung.pro.ui.theme.ThemeMode
-import com.wiseyoung.pro.ui.theme.ThemePreferences
 import androidx.compose.ui.platform.LocalContext
 import com.wiseyoung.pro.data.model.UserProfileResponse
 import com.wiseyoung.pro.data.model.DeleteAccountRequest
 import com.wiseyoung.pro.network.NetworkModule
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.GoogleAuthProvider
 import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
 import android.widget.Toast
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
-import com.wiseyoung.pro.data.model.OtpRequest
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 
 class ProfileActivity : ComponentActivity() {
     private val auth = FirebaseAuth.getInstance()
@@ -68,18 +69,10 @@ class ProfileActivity : ComponentActivity() {
                     onNavigateEditProfile = {
                         // TODO: 프로필 편집 화면으로 이동
                     },
-                    onNavigateChatbot = {
-                        // TODO: 챗봇 다이얼로그 표시
-                    },
                     onNavigateIntro = {
                         startActivity(Intent(this, IntroActivity::class.java))
                     },
-                    onThemeModeChange = { mode ->
-                        // ThemePreferences에 저장
-                        ThemePreferences.setThemeMode(this, mode)
-                        // ThemeWrapper가 자동으로 SharedPreferences 변경을 감지하여 테마를 업데이트함
-                        // recreate()는 필요 없음 - ThemeWrapper가 즉시 반영
-                    }
+                    onProfileUpdated = {}
                 )
             }
         }
@@ -92,18 +85,14 @@ fun ProfileScreen(
     onNavigateCalendar: () -> Unit,
     onNavigateBookmark: () -> Unit,
     onNavigateEditProfile: () -> Unit,
-    onNavigateChatbot: () -> Unit,
-    onNavigateIntro: () -> Unit, // 추가
-    onThemeModeChange: (ThemeMode) -> Unit
+    onNavigateIntro: () -> Unit,
+    onProfileUpdated: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val auth = FirebaseAuth.getInstance()
     val scope = rememberCoroutineScope()
-    var themeMode by remember { mutableStateOf(ThemePreferences.getThemeMode(context)) }
-    var showDeleteDialog by remember { mutableStateOf(false) }
-    var showDeleteVerification by remember { mutableStateOf(false) } // 이메일 인증 다이얼로그 상태
-    var showDeleteConfirm by remember { mutableStateOf(false) }
-    var deletePassword by remember { mutableStateOf("") }
+    var showDeleteAccountWarning by remember { mutableStateOf(false) }
+    var showDeleteGoogleReauth by remember { mutableStateOf(false) }
     var profile by remember { mutableStateOf<com.wiseyoung.pro.data.model.UserProfileResponse?>(null) }
     var isLoadingProfile by remember { mutableStateOf(true) }
     var isLoadingLogout by remember { mutableStateOf(false) }
@@ -111,6 +100,53 @@ fun ProfileScreen(
     var showLogoutDialog by remember { mutableStateOf(false) }
     
     var showEditProfileDialog by remember { mutableStateOf(false) }
+
+    val googleSignInClient = remember {
+        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestIdToken(context.getString(R.string.default_web_client_id))
+            .requestEmail()
+            .build()
+        GoogleSignIn.getClient(context, gso)
+    }
+
+    val googleReauthLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode != Activity.RESULT_OK || result.data == null) {
+            Toast.makeText(context, "Google 계정 인증이 취소되었습니다.", Toast.LENGTH_SHORT).show()
+            return@rememberLauncherForActivityResult
+        }
+        scope.launch {
+            try {
+                val account = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+                    .getResult(ApiException::class.java)
+                val idToken = account.idToken
+                if (idToken.isNullOrBlank()) {
+                    Toast.makeText(context, "Google 인증 토큰을 가져올 수 없습니다.", Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+                val credential = GoogleAuthProvider.getCredential(idToken, null)
+                auth.signInWithCredential(credential).await()
+                val freshToken = auth.currentUser?.getIdToken(true)?.await()?.token
+                if (freshToken.isNullOrBlank()) {
+                    Toast.makeText(context, "인증 토큰 갱신에 실패했습니다.", Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+                isLoadingDelete = true
+                executeAccountDeletion(
+                    context = context,
+                    auth = auth,
+                    googleSignInClient = googleSignInClient,
+                    idToken = freshToken,
+                    onFinished = { isLoadingDelete = false; showDeleteGoogleReauth = false }
+                )
+            } catch (e: Exception) {
+                android.util.Log.e("ProfileActivity", "Google 재인증 실패: ${e.message}", e)
+                Toast.makeText(context, "Google 계정 인증에 실패했습니다.", Toast.LENGTH_SHORT).show()
+                isLoadingDelete = false
+            }
+        }
+    }
 
     // 프로필 정보 불러오기 (PolicyListActivity와 동일한 API 사용)
     LaunchedEffect(Unit) {
@@ -145,21 +181,6 @@ fun ProfileScreen(
         } else {
             android.util.Log.w("ProfileActivity", "⚠️ userId가 null입니다.")
             isLoadingProfile = false
-        }
-    }
-    
-    // ThemePreferences 변경 감지하여 themeMode 상태 업데이트 (ThemeWrapper와 동기화)
-    androidx.compose.runtime.DisposableEffect(Unit) {
-        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            if (key == ThemePreferences.KEY_THEME_MODE) {
-                themeMode = ThemePreferences.getThemeMode(context)
-            }
-        }
-        val prefs = context.getSharedPreferences(ThemePreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
-        prefs.registerOnSharedPreferenceChangeListener(listener)
-        
-        onDispose {
-            prefs.unregisterOnSharedPreferenceChangeListener(listener)
         }
     }
     
@@ -206,24 +227,12 @@ fun ProfileScreen(
                     )
                 }
                 
-                // Settings Section
-                ThemeSettingCard(
-                    themeMode = themeMode,
-                    onThemeModeChange = { mode ->
-                        themeMode = mode
-                        ThemePreferences.setThemeMode(context, mode)
-                        // ThemeWrapper가 자동으로 감지하여 테마를 업데이트함
-                        // recreate()를 호출하지 않고 즉시 반영되도록 함
-                    },
-                    modifier = Modifier.padding(top = Spacing.md)
-                )
-                
                 // App Tour Button (앱 정보 보기)
                 Button(
                     onClick = onNavigateIntro,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = Spacing.md), // 고정 높이 제거하여 텍스트 길이에 대응
+                        .padding(top = Spacing.md),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = AppColors.LightBlue
                     ),
@@ -274,8 +283,7 @@ fun ProfileScreen(
                     
                     TextButton(
                         onClick = {
-                            // 비밀번호 입력 건너뛰고 바로 이메일 인증으로 이동
-                            showDeleteVerification = true
+                            showDeleteAccountWarning = true
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -345,102 +353,51 @@ fun ProfileScreen(
         )
     }
     
-    // Delete Account - Email Verification (비밀번호 입력 건너뛰고 바로 이메일 인증)
-    if (showDeleteVerification) {
-        val currentUser = auth.currentUser
-        val email = currentUser?.email ?: ""
-        
-        DeleteAccountVerificationDialog(
-            email = email,
-            onVerified = { verifiedOtp ->
-                showDeleteVerification = false
-                // 인증된 OTP를 저장하고 최종 확인 다이얼로그로 이동
-                deletePassword = verifiedOtp // 임시로 OTP를 저장 (변수명은 그대로 유지)
-                showDeleteConfirm = true
+    // Delete Account - initial warning
+    if (showDeleteAccountWarning) {
+        AlertDialog(
+            onDismissRequest = { showDeleteAccountWarning = false },
+            containerColor = Color.White,
+            title = { Text("회원탈퇴", color = AppColors.TextPrimary) },
+            text = {
+                Text(
+                    text = "회원탈퇴 시 회원님의 정보가 영구 삭제됩니다.\n정말 탈퇴하시겠습니까?",
+                    fontSize = 14.sp,
+                    color = AppColors.TextSecondary
+                )
             },
-            onDismiss = {
-                showDeleteVerification = false
-                deletePassword = "" // 취소 시 OTP 초기화
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteAccountWarning = false
+                        showDeleteGoogleReauth = true
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AppColors.BackgroundGradientStart
+                    )
+                ) {
+                    Text("탈퇴하기", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteAccountWarning = false }) {
+                    Text("취소", color = AppColors.TextSecondary)
+                }
             }
         )
     }
-    
-    // Delete Account Confirmation
-    if (showDeleteConfirm) {
-        DeleteConfirmDialog(
+
+    // Delete Account - Google 재로그인 본인 확인
+    if (showDeleteGoogleReauth) {
+        DeleteAccountGoogleReauthDialog(
             isLoading = isLoadingDelete,
             onConfirm = {
-                scope.launch {
-                    isLoadingDelete = true
-                    try {
-                        val currentUser = auth.currentUser
-                        val email = currentUser?.email
-                        
-                        if (currentUser == null || email.isNullOrEmpty()) {
-                            Toast.makeText(context, "로그인된 사용자가 없습니다.", Toast.LENGTH_SHORT).show()
-                            isLoadingDelete = false
-                            showDeleteConfirm = false
-                            deletePassword = ""
-                            return@launch
-                        }
-                        
-                        // 백엔드 회원탈퇴 API 호출 (이메일과 OTP 전달)
-                        val response = NetworkModule.apiService.deleteAccount(
-                            DeleteAccountRequest(email = email, otp = deletePassword)
-                        )
-                        
-                        if (response.isSuccessful && response.body()?.success == true) {
-                            // 백엔드에서 회원탈퇴 성공
-                            android.util.Log.d("ProfileActivity", "백엔드 회원탈퇴 성공")
-                            
-                            // Firebase 계정 삭제
-                            try {
-                                currentUser.delete().await()
-                            } catch (e: Exception) {
-                                android.util.Log.w("ProfileActivity", "Firebase 계정 삭제 실패 (무시): ${e.message}")
-                            }
-                            
-                            // Google 로그인도 로그아웃
-                            try {
-                                val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                                    .requestIdToken(context.getString(R.string.default_web_client_id))
-                                    .requestEmail()
-                                    .build()
-                                val googleSignInClient = GoogleSignIn.getClient(context, gso)
-                                googleSignInClient.revokeAccess().await()
-                            } catch (e: Exception) {
-                                android.util.Log.w("ProfileActivity", "Google 계정 해제 실패 (무시): ${e.message}")
-                            }
-                            
-                            Toast.makeText(context, "회원탈퇴가 완료되었습니다.", Toast.LENGTH_SHORT).show()
-                            
-                            // 로그인 화면으로 이동
-                            val intent = Intent(context, LoginActivity::class.java).apply {
-                                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                            }
-                            context.startActivity(intent)
-                            (context as? ComponentActivity)?.finishAffinity()
-                        } else {
-                            // 백엔드 회원탈퇴 실패
-                            val errorMsg = response.body()?.message ?: "회원탈퇴에 실패했습니다."
-                            android.util.Log.e("ProfileActivity", "백엔드 회원탈퇴 실패: $errorMsg")
-                            Toast.makeText(context, errorMsg, Toast.LENGTH_SHORT).show()
-                            isLoadingDelete = false
-                            showDeleteConfirm = false
-                            deletePassword = ""
-                        }
-                    } catch (e: Exception) {
-                        android.util.Log.e("ProfileActivity", "회원탈퇴 실패: ${e.message}", e)
-                        Toast.makeText(context, "회원탈퇴 중 오류가 발생했습니다: ${e.message}", Toast.LENGTH_SHORT).show()
-                        isLoadingDelete = false
-                        showDeleteConfirm = false
-                        deletePassword = ""
-                    }
-                }
+                googleReauthLauncher.launch(googleSignInClient.signInIntent)
             },
             onDismiss = {
-                showDeleteConfirm = false
-                deletePassword = ""
+                if (!isLoadingDelete) {
+                    showDeleteGoogleReauth = false
+                }
             }
         )
     }
@@ -458,12 +415,11 @@ fun ProfileScreen(
                 interests = emptyList()
             ),
             onDismiss = { showEditProfileDialog = false },
-            onSave = { nickname, region, jobStatus, interests ->
+            onSave = { nickname, provinceKey, cityKey, jobStatus, interests ->
                 scope.launch {
                     try {
                         val currentUser = auth.currentUser
                         if (currentUser != null) {
-                            // Firebase ID Token 가져오기
                             val idToken = try {
                                 currentUser.getIdToken(true).await().token
                                     ?: run {
@@ -475,30 +431,31 @@ fun ProfileScreen(
                                 Toast.makeText(context, "인증 토큰 발급 실패", Toast.LENGTH_SHORT).show()
                                 return@launch
                             }
-                            
-                            // region을 province와 city로 분리 (간단한 처리)
-                            val regionParts = region.split(" ")
-                            val province = regionParts.getOrNull(0) ?: region
-                            val city = regionParts.drop(1).joinToString(" ") ?: region
-                            
-                            // 프로필 업데이트 API 호출
+
                             val updateRequest = com.wiseyoung.pro.data.model.ProfileRequest(
                                 idToken = idToken,
                                 nickname = nickname,
-                                province = province,
-                                city = city,
+                                province = provinceKey,
+                                city = cityKey,
+                                education = profile?.education,
                                 employment = jobStatus,
-                                interests = interests
+                                interests = interests,
+                                appVersion = DeviceInfo.getAppVersion(context),
+                                deviceId = DeviceInfo.getDeviceId(context)
                             )
+                            android.util.Log.d("ProfileActivity", "프로필 업데이트 요청: province=$provinceKey, city=$cityKey")
                             val response = NetworkModule.apiService.saveProfile(updateRequest)
                             if (response.isSuccessful && response.body()?.success == true) {
-                                // 성공 시 프로필 다시 로드
                                 val profileResponse = NetworkModule.apiService.getUserProfile(currentUser.uid)
                                 if (profileResponse.isSuccessful && profileResponse.body()?.success == true) {
                                     profile = profileResponse.body()?.data
                                 }
                                 Toast.makeText(context, "프로필이 업데이트되었습니다.", Toast.LENGTH_SHORT).show()
+                                showEditProfileDialog = false
+                                onProfileUpdated()
                             } else {
+                                val errorMsg = response.body()?.message ?: "HTTP ${response.code()}"
+                                android.util.Log.e("ProfileActivity", "프로필 업데이트 실패: $errorMsg")
                                 Toast.makeText(context, "프로필 업데이트에 실패했습니다.", Toast.LENGTH_SHORT).show()
                             }
                         }
@@ -507,7 +464,6 @@ fun ProfileScreen(
                         Toast.makeText(context, "프로필 업데이트 중 오류가 발생했습니다.", Toast.LENGTH_SHORT).show()
                     }
                 }
-                showEditProfileDialog = false
             }
         )
     }
@@ -517,13 +473,12 @@ fun ProfileScreen(
 private fun EditProfileDialog(
     currentProfile: UserProfileResponse,
     onDismiss: () -> Unit,
-    onSave: (String, String, String, List<String>) -> Unit
+    onSave: (String, String, String, String, List<String>) -> Unit
 ) {
     var nickname by remember { mutableStateOf(currentProfile.nickname ?: "") }
-    // region을 province와 city로 분리
-    val regionParts = (currentProfile.region ?: "").split(" ")
-    var province by remember { mutableStateOf(regionParts.getOrNull(0) ?: "") }
-    var city by remember { mutableStateOf(regionParts.drop(1).joinToString(" ") ?: "") }
+    val (initialProvince, initialCity) = parseRegionToKeys(currentProfile.region)
+    var province by remember { mutableStateOf(initialProvince) }
+    var city by remember { mutableStateOf(initialCity) }
     var jobStatus by remember { mutableStateOf(currentProfile.jobStatus ?: "") }
     // 관심사는 Set으로 관리
     var interests by remember { mutableStateOf(currentProfile.interests.toSet()) }
@@ -616,12 +571,7 @@ private fun EditProfileDialog(
                 // 버튼
                 Button(
                     onClick = {
-                        val regionText = if (province.isNotBlank() && city.isNotBlank()) {
-                            "${provinceDisplayMap[province] ?: province} ${city}"
-                        } else {
-                            ""
-                        }
-                        onSave(nickname, regionText, jobStatus, interests.toList())
+                        onSave(nickname, province, city, jobStatus, interests.toList())
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -878,324 +828,54 @@ private fun ProfileInterestTag(
 }
 
 @Composable
-private fun ThemeSettingCard(
-    themeMode: ThemeMode,
-    onThemeModeChange: (ThemeMode) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, AppColors.Border),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(Spacing.md),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(20.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(16.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.onSurface)
-                    )
-                }
-                Text(
-                    text = "테마",
-                    fontSize = 16.sp,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-            
-            // Theme Selection (2개 버튼 - 라이트, 다크만)
-            Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = AppColors.Border
-            ) {
-                Row(
-                    modifier = Modifier.padding(4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    ThemeToggleButton(
-                        text = "라이트",
-                        isSelected = themeMode == ThemeMode.LIGHT,
-                        onClick = { onThemeModeChange(ThemeMode.LIGHT) }
-                    )
-                    ThemeToggleButton(
-                        text = "다크",
-                        isSelected = themeMode == ThemeMode.DARK,
-                        onClick = { onThemeModeChange(ThemeMode.DARK) }
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ThemeToggleButton(
-    text: String,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    Surface(
-        modifier = Modifier.clickable { onClick() },
-        shape = RoundedCornerShape(16.dp),
-        color = if (isSelected) Color.White else Color.Transparent,
-        shadowElevation = if (isSelected) 2.dp else 0.dp
-    ) {
-        Text(
-            text = text,
-            fontSize = 14.sp,
-            color = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = Spacing.md, vertical = 4.dp),
-            fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal
-        )
-    }
-}
-
-@Composable
-private fun DeleteAccountVerificationDialog(
-    email: String,
-    onVerified: (String) -> Unit, // OTP를 반환하도록 수정
-    onDismiss: () -> Unit
-) {
-    var otp by remember { mutableStateOf("") }
-    var otpSent by remember { mutableStateOf(false) }
-    var timer by remember { mutableStateOf(300) }
-    var isTimerExpired by remember { mutableStateOf(false) }
-    var isLoading by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-    val context = LocalContext.current
-
-    // 타이머 로직
-    LaunchedEffect(otpSent) {
-        if (otpSent) {
-            timer = 300
-            isTimerExpired = false
-            while (timer > 0) {
-                kotlinx.coroutines.delay(1000)
-                timer--
-            }
-            isTimerExpired = true
-        }
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Color.White, // 배경색 흰색으로 변경
-        title = { Text("탈퇴 인증", color = AppColors.LightBlue) },
-        text = {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(Spacing.md)
-            ) {
-                Text(
-                    text = "안전한 탈퇴를 위해 이메일 인증을 진행해주세요.",
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                // 이메일 표시
-                OutlinedTextField(
-                    value = email,
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("이메일") },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        disabledTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    ),
-                    enabled = false
-                )
-
-                if (!otpSent) {
-                    Button(
-                        onClick = {
-                            scope.launch {
-                                isLoading = true
-                                try {
-                                    // 회원탈퇴용 OTP 발송 API 사용
-                                    val response = NetworkModule.apiService.sendOtpForDeleteAccount(OtpRequest(email = email))
-                                    if (response.isSuccessful && response.body()?.success == true) {
-                                        otpSent = true
-                                        Toast.makeText(context, "인증번호가 발송되었습니다.", Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        val errorMsg = response.body()?.message ?: "발송 실패"
-                                        Toast.makeText(context, errorMsg, Toast.LENGTH_SHORT).show()
-                                    }
-                                } catch (e: Exception) {
-                                    android.util.Log.e("ProfileActivity", "OTP 발송 실패: ${e.message}", e)
-                                    Toast.makeText(context, "오류 발생: ${e.message}", Toast.LENGTH_SHORT).show()
-                                } finally {
-                                    isLoading = false
-                                }
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = !isLoading,
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.LightBlue)
-                    ) {
-                        if (isLoading) {
-                            CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White)
-                        } else {
-                            Text("인증번호 발송")
-                        }
-                    }
-                } else {
-                    // 인증번호 입력
-                    OutlinedTextField(
-                        value = otp,
-                        onValueChange = { otp = it },
-                        label = { Text("인증번호") },
-                        placeholder = { Text("인증번호 6자리") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        trailingIcon = {
-                            Text(
-                                text = String.format("%02d:%02d", timer / 60, timer % 60),
-                                color = if (timer < 60) Color.Red else AppColors.LightBlue,
-                                modifier = Modifier.padding(end = 8.dp)
-                            )
-                        }
-                    )
-                    
-                    if (isTimerExpired) {
-                        Text("인증 시간이 만료되었습니다. 재발송해주세요.", color = Color.Red, fontSize = 12.sp)
-                        TextButton(
-                            onClick = {
-                                scope.launch {
-                                    isLoading = true
-                                    try {
-                                        // 회원탈퇴용 OTP 재발송 API 사용
-                                        val response = NetworkModule.apiService.sendOtpForDeleteAccount(OtpRequest(email = email))
-                                        if (response.isSuccessful && response.body()?.success == true) {
-                                            timer = 300
-                                            isTimerExpired = false
-                                            otpSent = true
-                                            Toast.makeText(context, "인증번호가 재발송되었습니다.", Toast.LENGTH_SHORT).show()
-                                        } else {
-                                            val errorMsg = response.body()?.message ?: "재발송 실패"
-                                            Toast.makeText(context, errorMsg, Toast.LENGTH_SHORT).show()
-                                        }
-                                    } catch (e: Exception) {
-                                        android.util.Log.e("ProfileActivity", "OTP 재발송 실패: ${e.message}", e)
-                                        Toast.makeText(context, "재발송 실패: ${e.message}", Toast.LENGTH_SHORT).show()
-                                    } finally {
-                                        isLoading = false
-                                    }
-                                }
-                            }
-                        ) {
-                            Text("인증번호 재발송")
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            if (otpSent) {
-                Button(
-                    onClick = {
-                        scope.launch {
-                            isLoading = true
-                            try {
-                                // OTP 검증 (회원탈퇴용이지만 검증 API는 동일)
-                                val response = NetworkModule.apiService.verifyOtp(OtpRequest(email = email, otp = otp))
-                                if (response.isSuccessful && response.body()?.success == true) {
-                                    Toast.makeText(context, "인증되었습니다.", Toast.LENGTH_SHORT).show()
-                                    // 인증된 OTP를 전달
-                                    onVerified(otp)
-                                } else {
-                                    val errorMsg = response.body()?.message ?: "인증 실패"
-                                    Toast.makeText(context, errorMsg, Toast.LENGTH_SHORT).show()
-                                }
-                            } catch (e: Exception) {
-                                android.util.Log.e("ProfileActivity", "OTP 검증 실패: ${e.message}", e)
-                                Toast.makeText(context, "오류 발생: ${e.message}", Toast.LENGTH_SHORT).show()
-                            } finally {
-                                isLoading = false
-                            }
-                        }
-                    },
-                    enabled = otp.isNotEmpty() && !isTimerExpired && !isLoading,
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.LightBlue)
-                ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White)
-                    } else {
-                        Text("인증하기", color = Color.White)
-                    }
-                }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("취소", color = AppColors.LightBlue)
-            }
-        }
-    )
-}
-
-@Composable
-private fun DeletePasswordDialog(
-    password: String,
-    onPasswordChange: (String) -> Unit,
+private fun DeleteAccountGoogleReauthDialog(
+    isLoading: Boolean,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
     AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("회원탈퇴") },
+        onDismissRequest = {
+            if (!isLoading) onDismiss()
+        },
+        containerColor = Color.White,
+        title = { Text("본인 확인", color = AppColors.TextPrimary) },
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(Spacing.md)
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
             ) {
-                Text(
-                    text = "본인 확인을 위해 비밀번호를 입력해주세요.",
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = onPasswordChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("비밀번호") },
-                    placeholder = { Text("비밀번호를 입력하세요") },
-                    visualTransformation = PasswordVisualTransformation(),
-                    singleLine = true
-                )
+                if (isLoading) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = AppColors.LightBlue)
+                    }
+                } else {
+                    Text(
+                        text = "안전한 탈퇴를 위해 Google 계정으로 다시 로그인해 주세요.",
+                        fontSize = 14.sp,
+                        color = AppColors.TextSecondary
+                    )
+                }
             }
         },
         confirmButton = {
             Button(
                 onClick = onConfirm,
-                enabled = password.isNotEmpty(),
+                enabled = !isLoading,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFDC2626)
+                    containerColor = AppColors.BackgroundGradientStart
                 )
             ) {
-                Text("확인", color = Color.White)
+                Text("Google 계정으로 확인", color = Color.White)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("취소")
+            TextButton(onClick = onDismiss, enabled = !isLoading) {
+                Text("취소", color = AppColors.TextSecondary)
             }
         }
     )
@@ -1208,19 +888,20 @@ private fun LogoutConfirmDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("로그아웃") },
+        containerColor = Color.White,
+        title = { Text("로그아웃", color = AppColors.TextPrimary) },
         text = {
             Text(
                 text = "정말 로그아웃하시겠습니까?",
                 fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = AppColors.TextSecondary
             )
         },
         confirmButton = {
             Button(
                 onClick = onConfirm,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = AppColors.BackgroundGradientStart
+                    containerColor = AppColors.LightBlue
                 )
             ) {
                 Text("로그아웃", color = Color.White)
@@ -1228,7 +909,7 @@ private fun LogoutConfirmDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("취소")
+                Text("취소", color = AppColors.TextSecondary)
             }
         }
     )
@@ -1246,7 +927,8 @@ private fun DeleteConfirmDialog(
                 onDismiss()
             }
         },
-        title = { Text("정말 탈퇴하시겠습니까?") },
+        containerColor = Color.White,
+        title = { Text("정말 탈퇴하시겠습니까?", color = AppColors.TextPrimary) },
         text = {
             if (isLoading) {
                 Box(
@@ -1255,13 +937,13 @@ private fun DeleteConfirmDialog(
                         .padding(16.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator()
+                    CircularProgressIndicator(color = AppColors.LightBlue)
                 }
             } else {
                 Text(
                     text = "회원 탈퇴 시 모든 정보가 소실되며 복구할 수 없습니다.\n정말 탈퇴하시겠습니까?",
                     fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = AppColors.TextSecondary
                 )
             }
         },
@@ -1270,7 +952,7 @@ private fun DeleteConfirmDialog(
                 onClick = onConfirm,
                 enabled = !isLoading,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFDC2626)
+                    containerColor = AppColors.BackgroundGradientStart
                 )
             ) {
                 Text("탈퇴하기", color = Color.White)
@@ -1281,7 +963,7 @@ private fun DeleteConfirmDialog(
                 onClick = onDismiss,
                 enabled = !isLoading
             ) {
-                Text("뒤로가기")
+                Text("뒤로가기", color = AppColors.TextSecondary)
             }
         }
     )
@@ -1350,11 +1032,13 @@ private fun DropdownSection(
                 onClick = { expanded = !expanded },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(48.dp),
+                    .height(48.dp)
+                    .background(Color.White, MaterialTheme.shapes.small),
                 colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = Color.White,
                     contentColor = if (value.isBlank()) Color.Gray else Color.Black
                 ),
-                border = BorderStroke(2.dp, Color(0xFFE5E7EB))
+                border = BorderStroke(1.dp, Color(0xFFE5E7EB))
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1380,15 +1064,23 @@ private fun DropdownSection(
             DropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White),
+                containerColor = Color.White
             ) {
                 options.forEach { option ->
                     DropdownMenuItem(
-                        text = { Text(displayMap?.get(option) ?: option) },
+                        text = { Text(displayMap?.get(option) ?: option, color = Color.Black) },
                         onClick = {
                             onValueChange(option)
                             expanded = false
-                        }
+                        },
+                        colors = MenuDefaults.itemColors(
+                            textColor = Color.Black,
+                            leadingIconColor = Color.Black,
+                            trailingIconColor = Color.Black
+                        )
                     )
                 }
             }
@@ -1466,6 +1158,67 @@ private fun InterestButton(
             )
         }
     }
+}
+
+private suspend fun executeAccountDeletion(
+    context: android.content.Context,
+    auth: FirebaseAuth,
+    googleSignInClient: com.google.android.gms.auth.api.signin.GoogleSignInClient,
+    idToken: String,
+    onFinished: () -> Unit
+) {
+    try {
+        val response = NetworkModule.apiService.deleteAccount(DeleteAccountRequest(idToken = idToken))
+        if (response.isSuccessful && response.body()?.success == true) {
+            Toast.makeText(context, "회원탈퇴가 완료되었습니다.", Toast.LENGTH_SHORT).show()
+            auth.signOut()
+            try {
+                googleSignInClient.signOut().await()
+            } catch (e: Exception) {
+                android.util.Log.w("ProfileActivity", "Google 로그아웃 실패 (무시): ${e.message}")
+            }
+            val intent = Intent(context, LoginActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            }
+            context.startActivity(intent)
+            (context as? ComponentActivity)?.finishAffinity()
+        } else {
+            val errorMsg = response.body()?.message ?: "HTTP ${response.code()}"
+            android.util.Log.e("ProfileActivity", "회원탈퇴 실패: $errorMsg")
+            Toast.makeText(context, "회원탈퇴에 실패했습니다.", Toast.LENGTH_SHORT).show()
+        }
+    } catch (e: Exception) {
+        android.util.Log.e("ProfileActivity", "회원탈퇴 오류: ${e.message}", e)
+        Toast.makeText(context, "회원탈퇴 중 오류가 발생했습니다.", Toast.LENGTH_SHORT).show()
+    } finally {
+        onFinished()
+    }
+}
+
+private fun parseRegionToKeys(region: String?): Pair<String, String> {
+    if (region.isNullOrBlank()) return "" to ""
+
+    if (provinceCities.containsKey(region)) return region to ""
+
+    provinceDisplayNames.entries.firstOrNull { (key, display) ->
+        region == display || region.startsWith(display)
+    }?.let { (key, display) ->
+        val cityPart = region.removePrefix(display).trim()
+        if (cityPart.isBlank()) return key to ""
+        val matchedCity = provinceCities[key]?.find { cityPart == it || cityPart.contains(it) || it.contains(cityPart) }
+        return key to (matchedCity ?: cityPart)
+    }
+
+    provinceCities.entries.firstOrNull { (key, _) ->
+        region == key || region.startsWith("$key ")
+    }?.let { (key, cities) ->
+        val cityPart = region.removePrefix(key).trim()
+        if (cityPart.isBlank()) return key to ""
+        val matchedCity = cities.find { cityPart == it || cityPart.contains(it) || it.contains(cityPart) }
+        return key to (matchedCity ?: cityPart)
+    }
+
+    return "" to ""
 }
 
 private val provinceCities = mapOf(

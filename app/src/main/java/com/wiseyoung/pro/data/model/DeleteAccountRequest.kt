@@ -2,10 +2,8 @@ package com.wiseyoung.pro.data.model
 
 /**
  * 회원탈퇴 요청
- * 이메일과 OTP 인증번호를 받아서 검증 후 탈퇴 처리
+ * Google 재로그인으로 받은 idToken으로 본인 확인 후 탈퇴 처리
  */
 data class DeleteAccountRequest(
-    val email: String,
-    val otp: String
+    val idToken: String
 )
-

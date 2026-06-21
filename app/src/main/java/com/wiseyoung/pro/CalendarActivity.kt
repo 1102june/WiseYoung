@@ -82,9 +82,6 @@ class CalendarActivity : ComponentActivity() {
                         startActivity(Intent(this, ProfileActivity::class.java))
                         finish()
                     },
-                    onNavigateChatbot = {
-                        // TODO: Chatbot 화면으로 이동
-                    },
                     showScaffold = true
                 )
             }
@@ -98,7 +95,6 @@ fun CalendarScreen(
     onNavigateHome: () -> Unit,
     onNavigateBookmark: () -> Unit,
     onNavigateProfile: () -> Unit,
-    onNavigateChatbot: () -> Unit,
     showScaffold: Boolean = true // MainActivity에서는 false, CalendarActivity에서는 true
 ) {
     val context = LocalContext.current
