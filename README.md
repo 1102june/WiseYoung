@@ -39,7 +39,7 @@
 <img width="709" height="516" alt="google signin" src="https://github.com/user-attachments/assets/1b82b178-73fb-4239-b14c-cdb77a216aae" />
 
 ## Refactoring
-📋 [06/21] WILEYOUNG v1.2.1 업데이트 
+📋 [06/21] WiseYoung v1.2.1 업데이트 
 1. 홈 화면 & 정책 카드
 +  로그인 후 홈 화면에서 TOP 5 정책 및 닉네임 문구 정상 노출 확인
 +  정책 카드 내 '신청 기간'이 비어있지 않고, '상시 신청' 등으로 올바르게 표시되는지 확인
