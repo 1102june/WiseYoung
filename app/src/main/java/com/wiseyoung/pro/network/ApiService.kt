@@ -66,46 +66,6 @@ interface ApiService {
         @Body request: DeleteAccountRequest
     ): Response<ApiResponse<String>>
     
-    // ========== Passkey ==========
-    
-    /**
-     * Passkey 로그인 요청 생성
-     * GET /auth/passkey/login/request
-     * 서버에서 challenge 및 설정을 받아옴
-     * @param email 사용자 이메일 (선택사항, 있으면 해당 사용자의 credential ID 포함)
-     */
-    @GET("auth/passkey/login/request")
-    suspend fun getPasskeyLoginRequest(
-        @Query("email") email: String? = null
-    ): Response<ApiResponse<PasskeyLoginRequestResponse>>
-    
-    /**
-     * Passkey 로그인
-     * POST /auth/passkey/login
-     * Passkey credential을 서버로 전송
-     */
-    @POST("auth/passkey/login")
-    suspend fun passkeyLogin(@Body request: PasskeyLoginRequest): Response<ApiResponse<Map<String, String>>>
-    
-    /**
-     * Passkey 등록 요청 생성
-     * GET /auth/passkey/register/request
-     * 서버에서 challenge 및 설정을 받아옴
-     */
-    @GET("auth/passkey/register/request")
-    suspend fun getPasskeyRegisterRequest(
-        @Query("email") email: String,
-        @Query("displayName") displayName: String = ""
-    ): Response<ApiResponse<PasskeyRegisterRequestResponse>>
-    
-    /**
-     * Passkey 등록
-     * POST /auth/passkey/register
-     * Passkey credential을 서버로 전송하여 등록
-     */
-    @POST("auth/passkey/register")
-    suspend fun passkeyRegister(@Body request: PasskeyRegisterRequest): Response<ApiResponse<String>>
-    
     // ========== OTP (이메일 인증) ==========
     
     /**

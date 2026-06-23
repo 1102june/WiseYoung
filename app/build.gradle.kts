@@ -14,8 +14,8 @@ android {
         applicationId = "com.wiseyoung.pro"
         minSdk = 26
         targetSdk = 35
-        versionCode = 9
-        versionName = "1.2.0"  // google-services + prod 서버 URL
+        versionCode = 10
+        versionName = "1.2.1"  // google-services + prod 서버 URL
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         multiDexEnabled = true
     }
@@ -95,10 +95,6 @@ dependencies {
 
     // 🔹 Google 로그인
     implementation("com.google.android.gms:play-services-auth:21.4.0")
-    
-    // 🔹 Google Credential Manager (Passkey 지원)
-    implementation("androidx.credentials:credentials:1.3.0")
-    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
     
     // 🔹 카카오맵 SDK v2 (Maven 의존성)
     // 참고: https://developers.kakao.com/
