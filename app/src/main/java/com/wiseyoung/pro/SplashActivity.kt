@@ -69,9 +69,9 @@ class SplashActivity : ComponentActivity() {
             currentUser != null && !hasCompletedProfile -> {
                 ProfileSetupActivity::class.java
             }
-            // 4. 로그인되지 않은 경우 -> AuthActivity (이미 온보딩은 봄)
+            // 4. 로그인되지 않은 경우 -> LoginActivity (온보딩 완료 후)
             else -> {
-                AuthActivity::class.java
+                LoginActivity::class.java
             }
         }
 

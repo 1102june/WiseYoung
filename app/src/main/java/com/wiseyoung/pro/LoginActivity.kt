@@ -783,7 +783,7 @@ fun LoginScreen(
     ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
                 .verticalScroll(scrollState)
                 .padding(horizontal = Spacing.screenHorizontal)
         ) {
@@ -921,7 +921,8 @@ fun LoginScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(Spacing.xl))
+            Spacer(modifier = Modifier.height(Spacing.xxxl))
+            Spacer(modifier = Modifier.height(Spacing.xxxl))
         }
     }
 }

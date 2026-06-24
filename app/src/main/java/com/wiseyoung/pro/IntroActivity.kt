@@ -57,8 +57,8 @@ class IntroActivity : ComponentActivity() {
                         currentUser != null && hasCompletedProfile -> MainActivity::class.java
                         // 로그인되어 있고 프로필 미완료 -> ProfileSetupActivity
                         currentUser != null && !hasCompletedProfile -> ProfileSetupActivity::class.java
-                        // 미로그인 -> AuthActivity (로그인 화면)
-                        else -> AuthActivity::class.java
+                        // 미로그인 -> LoginActivity
+                        else -> LoginActivity::class.java
                     }
 
                     val intent = Intent(this, nextActivity)
