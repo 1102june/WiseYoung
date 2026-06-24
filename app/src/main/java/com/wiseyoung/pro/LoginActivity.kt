@@ -11,7 +11,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -24,7 +23,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -808,23 +806,14 @@ fun LoginScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Box(
+                Image(
+                    painter = painterResource(id = R.drawable.wy_logo),
+                    contentDescription = "WiseYoung 로고",
                     modifier = Modifier
-                        .size(148.dp)
-                        .shadow(12.dp, CircleShape, spotColor = AppColors.LightBlue.copy(alpha = 0.25f))
-                        .clip(CircleShape)
-                        .background(Color.White),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.wy_logo),
-                        contentDescription = "WiseYoung 로고",
-                        modifier = Modifier
-                            .size(120.dp)
-                            .padding(8.dp),
-                        contentScale = ContentScale.Fit
-                    )
-                }
+                        .size(168.dp)
+                        .padding(horizontal = Spacing.sm),
+                    contentScale = ContentScale.Fit
+                )
 
                 Spacer(modifier = Modifier.height(Spacing.xl))
 
@@ -858,17 +847,17 @@ fun LoginScreen(
             ) {
                 LoginFeatureChip(
                     icon = Icons.Default.Description,
-                    label = "맞춤\n정책",
+                    label = "맞춤정책",
                     modifier = Modifier.weight(1f)
                 )
                 LoginFeatureChip(
                     icon = Icons.Default.Home,
-                    label = "임대\n주택",
+                    label = "임대주택",
                     modifier = Modifier.weight(1f)
                 )
                 LoginFeatureChip(
                     icon = Icons.Default.CalendarToday,
-                    label = "일정\n관리",
+                    label = "일정관리",
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -908,46 +897,31 @@ fun LoginScreen(
                             containerColor = Color.White,
                             contentColor = AppColors.TextPrimary
                         ),
-                        border = BorderStroke(1.dp, AppColors.Border)
+                        border = BorderStroke(1.dp, AppColors.Border),
+                        contentPadding = PaddingValues(horizontal = Spacing.md, vertical = 0.dp)
                     ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.ic_google_logo),
-                            contentDescription = "Google",
-                            modifier = Modifier.size(22.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = "Google로 계속하기",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Image(
+                                painter = painterResource(id = R.drawable.ic_google_logo),
+                                contentDescription = "Google",
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "Google로 계속하기",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(Spacing.lg))
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = Spacing.xl),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "아직 계정이 없으신가요?",
-                    fontSize = 14.sp,
-                    color = AppColors.TextSecondary
-                )
-                TextButton(onClick = onRegister) {
-                    Text(
-                        text = "회원가입",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = AppColors.LightBlue
-                    )
-                }
-            }
+            Spacer(modifier = Modifier.height(Spacing.xl))
         }
     }
 }
@@ -959,18 +933,18 @@ private fun LoginFeatureChip(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        modifier = modifier,
+        modifier = modifier.height(88.dp),
         shape = RoundedCornerShape(16.dp),
-        color = Color.White.copy(alpha = 0.92f),
+        color = Color.White,
         shadowElevation = 2.dp,
-        border = BorderStroke(1.dp, AppColors.BorderLight)
+        border = BorderStroke(1.dp, AppColors.Border)
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = Spacing.md, horizontal = Spacing.sm),
+                .fillMaxSize()
+                .padding(vertical = Spacing.sm, horizontal = Spacing.xs),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            verticalArrangement = Arrangement.Center
         ) {
             Icon(
                 imageVector = icon,
@@ -978,13 +952,14 @@ private fun LoginFeatureChip(
                 tint = AppColors.LightBlue,
                 modifier = Modifier.size(22.dp)
             )
+            Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = label,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
                 color = AppColors.TextPrimary,
                 textAlign = TextAlign.Center,
-                lineHeight = 16.sp
+                maxLines = 1
             )
         }
     }
