@@ -12,22 +12,30 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.wiseyoung.pro.ui.theme.AppColors
+import com.wiseyoung.pro.ui.theme.Spacing
 import com.wiseyoung.pro.ui.theme.ThemeWrapper
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
@@ -760,102 +768,225 @@ fun LoginScreen(
     onComplete: (String, String) -> Unit,
     onGoogleLogin: () -> Unit
 ) {
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var saveEmail by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
-            .verticalScroll(scrollState)
-            .padding(horizontal = 24.dp, vertical = 32.dp)
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        AppColors.LightBlue.copy(alpha = 0.14f),
+                        Color.White,
+                        AppColors.BackgroundGradientStart.copy(alpha = 0.08f)
+                    )
+                )
+            )
     ) {
-        // 헤더
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+                .padding(horizontal = Spacing.screenHorizontal)
         ) {
+            Spacer(modifier = Modifier.height(Spacing.md))
+
             IconButton(
                 onClick = onBack,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(40.dp)
             ) {
                 Icon(
-                    Icons.Default.ArrowBack,
-                    contentDescription = "Back",
-                    modifier = Modifier.size(24.dp)
+                    imageVector = Icons.Default.ArrowBack,
+                    contentDescription = "뒤로가기",
+                    tint = AppColors.TextPrimary
                 )
             }
-        }
 
-        Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(Spacing.lg))
 
-        // WY 로고 (원형)
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)  // 로고와 텍스트 사이 간격 줄임
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(200.dp)
-                    .clip(RectangleShape)
-                    .background(Color.White),
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.wy_logo),
-                    contentDescription = "WY Logo",
-                    modifier = Modifier
-                        .fillMaxSize(), // 패딩을 추가하여 로고가 잘리지 않도록
-                    contentScale = ContentScale.Fit // Crop 대신 Fit 사용
-                )
-            }
-            
-            // 환영 메시지
-            Text(
-                text = "슬기로운 청년생활에 오신것을 환영합니다!",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 32.dp),
-                textAlign = TextAlign.Center,
-                color = Color(0xFF1A1A1A),
-                fontSize = 16.sp,
-                fontWeight = androidx.compose.ui.text.font.FontWeight.Normal
-            )
-        }
-
-            // 소셜 로그인
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Google Login 로그인 버튼
-                OutlinedButton(
-                    onClick = onGoogleLogin,
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp),
-                    border = BorderStroke(2.dp, Color(0xFFE5E7EB)),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = Color.Black
-                    )
+                        .size(148.dp)
+                        .shadow(12.dp, CircleShape, spotColor = AppColors.LightBlue.copy(alpha = 0.25f))
+                        .clip(CircleShape)
+                        .background(Color.White),
+                    contentAlignment = Alignment.Center
                 ) {
                     Image(
-                        painter = painterResource(id = R.drawable.ic_google_logo),
-                        contentDescription = "Google Logo",
-                        modifier = Modifier.size(20.dp)
+                        painter = painterResource(id = R.drawable.wy_logo),
+                        contentDescription = "WiseYoung 로고",
+                        modifier = Modifier
+                            .size(120.dp)
+                            .padding(8.dp),
+                        contentScale = ContentScale.Fit
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Google 로그인")
+                }
+
+                Spacer(modifier = Modifier.height(Spacing.xl))
+
+                Text(
+                    text = "슬기로운 청년생활에\n오신 것을 환영합니다!",
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center,
+                    color = AppColors.TextPrimary,
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.Bold,
+                    lineHeight = 34.sp
+                )
+
+                Spacer(modifier = Modifier.height(Spacing.sm))
+
+                Text(
+                    text = "Google 계정으로 간편하게 시작하세요",
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center,
+                    color = AppColors.TextSecondary,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+
+            Spacer(modifier = Modifier.height(Spacing.xxl))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+            ) {
+                LoginFeatureChip(
+                    icon = Icons.Default.Description,
+                    label = "맞춤\n정책",
+                    modifier = Modifier.weight(1f)
+                )
+                LoginFeatureChip(
+                    icon = Icons.Default.Home,
+                    label = "임대\n주택",
+                    modifier = Modifier.weight(1f)
+                )
+                LoginFeatureChip(
+                    icon = Icons.Default.CalendarToday,
+                    label = "일정\n관리",
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(Spacing.xxl))
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                color = Color.White,
+                shadowElevation = 8.dp
+            ) {
+                Column(
+                    modifier = Modifier.padding(Spacing.lg),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.md)
+                ) {
+                    Text(
+                        text = "시작하기",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AppColors.TextPrimary
+                    )
+                    Text(
+                        text = "로그인하면 나에게 맞는 청년 정책과\n임대주택 정보를 추천받을 수 있어요.",
+                        fontSize = 14.sp,
+                        color = AppColors.TextSecondary,
+                        lineHeight = 20.sp
+                    )
+
+                    OutlinedButton(
+                        onClick = onGoogleLogin,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color.White,
+                            contentColor = AppColors.TextPrimary
+                        ),
+                        border = BorderStroke(1.dp, AppColors.Border)
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_google_logo),
+                            contentDescription = "Google",
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Google로 계속하기",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 }
             }
 
+            Spacer(modifier = Modifier.height(Spacing.lg))
 
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = Spacing.xl),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "아직 계정이 없으신가요?",
+                    fontSize = 14.sp,
+                    color = AppColors.TextSecondary
+                )
+                TextButton(onClick = onRegister) {
+                    Text(
+                        text = "회원가입",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AppColors.LightBlue
+                    )
+                }
+            }
         }
     }
+}
+
+@Composable
+private fun LoginFeatureChip(
+    icon: ImageVector,
+    label: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        color = Color.White.copy(alpha = 0.92f),
+        shadowElevation = 2.dp,
+        border = BorderStroke(1.dp, AppColors.BorderLight)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = Spacing.md, horizontal = Spacing.sm),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = AppColors.LightBlue,
+                modifier = Modifier.size(22.dp)
+            )
+            Text(
+                text = label,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = AppColors.TextPrimary,
+                textAlign = TextAlign.Center,
+                lineHeight = 16.sp
+            )
+        }
+    }
+}
 
