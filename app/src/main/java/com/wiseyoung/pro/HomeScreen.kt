@@ -37,7 +37,12 @@ import com.wiseyoung.pro.ui.theme.Spacing
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.wiseyoung.pro.data.applicationLink
+import com.wiseyoung.pro.data.openApplicationLink
 import com.wiseyoung.pro.data.model.displayApplicationPeriod
+import com.wiseyoung.pro.ui.components.NO_POLICY_APPLICATION_LINK_MESSAGE
+import com.wiseyoung.pro.ui.components.NoApplicationLinkDialog
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 
 data class PolicyRecommendation(
     val id: Int,
@@ -48,6 +53,7 @@ data class PolicyRecommendation(
     val period: String,
     val content: String,
     val applicationMethod: String,
+    val applyLink: String? = null,
     val deadline: String
 )
 
@@ -76,15 +82,18 @@ fun HomeScreen(
     var aiRecommendationsList by remember { mutableStateOf<List<PolicyRecommendation>>(emptyList()) }
     var nickname by remember { mutableStateOf("슬기로운 청년") }
     var isLoading by remember { mutableStateOf(true) }
+    var isRefreshing by remember { mutableStateOf(false) }
+    var refreshKey by remember { mutableIntStateOf(0) }
+    var showNoLinkDialog by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
 
     // 메인 페이지 데이터 로드 (AI 추천 정책은 항상 서버 데이터만 사용)
-    LaunchedEffect(userId, refreshTrigger) {
+    LaunchedEffect(userId, refreshTrigger, refreshKey) {
         if (userId != null) {
-            isLoading = true
+            if (refreshKey == 0) isLoading = true
             errorMessage = null
-            currentIndex = 0
+            if (refreshKey == 0) currentIndex = 0
             try {
                 val profileResponse = com.wiseyoung.pro.network.NetworkModule.apiService.getUserProfile(userId)
                 if (profileResponse.isSuccessful && profileResponse.body()?.success == true) {
@@ -115,7 +124,8 @@ fun HomeScreen(
                                     age = "만 ${policy.ageStart ?: 0}세 ~ ${policy.ageEnd ?: 0}세",
                                     period = policy.displayApplicationPeriod(),
                                     content = policy.summary ?: "",
-                                    applicationMethod = policy.link1 ?: "",
+                                    applicationMethod = policy.eligibility ?: "",
+                                    applyLink = policy.applicationLink(),
                                     deadline = policy.applicationEnd?.take(10) ?: ""
                                 )
                             }
@@ -133,10 +143,12 @@ fun HomeScreen(
                 errorMessage = "네트워크 오류: ${e.message}"
             } finally {
                 isLoading = false
+                isRefreshing = false
             }
         } else {
             // userId가 없으면 추천 데이터를 불러올 수 없음
             isLoading = false
+            isRefreshing = false
         }
     }
 
@@ -164,14 +176,19 @@ fun HomeScreen(
 
     // Scaffold 제거 -> MainActivity에서 처리함
     Box(modifier = Modifier.fillMaxSize()) {
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = {
+                isRefreshing = true
+                refreshKey++
+            },
+            modifier = Modifier.fillMaxSize()
+        ) {
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background)
         ) {
-            val boxWidth = constraints.maxWidth.toFloat()
-            val boxHeight = constraints.maxHeight.toFloat()
-
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -287,8 +304,9 @@ fun HomeScreen(
                 }
             }
         }
+        }
 
-        if (isLoading) {
+        if (isLoading && !isRefreshing) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -318,16 +336,20 @@ fun HomeScreen(
             policy = detailPolicy!!,
             onDismiss = { showDetailDialog = false },
             onApply = {
-                val url = detailPolicy!!.applicationMethod
-                if (url.isNotEmpty()) {
-                    runCatching {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                        context.startActivity(intent)
-                    }.onFailure {
-                        // 링크가 유효하지 않으면 토스트 메시지 등 처리
-                    }
+                val url = detailPolicy!!.applyLink
+                if (!url.isNullOrBlank()) {
+                    openApplicationLink(context, url)
+                } else {
+                    showNoLinkDialog = true
                 }
             }
+        )
+    }
+
+    if (showNoLinkDialog) {
+        NoApplicationLinkDialog(
+            message = NO_POLICY_APPLICATION_LINK_MESSAGE,
+            onDismiss = { showNoLinkDialog = false }
         )
     }
 

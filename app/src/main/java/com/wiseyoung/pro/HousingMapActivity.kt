@@ -36,7 +36,11 @@ import kotlinx.coroutines.withContext
 import com.wiseyoung.pro.ui.theme.AppColors
 import com.wiseyoung.pro.ui.theme.Spacing
 import com.wiseyoung.pro.ui.theme.ThemeWrapper
+import com.wiseyoung.pro.data.openApplicationLink
 import com.wiseyoung.pro.data.model.displayApplicationPeriod
+import com.wiseyoung.pro.ui.components.NO_HOUSING_APPLICATION_LINK_MESSAGE
+import com.wiseyoung.pro.ui.components.NoApplicationLinkDialog
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import com.wiseyoung.pro.ui.components.BottomNavigationBar
 import com.wiseyoung.pro.service.CalendarService
 import androidx.compose.ui.platform.LocalContext
@@ -197,6 +201,9 @@ fun HousingMapScreen(
     var apartmentsList by remember { mutableStateOf<List<ApartmentItem>>(emptyList()) }
     var announcementsList by remember { mutableStateOf<List<HousingAnnouncementItem>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
+    var isRefreshing by remember { mutableStateOf(false) }
+    var refreshKey by remember { mutableIntStateOf(0) }
+    var showNoLinkDialog by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     
@@ -221,8 +228,8 @@ fun HousingMapScreen(
     }
     
     // 주택 목록 로드 (단지 정보와 공고 정보를 분리된 API로 호출)
-    LaunchedEffect(userId) {
-        isLoading = true
+    LaunchedEffect(userId, refreshKey) {
+        if (refreshKey == 0) isLoading = true
         errorMessage = null
         
         try {
@@ -361,22 +368,47 @@ fun HousingMapScreen(
             announcementsList = emptyList()
         } finally {
             isLoading = false
+            isRefreshing = false
         }
     }
     
     val filteredApartments = apartmentsList.filter { apt ->
-        if (filters.region != "전체" && apt.region != filters.region) return@filter false
+        if (!matchesHousingRegion(apt.region, filters.region)) return@filter false
         if (apt.deposit > filters.maxDeposit) return@filter false
         if (apt.monthlyRent > filters.maxMonthlyRent) return@filter false
-        if (filters.housingType != "전체" && apt.housingType != filters.housingType) return@filter false
+        if (!matchesHousingType(apt.housingType, filters.housingType)) return@filter false
         true
     }
-    
+
     val filteredAnnouncements = announcementsList.filter { announcement ->
-        if (filters.region != "전체" && announcement.region != filters.region) return@filter false
-        if (filters.housingType != "전체" && announcement.housingType != filters.housingType) return@filter false
+        if (!matchesHousingRegion(announcement.region, filters.region)) return@filter false
+        if (!matchesHousingType(announcement.housingType, filters.housingType)) return@filter false
         if (filters.status != "전체" && announcement.status != filters.status) return@filter false
         true
+    }
+
+    val regionFilterOptions = remember(apartmentsList, announcementsList) {
+        buildList {
+            add("전체")
+            addAll(
+                (apartmentsList.map { it.region } + announcementsList.map { it.region })
+                    .filter { it.isNotBlank() }
+                    .distinct()
+                    .sorted()
+            )
+        }
+    }
+
+    val housingTypeFilterOptions = remember(apartmentsList, announcementsList) {
+        buildList {
+            add("전체")
+            addAll(
+                (apartmentsList.map { it.housingType } + announcementsList.map { it.housingType })
+                    .filter { it.isNotBlank() }
+                    .distinct()
+                    .sorted()
+            )
+        }
     }
     
     Scaffold(
@@ -406,15 +438,26 @@ fun HousingMapScreen(
                 modifier = Modifier.padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.md)
             )
             
+            PullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = {
+                    isRefreshing = true
+                    refreshKey++
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            ) {
+            Column(modifier = Modifier.fillMaxSize()) {
             when (activeTab) {
                 "housing" -> {
                     Column(
                         modifier = Modifier
-                            .weight(1f)
+                            .fillMaxSize()
                             .fillMaxWidth()
                     ) {
                         MapContainer(
-                            onFilterClick = null,
+                            onFilterClick = { showFilterDialog = true },
                             totalCount = filteredApartments.size,
                             regionLabel = filters.region.takeUnless { it == "전체" },
                             apartments = filteredApartments,
@@ -428,7 +471,7 @@ fun HousingMapScreen(
                                 .padding(bottom = Spacing.md)
                         )
 
-                        if (isLoading) {
+                        if (isLoading && !isRefreshing) {
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
@@ -513,7 +556,7 @@ fun HousingMapScreen(
                 "announcement" -> {
                     LazyColumn(
                         modifier = Modifier
-                            .weight(1f)
+                            .fillMaxSize()
                             .fillMaxWidth()
                             .padding(horizontal = Spacing.screenHorizontal)
                     ) {
@@ -562,17 +605,11 @@ fun HousingMapScreen(
                                     showDetailDialog = true
                                 },
                                 onApplyClick = {
-                                    // 신청하기 버튼 클릭 시 링크 열기
                                     val link = announcement.link
                                     if (!link.isNullOrBlank()) {
-                                        try {
-                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(link))
-                                            context.startActivity(intent)
-                                        } catch (e: Exception) {
-                                            Toast.makeText(context, "링크를 열 수 없습니다.", Toast.LENGTH_SHORT).show()
-                                        }
+                                        openApplicationLink(context, link)
                                     } else {
-                                        Toast.makeText(context, "신청 링크가 제공되지 않았습니다.", Toast.LENGTH_SHORT).show()
+                                        showNoLinkDialog = true
                                     }
                                 },
                                 modifier = Modifier.padding(bottom = Spacing.sm)
@@ -580,6 +617,8 @@ fun HousingMapScreen(
                         }
                     }
                 }
+            }
+            }
             }
         }
     }
@@ -672,18 +711,11 @@ fun HousingMapScreen(
                         selectedApartment = null
                     },
                     onApply = {
-                        // 신청하기 링크 열기
                         val link = item.link
-                        if (link != null && link.isNotEmpty()) {
-                            try {
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(link))
-                                context.startActivity(intent)
-                            } catch (e: Exception) {
-                                android.util.Log.e("HousingMapActivity", "링크 열기 실패: ${e.message}", e)
-                                Toast.makeText(context, "링크를 열 수 없습니다.", Toast.LENGTH_SHORT).show()
-                            }
+                        if (!link.isNullOrBlank()) {
+                            openApplicationLink(context, link)
                         } else {
-                            Toast.makeText(context, "신청 링크가 제공되지 않았습니다.", Toast.LENGTH_SHORT).show()
+                            showNoLinkDialog = true
                         }
                     }
                 )
@@ -860,9 +892,18 @@ fun HousingMapScreen(
         FilterDialog(
             filters = filters,
             activeTab = activeTab,
+            regionOptions = regionFilterOptions,
+            housingTypeOptions = housingTypeFilterOptions,
             onFiltersChange = { filters = it },
             onApply = { showFilterDialog = false },
             onDismiss = { showFilterDialog = false }
+        )
+    }
+
+    if (showNoLinkDialog) {
+        NoApplicationLinkDialog(
+            message = NO_HOUSING_APPLICATION_LINK_MESSAGE,
+            onDismiss = { showNoLinkDialog = false }
         )
     }
 }
@@ -996,7 +1037,6 @@ private fun MapContainer(
                 val mapView = remember { mutableStateOf<MapView?>(null) }
                 var kakaoMapInstance by remember { mutableStateOf<com.kakao.vectormap.KakaoMap?>(null) }
                 var mapError by remember { mutableStateOf<String?>(null) }
-                var markersAdded by remember { mutableStateOf(false) }
                 
                 // 지도 영역에서 스크롤을 완전히 차단
                 DisposableEffect(Unit) {
@@ -1165,10 +1205,14 @@ private fun MapContainer(
                     }
                 )
                 
-                // 아파트 리스트와 지도가 준비되면 마커 추가 (한 번만 실행)
+                var markersAddedFor by remember { mutableStateOf("") }
+                // 아파트 리스트와 지도가 준비되면 마커 추가 (데이터 갱신 시 재실행)
                 val context = LocalContext.current
-                LaunchedEffect(apartments.size, kakaoMapInstance) {
-                    if (apartments.isNotEmpty() && kakaoMapInstance != null && !markersAdded) {
+                val apartmentMarkerKey = apartments.joinToString("|") {
+                    "${it.housingId}:${it.latitude}:${it.longitude}:${it.address}"
+                }
+                LaunchedEffect(apartmentMarkerKey, kakaoMapInstance) {
+                    if (apartments.isNotEmpty() && kakaoMapInstance != null && markersAddedFor != apartmentMarkerKey) {
                         android.util.Log.d("HousingMapActivity", "마커 추가 시작: 아파트 ${apartments.size}개")
                         addApartmentMarkersWithGeocoding(
                             context = context,
@@ -1176,7 +1220,7 @@ private fun MapContainer(
                             apartments = apartments,
                             onMarkerClick = onMarkerClick
                         )
-                        markersAdded = true
+                        markersAddedFor = apartmentMarkerKey
                     }
                 }
                 
@@ -1824,6 +1868,8 @@ private fun AnnouncementDetailDialog(
 private fun FilterDialog(
     filters: HousingFilters,
     activeTab: String,
+    regionOptions: List<String>,
+    housingTypeOptions: List<String>,
     onFiltersChange: (HousingFilters) -> Unit,
     onApply: () -> Unit,
     onDismiss: () -> Unit
@@ -1883,7 +1929,7 @@ private fun FilterDialog(
                                 expanded = expanded,
                                 onDismissRequest = { expanded = false }
                             ) {
-                                listOf("전체", "수원시", "서울시", "부산시").forEach { region ->
+                                (if (regionOptions.isEmpty()) listOf("전체") else regionOptions).forEach { region ->
                                     DropdownMenuItem(
                                         text = { Text(region) },
                                         onClick = {
@@ -1925,7 +1971,7 @@ private fun FilterDialog(
                                 expanded = expanded,
                                 onDismissRequest = { expanded = false }
                             ) {
-                                listOf("전체", "국민임대", "행복주택", "영구임대", "장기전세").forEach { type ->
+                                (if (housingTypeOptions.isEmpty()) listOf("전체") else housingTypeOptions).forEach { type ->
                                     DropdownMenuItem(
                                         text = { Text(type) },
                                         onClick = {
@@ -2620,5 +2666,19 @@ private fun HousingWheelPicker(
         }
         Text(label, fontSize = 12.sp, color = AppColors.TextSecondary)
     }
+}
+
+private fun matchesHousingRegion(itemRegion: String, filterRegion: String): Boolean {
+    if (filterRegion == "전체") return true
+    if (itemRegion.isBlank()) return true
+    val item = itemRegion.replace(" ", "")
+    val filter = filterRegion.replace(" ", "")
+    return item.contains(filter) || filter.contains(item)
+}
+
+private fun matchesHousingType(itemType: String, filterType: String): Boolean {
+    if (filterType == "전체") return true
+    if (itemType.isBlank()) return true
+    return itemType.contains(filterType) || filterType.contains(itemType)
 }
 

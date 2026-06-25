@@ -1309,6 +1309,8 @@ private suspend fun executeAccountDeletion(
     try {
         val response = NetworkModule.apiService.deleteAccount(DeleteAccountRequest(idToken = idToken))
         if (response.isSuccessful && response.body()?.success == true) {
+            ProfilePreferences.clearAll(context)
+            ProfilePreferences.setProfileCompleted(context, false)
             Toast.makeText(context, "회원탈퇴가 완료되었습니다.", Toast.LENGTH_SHORT).show()
             auth.signOut()
             try {

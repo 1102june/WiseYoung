@@ -98,7 +98,10 @@ data class HousingComplexResponse(
     fun displayName(): String = name ?: hsmpNm ?: ""
     fun displayAddress(): String = address ?: rnAdres ?: ""
     fun displayOrganization(): String = organization ?: insttNm ?: ""
-    fun displayRegion(): String = region ?: signguNm ?: brtcNm ?: ""
+    fun displayRegion(): String = region?.takeIf { it.isNotBlank() }
+        ?: listOfNotNull(brtcNm?.takeIf { it.isNotBlank() }, signguNm?.takeIf { it.isNotBlank() })
+            .joinToString(" ")
+            .ifBlank { signguNm ?: brtcNm ?: "" }
     fun displayCompletionDate(): String = completionDate ?: completeDate ?: ""
     fun displayHousingType(): String = housingType ?: houseTyNm ?: suplyTyNm ?: ""
     fun displayHeatingType(): String = heatingType ?: heatMthdDetailNm ?: ""

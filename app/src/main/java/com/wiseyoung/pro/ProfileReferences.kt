@@ -7,6 +7,13 @@ object ProfilePreferences {
     private const val KEY_PROFILE_COMPLETE = "profile_complete"
     private const val KEY_IS_FIRST_LOGIN = "is_first_login"
 
+    fun clearAll(context: Context) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .clear()
+            .apply()
+    }
+
     fun hasCompletedProfile(context: Context): Boolean {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .getBoolean(KEY_PROFILE_COMPLETE, false)
