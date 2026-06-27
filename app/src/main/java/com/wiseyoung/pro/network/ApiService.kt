@@ -38,7 +38,7 @@ interface ApiService {
      * POST /auth/profile
      */
     @POST("auth/profile")
-    suspend fun saveProfile(@Body request: ProfileRequest): Response<ApiResponse<String>>
+    suspend fun saveProfile(@Body request: ProfileRequest): Response<ApiResponse<ProfileSaveResponse>>
     
     /**
      * FCM Push Token 저장/업데이트

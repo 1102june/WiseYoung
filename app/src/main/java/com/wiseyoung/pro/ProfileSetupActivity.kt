@@ -215,12 +215,18 @@ class ProfileSetupActivity : ComponentActivity() {
                     deviceId = deviceId
                 )
 
-                Log.d("ProfileSetup", "프로필 저장 요청: \$request")
+                Log.d("ProfileSetup", "프로필 저장 요청: $request")
                 
                 try {
                     val response = NetworkModule.apiService.saveProfile(request)
-                    val isSuccess = response.isSuccessful && response.body()?.success == true
-                    val message = response.body()?.message ?: if (isSuccess) "프로필이 저장되었습니다." else "서버 오류: \${response.code()}"
+                    val body = response.body()
+                    val isSuccess = response.isSuccessful && body?.success != false
+                    val message = when {
+                        isSuccess -> body?.message ?: "프로필이 저장되었습니다."
+                        body?.message != null -> body.message
+                        !response.isSuccessful -> "서버 오류: ${response.code()}"
+                        else -> "프로필 저장에 실패했습니다."
+                    }
 
                     if (isSuccess && currentUser != null) {
                         // Firestore 저장 로직 (기존 유지)
@@ -240,7 +246,7 @@ class ProfileSetupActivity : ComponentActivity() {
                             user = firestoreUser,
                             onSuccess = {},
                             onFailure = { exception ->
-                                Log.e("ProfileSetup", "Firestore User 저장 실패: \${exception.message}")
+                                Log.e("ProfileSetup", "Firestore User 저장 실패: ${exception.message}")
                             }
                         )
                         
@@ -257,7 +263,9 @@ class ProfileSetupActivity : ComponentActivity() {
                         FirestoreService.saveUserProfile(
                             profile = firestoreProfile,
                             onSuccess = { Log.d("ProfileSetup", "Firestore 프로필 저장 성공") },
-                            onFailure = { exception -> Log.e("ProfileSetup", "Firestore 프로필 저장 실패: \${exception.message}") }
+                            onFailure = { exception ->
+                                Log.e("ProfileSetup", "Firestore 프로필 저장 실패: ${exception.message}")
+                            }
                         )
                     }
                     
@@ -265,21 +273,21 @@ class ProfileSetupActivity : ComponentActivity() {
                         onResult(isSuccess, message)
                     }
                 } catch (e: Exception) {
-                    Log.e("ProfileSetup", "프로필 저장 실패: \${e.message}", e)
+                    Log.e("ProfileSetup", "프로필 저장 실패: ${e.message}", e)
                     withContext(Dispatchers.Main) {
                         val errorMessage = when {
-                             e is java.net.SocketTimeoutException -> "서버 응답 시간이 초과되었습니다."
-                             e.message?.contains("Failed to connect") == true -> "서버에 연결할 수 없습니다. (Connection Failed)"
-                             else -> "프로필 저장 실패: \${e.message}"
+                            e is java.net.SocketTimeoutException -> "서버 응답 시간이 초과되었습니다."
+                            e.message?.contains("Failed to connect", ignoreCase = true) == true ->
+                                "서버에 연결할 수 없습니다."
+                            else -> "프로필 저장 실패: ${e.message ?: e.javaClass.simpleName}"
                         }
                         onResult(false, errorMessage)
                     }
                 }
             } catch (e: Exception) {
-                // 최상위 예외 처리 추가
-                Log.e("ProfileSetup", "예상치 못한 오류: \${e.message}", e)
+                Log.e("ProfileSetup", "예상치 못한 오류: ${e.message}", e)
                 withContext(Dispatchers.Main) {
-                    onResult(false, "예상치 못한 오류가 발생했습니다: \${e.message}")
+                    onResult(false, "예상치 못한 오류가 발생했습니다: ${e.message ?: e.javaClass.simpleName}")
                 }
             }
         }
