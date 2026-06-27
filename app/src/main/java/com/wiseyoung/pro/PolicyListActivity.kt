@@ -49,7 +49,6 @@ import com.wiseyoung.pro.data.openApplicationLink
 import com.wiseyoung.pro.data.resolveApplicationLink
 import com.wiseyoung.pro.ui.components.NO_POLICY_APPLICATION_LINK_MESSAGE
 import com.wiseyoung.pro.ui.components.NoApplicationLinkDialog
-import com.wiseyoung.pro.ui.components.AppPullToRefreshBox
 import com.google.firebase.auth.FirebaseAuth
 import java.text.SimpleDateFormat
 import java.util.*
@@ -281,8 +280,6 @@ fun PolicyListScreen(
     // API 데이터
     var policiesList by remember { mutableStateOf<List<PolicyItem>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
-    var isRefreshing by remember { mutableStateOf(false) }
-    var refreshKey by remember { mutableIntStateOf(0) }
     var showNoLinkDialog by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -307,12 +304,12 @@ fun PolicyListScreen(
     var profile by remember { mutableStateOf<com.wiseyoung.pro.data.model.UserProfileResponse?>(null) }
 
     // 프로필 + 정책 목록 로드
-    LaunchedEffect(userId, selectedCategory, refreshKey) {
-        if (refreshKey == 0) isLoading = true
+    LaunchedEffect(userId, selectedCategory) {
+        isLoading = true
         errorMessage = null
         try {
             // 1) 프로필 정보 조회 (userId 변경 시에만)
-            if (profile == null || refreshKey > 0) {
+            if (profile == null) {
                 try {
                     android.util.Log.d("PolicyListActivity", "프로필 조회 시작: userId=$userId")
                     val profileResponse = com.wiseyoung.pro.network.NetworkModule.apiService.getUserProfile(userId)
@@ -391,7 +388,6 @@ fun PolicyListScreen(
             policiesList = allPolicies
         } finally {
             isLoading = false
-            isRefreshing = false
         }
     }
     
@@ -453,14 +449,6 @@ fun PolicyListScreen(
             )
             
             // 스크롤 가능한 콘텐츠 (자연스러운 스크롤)
-            AppPullToRefreshBox(
-                isRefreshing = isRefreshing,
-                onRefresh = {
-                    isRefreshing = true
-                    refreshKey++
-                },
-                modifier = Modifier.fillMaxSize()
-            ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -574,12 +562,10 @@ fun PolicyListScreen(
                     )
                 }
             }
-            }
         }
     }
-    }
 
-    if (isLoading && !isRefreshing) {
+    if (isLoading) {
         val loadingNickname = profile?.nickname?.takeIf { it.isNotBlank() } ?: "슬기로운 청년"
         Box(
             modifier = Modifier
