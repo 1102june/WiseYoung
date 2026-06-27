@@ -42,7 +42,7 @@ import com.wiseyoung.pro.data.openApplicationLink
 import com.wiseyoung.pro.data.model.displayApplicationPeriod
 import com.wiseyoung.pro.ui.components.NO_POLICY_APPLICATION_LINK_MESSAGE
 import com.wiseyoung.pro.ui.components.NoApplicationLinkDialog
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import com.wiseyoung.pro.ui.components.AppPullToRefreshBox
 
 data class PolicyRecommendation(
     val id: Int,
@@ -176,7 +176,7 @@ fun HomeScreen(
 
     // Scaffold 제거 -> MainActivity에서 처리함
     Box(modifier = Modifier.fillMaxSize()) {
-        PullToRefreshBox(
+        AppPullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = {
                 isRefreshing = true

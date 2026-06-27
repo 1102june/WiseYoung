@@ -40,6 +40,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -898,11 +899,13 @@ private fun DropdownSection(
                 onClick = { expanded = !expanded },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(48.dp),
+                    .height(48.dp)
+                    .background(Color.White, MaterialTheme.shapes.small),
                 colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = Color.White,
                     contentColor = if (value.isBlank()) Color.Gray else Color.Black
                 ),
-                border = BorderStroke(2.dp, Color(0xFFE5E7EB))
+                border = BorderStroke(1.dp, Color(0xFFE5E7EB))
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -928,15 +931,28 @@ private fun DropdownSection(
             DropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White),
+                containerColor = Color.White
             ) {
                 options.forEach { option ->
                     DropdownMenuItem(
-                        text = { Text(displayMap?.get(option) ?: option) },
+                        text = {
+                            Text(
+                                text = displayMap?.get(option) ?: option,
+                                color = Color.Black
+                            )
+                        },
                         onClick = {
                             onValueChange(option)
                             expanded = false
-                        }
+                        },
+                        colors = MenuDefaults.itemColors(
+                            textColor = Color.Black,
+                            leadingIconColor = Color.Black,
+                            trailingIconColor = Color.Black
+                        )
                     )
                 }
             }

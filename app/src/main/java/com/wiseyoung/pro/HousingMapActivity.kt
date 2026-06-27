@@ -40,7 +40,7 @@ import com.wiseyoung.pro.data.openApplicationLink
 import com.wiseyoung.pro.data.model.displayApplicationPeriod
 import com.wiseyoung.pro.ui.components.NO_HOUSING_APPLICATION_LINK_MESSAGE
 import com.wiseyoung.pro.ui.components.NoApplicationLinkDialog
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import com.wiseyoung.pro.ui.components.AppPullToRefreshBox
 import com.wiseyoung.pro.ui.components.BottomNavigationBar
 import com.wiseyoung.pro.service.CalendarService
 import androidx.compose.ui.platform.LocalContext
@@ -438,7 +438,7 @@ fun HousingMapScreen(
                 modifier = Modifier.padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.md)
             )
             
-            PullToRefreshBox(
+            AppPullToRefreshBox(
                 isRefreshing = isRefreshing,
                 onRefresh = {
                     isRefreshing = true

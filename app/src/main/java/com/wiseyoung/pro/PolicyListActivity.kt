@@ -49,7 +49,7 @@ import com.wiseyoung.pro.data.openApplicationLink
 import com.wiseyoung.pro.data.resolveApplicationLink
 import com.wiseyoung.pro.ui.components.NO_POLICY_APPLICATION_LINK_MESSAGE
 import com.wiseyoung.pro.ui.components.NoApplicationLinkDialog
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import com.wiseyoung.pro.ui.components.AppPullToRefreshBox
 import com.google.firebase.auth.FirebaseAuth
 import java.text.SimpleDateFormat
 import java.util.*
@@ -453,7 +453,7 @@ fun PolicyListScreen(
             )
             
             // 스크롤 가능한 콘텐츠 (자연스러운 스크롤)
-            PullToRefreshBox(
+            AppPullToRefreshBox(
                 isRefreshing = isRefreshing,
                 onRefresh = {
                     isRefreshing = true
