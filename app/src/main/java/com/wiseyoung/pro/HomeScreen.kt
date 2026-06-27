@@ -42,6 +42,7 @@ import com.wiseyoung.pro.data.openApplicationLink
 import com.wiseyoung.pro.data.model.displayApplicationPeriod
 import com.wiseyoung.pro.ui.components.NO_POLICY_APPLICATION_LINK_MESSAGE
 import com.wiseyoung.pro.ui.components.NoApplicationLinkDialog
+import com.wiseyoung.pro.ui.components.AppPullToRefreshBox
 
 data class PolicyRecommendation(
     val id: Int,
@@ -81,16 +82,18 @@ fun HomeScreen(
     var aiRecommendationsList by remember { mutableStateOf<List<PolicyRecommendation>>(emptyList()) }
     var nickname by remember { mutableStateOf("슬기로운 청년") }
     var isLoading by remember { mutableStateOf(true) }
+    var isRefreshing by remember { mutableStateOf(false) }
+    var refreshKey by remember { mutableIntStateOf(0) }
     var showNoLinkDialog by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
 
     // 메인 페이지 데이터 로드 (AI 추천 정책은 항상 서버 데이터만 사용)
-    LaunchedEffect(userId, refreshTrigger) {
+    LaunchedEffect(userId, refreshTrigger, refreshKey) {
         if (userId != null) {
-            isLoading = true
+            if (refreshKey == 0) isLoading = true
             errorMessage = null
-            currentIndex = 0
+            if (refreshKey == 0) currentIndex = 0
             try {
                 val profileResponse = com.wiseyoung.pro.network.NetworkModule.apiService.getUserProfile(userId)
                 if (profileResponse.isSuccessful && profileResponse.body()?.success == true) {
@@ -140,10 +143,11 @@ fun HomeScreen(
                 errorMessage = "네트워크 오류: ${e.message}"
             } finally {
                 isLoading = false
+                isRefreshing = false
             }
         } else {
-            // userId가 없으면 추천 데이터를 불러올 수 없음
             isLoading = false
+            isRefreshing = false
         }
     }
 
@@ -171,6 +175,14 @@ fun HomeScreen(
 
     // Scaffold 제거 -> MainActivity에서 처리함
     Box(modifier = Modifier.fillMaxSize()) {
+        AppPullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = {
+                isRefreshing = true
+                refreshKey++
+            },
+            modifier = Modifier.fillMaxSize()
+        ) {
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
@@ -178,7 +190,7 @@ fun HomeScreen(
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
             ) {
                 // Header
@@ -291,8 +303,9 @@ fun HomeScreen(
                 }
             }
         }
+        }
 
-        if (isLoading) {
+        if (isLoading && !isRefreshing) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()

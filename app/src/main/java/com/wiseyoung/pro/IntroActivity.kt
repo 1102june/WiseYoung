@@ -197,23 +197,14 @@ fun IntroHeaderSection() {
     ) {
         Box(
             modifier = Modifier
-                .size(120.dp)
                 .scale(animatedScale)
-                .alpha(animatedAlpha)
-                .shadow(
-                    elevation = 20.dp,
-                    shape = RoundedCornerShape(16.dp),
-                    spotColor = AppColors.LightBlue.copy(alpha = 0.5f)
-                )
-                .clip(RoundedCornerShape(16.dp))
-                .background(Color.White)
-                .border(2.dp, AppColors.LightBlue.copy(alpha = 0.3f), RoundedCornerShape(16.dp)),
+                .alpha(animatedAlpha),
             contentAlignment = Alignment.Center
         ) {
             Image(
                 painter = painterResource(id = R.drawable.wy_logo),
                 contentDescription = "App Logo",
-                modifier = Modifier.size(80.dp),
+                modifier = Modifier.size(200.dp),
                 contentScale = ContentScale.Fit
             )
         }

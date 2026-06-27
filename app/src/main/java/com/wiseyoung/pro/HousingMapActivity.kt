@@ -38,6 +38,9 @@ import com.wiseyoung.pro.ui.theme.Spacing
 import com.wiseyoung.pro.ui.theme.ThemeWrapper
 import com.wiseyoung.pro.data.openApplicationLink
 import com.wiseyoung.pro.data.model.displayApplicationPeriod
+import com.wiseyoung.pro.ui.components.AppPullToRefreshBox
+import com.wiseyoung.pro.ui.components.DataSourceNoticeDialog
+import com.wiseyoung.pro.ui.components.HOUSING_DATA_SOURCE_NOTICE_MESSAGE
 import com.wiseyoung.pro.ui.components.NO_HOUSING_APPLICATION_LINK_MESSAGE
 import com.wiseyoung.pro.ui.components.NoApplicationLinkDialog
 import com.wiseyoung.pro.ui.components.BottomNavigationBar
@@ -200,9 +203,18 @@ fun HousingMapScreen(
     var apartmentsList by remember { mutableStateOf<List<ApartmentItem>>(emptyList()) }
     var announcementsList by remember { mutableStateOf<List<HousingAnnouncementItem>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
+    var isRefreshing by remember { mutableStateOf(false) }
+    var refreshKey by remember { mutableIntStateOf(0) }
     var showNoLinkDialog by remember { mutableStateOf(false) }
+    var showDataSourceNotice by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        if (DataSourceNoticePreferences.shouldShowHousingNotice(context)) {
+            showDataSourceNotice = true
+        }
+    }
     
     var filters by remember {
         mutableStateOf<HousingFilters>(
@@ -225,8 +237,8 @@ fun HousingMapScreen(
     }
     
     // 주택 목록 로드 (단지 정보와 공고 정보를 분리된 API로 호출)
-    LaunchedEffect(userId) {
-        isLoading = true
+    LaunchedEffect(userId, refreshKey) {
+        if (refreshKey == 0) isLoading = true
         errorMessage = null
         
         try {
@@ -365,6 +377,7 @@ fun HousingMapScreen(
             announcementsList = emptyList()
         } finally {
             isLoading = false
+            isRefreshing = false
         }
     }
     
@@ -434,11 +447,18 @@ fun HousingMapScreen(
                 modifier = Modifier.padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.md)
             )
             
-            Column(
+            AppPullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = {
+                    isRefreshing = true
+                    refreshKey++
+                },
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .fillMaxSize()
+            ) {
+            Column(
+                modifier = Modifier.fillMaxSize()
             ) {
             when (activeTab) {
                 "housing" -> {
@@ -462,7 +482,7 @@ fun HousingMapScreen(
                                 .padding(bottom = Spacing.md)
                         )
 
-                        if (isLoading) {
+                        if (isLoading && !isRefreshing) {
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
@@ -608,6 +628,7 @@ fun HousingMapScreen(
                         }
                     }
                 }
+            }
             }
             }
         }
@@ -894,6 +915,18 @@ fun HousingMapScreen(
         NoApplicationLinkDialog(
             message = NO_HOUSING_APPLICATION_LINK_MESSAGE,
             onDismiss = { showNoLinkDialog = false }
+        )
+    }
+
+    if (showDataSourceNotice) {
+        DataSourceNoticeDialog(
+            message = HOUSING_DATA_SOURCE_NOTICE_MESSAGE,
+            onConfirm = { hideForOneDay ->
+                if (hideForOneDay) {
+                    DataSourceNoticePreferences.hideHousingNoticeForOneDay(context)
+                }
+                showDataSourceNotice = false
+            }
         )
     }
 }
