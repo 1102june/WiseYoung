@@ -1,0 +1,20 @@
+# 2. Firebase ID Token "aud" (Audience) Claim 불일치 에러 해결
+
+Date: 2026-06-08
+
+## Status
+Accepted
+
+## Context (배경)
+* 안드로이드 앱에서 구글 로그인 후 프로필 입력을 마치고 완료 버튼을 눌렀을 때, 화면에서 error 발생했다는 팝업창 나옴
+* Logcat:
+  `Firebase ID token has incorrect "aud" (audience) claim. Expected "wiseyoung-5eeaa" but got "wiseyoungpro".`
+* 원인 분석: 토큰을 firebase ID token의 리스너가 부정확하다고함.  "wiseyoung-5eeaa" 이걸 원하는데 "wiseyoungpro" 여기서 원하는상황
+## Decision (결정)
+*  Firebase Admin SDK 키를 일치하도록 동기화한다.
+* Jsonfile 다시받음
+* spring boot의 `firebase-admin.json` 파일 교체
+
+## Consequences (결과)
+* **Positive:** 일치하는 IdToken값 가져옴, 로그인후 프로필저장 성공
+* **Negative:**
