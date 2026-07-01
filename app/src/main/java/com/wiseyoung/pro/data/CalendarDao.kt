@@ -45,6 +45,9 @@ interface CalendarDao {
      */
     @Query("SELECT * FROM calendar_events WHERE id = :id")
     suspend fun getEventById(id: Long): CalendarEvent?
+
+    @Query("SELECT * FROM calendar_events WHERE serverEventId = :serverEventId LIMIT 1")
+    suspend fun getEventByServerId(serverEventId: Long): CalendarEvent?
     
     /**
      * 일정 삽입

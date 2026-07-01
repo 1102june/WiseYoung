@@ -320,8 +320,8 @@ interface ApiService {
     @GET("api/calendar")
     suspend fun getCalendarEvents(
         @Header("X-User-Id") userId: String,
-        @Query("year") year: Int,
-        @Query("month") month: Int
+        @Query("year") year: Int? = null,
+        @Query("month") month: Int? = null
     ): Response<ApiResponse<List<CalendarEventResponse>>>
 
     /**

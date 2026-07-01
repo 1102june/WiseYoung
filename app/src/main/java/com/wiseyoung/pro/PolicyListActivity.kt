@@ -301,10 +301,8 @@ fun PolicyListScreen(
     
     val context = LocalContext.current
 
-    LaunchedEffect(Unit) {
-        if (DataSourceNoticePreferences.shouldShowPolicyNotice(context)) {
-            showDataSourceNotice = true
-        }
+    LaunchedEffect(userId) {
+        showDataSourceNotice = DataSourceNoticePreferences.shouldShowPolicyNotice(context, userId)
     }
 
     // 프로필 정보
@@ -445,18 +443,8 @@ fun PolicyListScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .background(Color.White)
         ) {
-            // 배경 이미지 (고정)
-            Image(
-                painter = painterResource(id = R.drawable.policy_background),
-                contentDescription = null,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .matchParentSize(),
-                contentScale = ContentScale.Crop
-            )
-            
-            // 스크롤 가능한 콘텐츠 (자연스러운 스크롤)
             AppPullToRefreshBox(
                 isRefreshing = isRefreshing,
                 onRefresh = {
@@ -588,7 +576,7 @@ fun PolicyListScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.White.copy(alpha = 0.95f)),
+                .background(Color.White),
             contentAlignment = Alignment.Center
         ) {
             Column(
@@ -614,7 +602,7 @@ fun PolicyListScreen(
             message = POLICY_DATA_SOURCE_NOTICE_MESSAGE,
             onConfirm = { hideForOneDay ->
                 if (hideForOneDay) {
-                    DataSourceNoticePreferences.hidePolicyNoticeForOneDay(context)
+                    DataSourceNoticePreferences.hidePolicyNoticeForOneDay(context, userId)
                 }
                 showDataSourceNotice = false
             }
@@ -768,15 +756,17 @@ fun PolicyListScreen(
                         }
                     }
                     
-                    // 캘린더에 일정 추가
-                    calendarService.addPolicyToCalendar(
-                        title = policy.title,
-                        organization = policy.organization,
-                        deadline = policy.deadline,
-                        policyId = policy.id.toString(),
-                        notificationSettings = notifications
-                    )
-                    Toast.makeText(context, "북마크 및 캘린더에 추가되었습니다.", Toast.LENGTH_SHORT).show()
+                    // 캘린더에 일정 추가 (앱 Room + 서버 + 휴대폰 캘린더)
+                    if (policy.deadline.isNotBlank()) {
+                        calendarService.addPolicyToCalendar(
+                            title = policy.title,
+                            organization = policy.organization,
+                            deadline = policy.deadline,
+                            policyId = policy.policyId ?: policy.id.toString(),
+                            notificationSettings = notifications
+                        )
+                    }
+                    Toast.makeText(context, "북마크가 저장되었습니다.", Toast.LENGTH_SHORT).show()
                 }
                 showNotificationDialog = false
                 selectedPolicy = null

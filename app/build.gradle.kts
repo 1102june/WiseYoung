@@ -14,8 +14,8 @@ android {
         applicationId = "com.wiseyoung.pro"
         minSdk = 26
         targetSdk = 35
-        versionCode = 10
-        versionName = "1.2.1"  // google-services + prod 서버 URL
+        versionCode = 11
+        versionName = "1.2.2"  // google-services + prod 서버 URL
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         multiDexEnabled = true
     }

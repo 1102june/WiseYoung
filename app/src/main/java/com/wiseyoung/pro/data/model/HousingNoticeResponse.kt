@@ -58,6 +58,36 @@ data class HousingNoticeResponse(
     val isBookmarked: Boolean? = null, // 북마크 여부
     
     @SerializedName("matchedComplex")
-    val matchedComplex: HousingComplexResponse? = null // 매칭된 단지정보 (있는 경우)
+    val matchedComplex: HousingComplexResponse? = null,
+
+    @SerializedName("title")
+    val title: String? = null,
+
+    @SerializedName("region")
+    val region: String? = null,
+
+    @SerializedName("status")
+    val status: String? = null,
+
+    @SerializedName("recruitmentPeriodDisplay")
+    val recruitmentPeriodDisplay: String? = null,
+
+    @SerializedName("depositDisplay")
+    val depositDisplay: String? = null,
+
+    @SerializedName("monthlyRentDisplay")
+    val monthlyRentDisplay: String? = null,
+
+    @SerializedName("rentSummary")
+    val rentSummary: String? = null,
+
+    @SerializedName("address")
+    val address: String? = null,
+
+    @SerializedName("supplyAreaDisplay")
+    val supplyAreaDisplay: String? = null,
+
+    @SerializedName("hasApplicationLink")
+    val hasApplicationLink: Boolean? = null
 )
 

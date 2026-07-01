@@ -146,9 +146,14 @@ fun CalendarScreen(
         }
     }
     
-    // 앱 시작 시 북마크를 캘린더에 동기화
+    // 앱 시작 시 서버 일정 동기화 + 북마크 캘린더 반영
     LaunchedEffect(currentUser?.uid) {
         currentUser?.let { user ->
+            try {
+                calendarService.syncFromBackend(user.uid)
+            } catch (e: Exception) {
+                android.util.Log.e("CalendarActivity", "서버 캘린더 동기화 실패: ${e.message}", e)
+            }
             try {
                 // 정책 북마크 가져오기
                 val policyBookmarksResponse = com.wiseyoung.pro.network.NetworkModule.apiService.getBookmarks(
@@ -255,7 +260,8 @@ fun CalendarScreen(
             
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .weight(1f)
+                    .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.md)
             ) {

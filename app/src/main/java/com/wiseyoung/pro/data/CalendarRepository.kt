@@ -51,6 +51,10 @@ class CalendarRepository(context: Context) {
     suspend fun getEventById(id: Long): CalendarEvent? {
         return calendarDao.getEventById(id)
     }
+
+    suspend fun getEventByServerId(serverEventId: Long): CalendarEvent? {
+        return calendarDao.getEventByServerId(serverEventId)
+    }
     
     /**
      * 일정 추가

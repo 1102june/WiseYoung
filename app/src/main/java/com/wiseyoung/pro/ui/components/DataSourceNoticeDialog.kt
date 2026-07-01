@@ -34,14 +34,12 @@ import androidx.compose.ui.window.DialogProperties
 const val POLICY_DATA_SOURCE_NOTICE_MESSAGE =
     "📋 본 서비스는 공공데이터를 기반으로 맞춤 청년정책 정보를 제공합니다.\n\n" +
         "⚠️ 원본 데이터의 누락이나 업데이트 지연으로 인해, 일부 정책의 신청 링크 및 상세 조건 확인이 어려울 수 있습니다.\n\n" +
-        "🔗 정확한 내용은 주관 기관의 공식 공고를 한 번 더 확인해 주세요!"
+        "🔗 정확한 내용은 주관 기관의 공식 공고를 한 번 더 확인해 주세요! 감사합니다.\u00A0🙏"
 
 const val HOUSING_DATA_SOURCE_NOTICE_MESSAGE =
     "🏠 본 서비스는 임대주택 관련 공공데이터를 기반으로 정보를 제공합니다.\n\n" +
         "⚠️ 원본 데이터에 주소·좌표가 누락된 단지는 지도에 표시되지 않거나 상세 공고 연결이 어려울 수 있습니다.\n\n" +
-        "🔗 정확한 공급 정보는 주관 기관의 공식 공고를 한 번 더 확인해 주세요!"
-
-private const val NOTICE_CLOSING_TEXT = "감사합니다.\u00A0🙏"
+        "🔗 정확한 공급 정보는 주관 기관의 공식 공고를 한 번 더 확인해 주세요! 감사합니다.\u00A0🙏"
 
 @Composable
 fun DataSourceNoticeDialog(
@@ -80,19 +78,10 @@ fun DataSourceNoticeDialog(
 
                 Text(
                     text = message,
-                    fontSize = 16.sp,
-                    lineHeight = 26.sp,
-                    color = Color(0xFF444444)
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Text(
-                    text = NOTICE_CLOSING_TEXT,
                     fontSize = 17.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF1A1A1A),
-                    maxLines = 1
+                    lineHeight = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF1A1A1A)
                 )
 
                 Spacer(modifier = Modifier.height(22.dp))
@@ -120,6 +109,7 @@ fun DataSourceNoticeDialog(
                         Text(
                             text = "오늘 하루 동안 보지 않기",
                             fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
                             color = Color(0xFF666666)
                         )
                     }
@@ -130,7 +120,7 @@ fun DataSourceNoticeDialog(
                         colors = ButtonDefaults.buttonColors(containerColor = primaryBlue),
                         contentPadding = ButtonDefaults.ContentPadding
                     ) {
-                        Text("확인", color = Color.White, fontWeight = FontWeight.SemiBold)
+                        Text("확인", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             }

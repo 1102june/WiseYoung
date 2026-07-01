@@ -324,30 +324,6 @@ fun HousingListScreen(
                             housingId = housing.housingId,
                             notificationSettings = notifications
                         )
-                        
-                        // 서버에 캘린더 일정 저장
-                        scope.launch {
-                            try {
-                                NetworkModule.apiService.addCalendarEvent(
-                                    userId = userId,
-                                    request = com.wiseyoung.pro.data.model.CalendarEventRequest(
-                                        userId = userId,
-                                        title = housing.name,
-                                        eventType = "housing",
-                                        endDate = deadline.replace(".", "-"),
-                                        isSevenDaysAlert = notifications.sevenDays,
-                                        sevenDaysAlertTime = notifications.sevenDaysTime,
-                                        isOneDayAlert = notifications.oneDay,
-                                        oneDayAlertTime = notifications.oneDayTime,
-                                        isCustomAlert = notifications.custom,
-                                        customAlertDays = notifications.customDays,
-                                        customAlertTime = notifications.customTime
-                                    )
-                                )
-                            } catch (e: Exception) {
-                                // ignore
-                            }
-                        }
                     }
                     
                     // 서버에 북마크 저장

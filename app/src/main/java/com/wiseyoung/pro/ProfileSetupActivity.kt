@@ -66,6 +66,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
 import com.wiseyoung.pro.data.FirestoreService
+import com.wiseyoung.pro.util.RegionConstants
 import com.wiseyoung.pro.data.model.ProfileRequest
 import com.wiseyoung.pro.network.NetworkModule
 import com.wiseyoung.pro.ui.theme.ThemeWrapper
@@ -390,13 +391,12 @@ fun ProfileSetupScreen(
         }
     }
 
-    val cityMap = remember { provinceCities }
-    val provinceDisplayMap = remember { provinceDisplayNames }
+    val cityMap = remember { RegionConstants.provinceCities }
+    val provinceDisplayMap = remember { RegionConstants.provinceDisplayNames }
 
     val canSubmit = birthDate != null &&
             nickname.isNotBlank() &&
             province.isNotBlank() &&
-            city.isNotBlank() &&
             education.isNotBlank() &&
             employment.isNotBlank() &&
             interests.isNotEmpty()
@@ -448,21 +448,9 @@ fun ProfileSetupScreen(
                 placeholder = "도 선택",
                 onValueChange = {
                     province = it
-                    city = ""
+                    city = RegionConstants.defaultCityForProvince(it)
                 }
             )
-
-            // 거주 지역 (시)
-            if (province.isNotBlank()) {
-                Spacer(modifier = Modifier.height(24.dp))
-                DropdownSection(
-                    label = "거주 지역 (시)",
-                    value = city,
-                    options = cityMap[province].orEmpty(),
-                    placeholder = "시 선택",
-                    onValueChange = { city = it }
-                )
-            }
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -506,13 +494,14 @@ fun ProfileSetupScreen(
             Button(
                 onClick = {
                     birthDate?.let { date ->
+                        val resolvedCity = RegionConstants.defaultCityForProvince(province)
                         onSubmit(
                             ProfilePayload(
                                 birthDate = date.format(DateTimeFormatter.ISO_LOCAL_DATE),
                                 nickname = nickname,
                                 gender = gender,
                                 province = province,
-                                city = city,
+                                city = resolvedCity,
                                 education = education,
                                 employment = employment,
                                 interests = interests.toList()
@@ -1041,48 +1030,6 @@ private fun InterestButton(
         }
     }
 }
-
-private val provinceCities = mapOf(
-    "서울" to listOf("서울특별시"),
-    "부산" to listOf("부산광역시"),
-    "경기" to listOf(
-        "고양시", "과천시", "광명시", "광주시", "구리시", "군포시", "김포시", "남양주시", "동두천시", "부천시",
-        "성남시", "수원시", "시흥시", "안산시", "안성시", "안양시", "양주시", "여주시", "오산시", "용인시",
-        "의왕시", "의정부시", "이천시", "파주시", "평택시", "포천시", "하남시", "화성시"
-    ),
-    "인천" to listOf("인천광역시"),
-    "대구" to listOf("대구광역시"),
-    "광주" to listOf("광주광역시"),
-    "대전" to listOf("대전광역시"),
-    "울산" to listOf("울산광역시"),
-    "강원" to listOf("강릉시", "동해시", "삼척시", "속초시", "원주시", "춘천시", "태백시"),
-    "충북" to listOf("제천시", "청주시", "충주시"),
-    "충남" to listOf("계룡시", "공주시", "논산시", "당진시", "보령시", "서산시", "아산시", "천안시"),
-    "전북" to listOf("군산시", "김제시", "남원시", "익산시", "전주시", "정읍시"),
-    "전남" to listOf("광양시", "나주시", "목포시", "순천시", "여수시"),
-    "경북" to listOf("경산시", "경주시", "구미시", "김천시", "문경시", "상주시", "안동시", "영주시", "영천시", "포항시"),
-    "경남" to listOf("거제시", "김해시", "밀양시", "사천시", "양산시", "진주시", "창원시", "통영시"),
-    "제주" to listOf("제주시", "서귀포시")
-)
-
-private val provinceDisplayNames = mapOf(
-    "서울" to "서울특별시",
-    "부산" to "부산광역시",
-    "경기" to "경기도",
-    "인천" to "인천광역시",
-    "대구" to "대구광역시",
-    "광주" to "광주광역시",
-    "대전" to "대전광역시",
-    "울산" to "울산광역시",
-    "강원" to "강원도",
-    "충북" to "충청북도",
-    "충남" to "충청남도",
-    "전북" to "전라북도",
-    "전남" to "전라남도",
-    "경북" to "경상북도",
-    "경남" to "경상남도",
-    "제주" to "제주특별자치도"
-)
 
 private fun LocalDate.formatKoreanDate(): String {
     return String.format(Locale.KOREA, "%d년 %02d월 %02d일", year, monthValue, dayOfMonth)

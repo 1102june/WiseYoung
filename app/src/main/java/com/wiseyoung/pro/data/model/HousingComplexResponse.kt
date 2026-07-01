@@ -93,7 +93,34 @@ data class HousingComplexResponse(
     val distanceFromUser: Double? = null,
 
     @SerializedName("totalUnits")
-    val totalUnits: Int? = null
+    val totalUnits: Int? = null,
+
+    @SerializedName("depositDisplay")
+    val depositDisplay: String? = null,
+
+    @SerializedName("monthlyRentDisplay")
+    val monthlyRentDisplay: String? = null,
+
+    @SerializedName("rentSummary")
+    val rentSummary: String? = null,
+
+    @SerializedName("supplyAreaDisplay")
+    val supplyAreaDisplay: String? = null,
+
+    @SerializedName("distanceDisplay")
+    val distanceDisplay: String? = null,
+
+    @SerializedName("summaryLine")
+    val summaryLine: String? = null,
+
+    @SerializedName("hasCoordinates")
+    val hasCoordinates: Boolean? = null,
+
+    @SerializedName("mapDisplayable")
+    val mapDisplayable: Boolean? = null,
+
+    @SerializedName("activeNoticeCount")
+    val activeNoticeCount: Int? = null
 ) {
     fun displayName(): String = name ?: hsmpNm ?: ""
     fun displayAddress(): String = address ?: rnAdres ?: ""

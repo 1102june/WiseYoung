@@ -43,9 +43,12 @@ import com.wiseyoung.pro.data.model.displayApplicationPeriod
 import com.wiseyoung.pro.ui.components.NO_POLICY_APPLICATION_LINK_MESSAGE
 import com.wiseyoung.pro.ui.components.NoApplicationLinkDialog
 import com.wiseyoung.pro.ui.components.AppPullToRefreshBox
+import android.widget.Toast
+import com.wiseyoung.pro.service.CalendarService
 
 data class PolicyRecommendation(
     val id: Int,
+    val policyId: String? = null,
     val title: String,
     val date: String,
     val organization: String,
@@ -86,6 +89,23 @@ fun HomeScreen(
     var refreshKey by remember { mutableIntStateOf(0) }
     var showNoLinkDialog by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var bookmarkedPolicies by remember { mutableStateOf(setOf<String>()) }
+    var showNotificationDialog by remember { mutableStateOf(false) }
+    var selectedPolicy by remember { mutableStateOf<PolicyRecommendation?>(null) }
+    var notifications by remember {
+        mutableStateOf(
+            NotificationSettings(
+                sevenDays = true,
+                sevenDaysTime = "09:00",
+                oneDay = true,
+                oneDayTime = "10:00",
+                custom = false,
+                customDays = 3,
+                customTime = "09:00"
+            )
+        )
+    }
+    val calendarService = remember { CalendarService(context) }
 
 
     // 메인 페이지 데이터 로드 (AI 추천 정책은 항상 서버 데이터만 사용)
@@ -114,6 +134,7 @@ fun HomeScreen(
                             rec.policy?.let { policy ->
                                 PolicyRecommendation(
                                     id = rec.recId?.toInt() ?: 0,
+                                    policyId = policy.policyId ?: rec.contentId,
                                     title = policy.title,
                                     date = "${policy.ageStart ?: 0}-${policy.ageEnd ?: 0}세 ${
                                         policy.applicationEnd?.take(
@@ -331,16 +352,88 @@ fun HomeScreen(
 
     // Policy Detail Dialog (팝업)
     if (showDetailDialog && detailPolicy != null) {
+        val policy = detailPolicy!!
         PolicyDetailDialog(
-            policy = detailPolicy!!,
+            policy = policy,
+            isBookmarked = bookmarkedPolicies.contains(policy.title),
             onDismiss = { showDetailDialog = false },
+            onHeartClick = {
+                if (!bookmarkedPolicies.contains(policy.title)) {
+                    selectedPolicy = policy
+                    showNotificationDialog = true
+                } else {
+                    bookmarkedPolicies = bookmarkedPolicies - policy.title
+                    coroutineScope.launch {
+                        try {
+                            val response = com.wiseyoung.pro.network.NetworkModule.apiService.getBookmarks(
+                                userId = userId ?: return@launch,
+                                contentType = "policy"
+                            )
+                            if (response.isSuccessful && response.body()?.success == true) {
+                                val contentId = policy.policyId ?: policy.id.toString()
+                                response.body()?.data?.find { it.contentId == contentId }?.let { bookmark ->
+                                    com.wiseyoung.pro.network.NetworkModule.apiService.deleteBookmark(
+                                        userId = userId ?: return@let,
+                                        bookmarkId = bookmark.bookmarkId
+                                    )
+                                }
+                            }
+                        } catch (e: Exception) {
+                            android.util.Log.e("HomeScreen", "북마크 삭제 실패: ${e.message}", e)
+                        }
+                    }
+                }
+            },
             onApply = {
-                val url = detailPolicy!!.applyLink
+                val url = policy.applyLink
                 if (!url.isNullOrBlank()) {
                     openApplicationLink(context, url)
                 } else {
                     showNoLinkDialog = true
                 }
+            }
+        )
+    }
+
+    if (showNotificationDialog) {
+        PolicyNotificationDialog(
+            notifications = notifications,
+            onNotificationsChange = { notifications = it },
+            onSave = {
+                selectedPolicy?.let { policy ->
+                    bookmarkedPolicies = bookmarkedPolicies + policy.title
+                    coroutineScope.launch {
+                        try {
+                            val contentId = policy.policyId ?: policy.id.toString()
+                            com.wiseyoung.pro.network.NetworkModule.apiService.addBookmark(
+                                userId = userId ?: return@launch,
+                                request = com.wiseyoung.pro.data.model.BookmarkRequest(
+                                    userId = userId ?: return@launch,
+                                    contentType = "policy",
+                                    contentId = contentId
+                                )
+                            )
+                        } catch (e: Exception) {
+                            android.util.Log.e("HomeScreen", "북마크 저장 실패: ${e.message}", e)
+                        }
+                    }
+                    if (policy.deadline.isNotBlank()) {
+                        calendarService.addPolicyToCalendar(
+                            title = policy.title,
+                            organization = policy.organization,
+                            deadline = policy.deadline,
+                            policyId = policy.policyId ?: policy.id.toString(),
+                            notificationSettings = notifications
+                        )
+                    }
+                    Toast.makeText(context, "북마크가 저장되었습니다.", Toast.LENGTH_SHORT).show()
+                }
+                showNotificationDialog = false
+                selectedPolicy = null
+            },
+            onDismiss = {
+                showNotificationDialog = false
+                selectedPolicy = null
             }
         )
     }
@@ -599,7 +692,9 @@ private fun PolicyCard(
 @Composable
 private fun PolicyDetailDialog(
         policy: PolicyRecommendation,
+        isBookmarked: Boolean,
         onDismiss: () -> Unit,
+        onHeartClick: () -> Unit,
         onApply: () -> Unit
 ) {
     Dialog(onDismissRequest = onDismiss) {
@@ -631,10 +726,21 @@ private fun PolicyDetailDialog(
                         maxLines = 2,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
-                    
-                    // 오른쪽 상단 닫기 버튼
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close")
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = onHeartClick) {
+                            Icon(
+                                imageVector = if (isBookmarked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                contentDescription = if (isBookmarked) "북마크 해제" else "북마크",
+                                tint = if (isBookmarked) Color(0xFFEF4444) else AppColors.TextTertiary
+                            )
+                        }
+                        IconButton(onClick = onDismiss) {
+                            Icon(Icons.Default.Close, contentDescription = "Close")
+                        }
                     }
                 }
 

@@ -398,7 +398,8 @@ fun BookmarkScreen(
             // Content
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .weight(1f)
+                    .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.md)
             ) {

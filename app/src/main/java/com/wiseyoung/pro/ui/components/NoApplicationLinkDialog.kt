@@ -16,6 +16,7 @@ fun NoApplicationLinkDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = Color.White,
         title = {
             Text(
                 text = "알림",

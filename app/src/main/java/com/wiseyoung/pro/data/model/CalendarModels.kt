@@ -18,7 +18,7 @@ data class CalendarEventRequest(
 )
 
 data class CalendarEventResponse(
-    val eventId: Int,
+    val eventId: Long,
     val userId: String,
     val title: String,
     val eventType: String,
