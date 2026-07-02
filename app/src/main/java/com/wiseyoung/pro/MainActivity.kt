@@ -5,7 +5,9 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -17,6 +19,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import com.wiseyoung.pro.ui.theme.ThemeWrapper
 import com.google.firebase.auth.FirebaseAuth
 import com.wiseyoung.pro.ui.components.BottomNavigationBar
+import com.wiseyoung.pro.ads.BannerAd
 import com.wiseyoung.pro.data.CalendarRepository
 
 class MainActivity : ComponentActivity() {
@@ -51,7 +54,9 @@ fun MainScreen(userId: String, calendarRepository: CalendarRepository) {
     
     Scaffold(
         bottomBar = {
-            BottomNavigationBar(
+            Column(modifier = Modifier.fillMaxWidth()) {
+                BannerAd()
+                BottomNavigationBar(
                 currentScreen = currentRoute,
                 onNavigateHome = { 
                     navController.navigate("home") {
@@ -81,7 +86,8 @@ fun MainScreen(userId: String, calendarRepository: CalendarRepository) {
                         restoreState = true
                     }
                 }
-            )
+                )
+            }
         }
     ) { paddingValues ->
         NavHost(

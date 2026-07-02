@@ -117,7 +117,7 @@ object FcmTokenService {
         
         val json = JSONObject().apply {
             put("idToken", idToken)
-            put("fcmToken", fcmToken)
+            put("pushToken", fcmToken)
         }
         
         val body = RequestBody.create(

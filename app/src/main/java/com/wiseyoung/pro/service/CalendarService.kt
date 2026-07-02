@@ -304,6 +304,16 @@ class CalendarService(private val context: Context) {
         )
     }
 
+    fun rescheduleNotifications(
+        eventId: Long,
+        title: String,
+        endDate: LocalDate,
+        notificationSettings: NotificationSettings
+    ) {
+        CalendarNotificationScheduler.cancelNotification(context, eventId)
+        scheduleNotifications(eventId, title, endDate, notificationSettings)
+    }
+
     fun removeEventFromCalendar(eventId: Long) {
         CoroutineScope(Dispatchers.IO).launch {
             try {

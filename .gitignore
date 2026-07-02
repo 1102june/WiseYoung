@@ -1,0 +1,39 @@
+# Built application files
+/build/
+/app/build/
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Gradle
+.gradle/
+local.properties
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+.idea/caches/
+.idea/workspace.xml
+
+# Keystore (never commit)
+*.jks
+*.keystore
+
+# Firebase config (contains project keys — keep local)
+google-services.json
+app/google-services.json
+
+# Secrets / env
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Kotlin
+.kotlin/
+
+# Release artifacts
+app/release/

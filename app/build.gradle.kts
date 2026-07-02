@@ -140,4 +140,7 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 
     implementation("androidx.appcompat:appcompat:1.7.1")
+
+    // Google AdMob
+    implementation("com.google.android.gms:play-services-ads:23.6.0")
 }

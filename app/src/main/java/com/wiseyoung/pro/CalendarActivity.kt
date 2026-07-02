@@ -380,9 +380,8 @@ fun CalendarScreen(
                             val updatedEvent = it.copy(notificationSettings = notificationJson)
                             repository.updateEvent(updatedEvent)
                             
-                            // 기존 알림 취소 후 재스케줄링
-                            calendarService.removeEventFromCalendar(id)
-                            calendarService.scheduleNotifications(
+                            // 기존 로컬 알림 취소 후 재스케줄 (일정은 유지)
+                            calendarService.rescheduleNotifications(
                                 id,
                                 it.title,
                                 it.endDate,
