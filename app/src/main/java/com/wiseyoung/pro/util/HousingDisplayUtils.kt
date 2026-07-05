@@ -78,4 +78,29 @@ object HousingDisplayUtils {
             ?: notice.matchedComplex?.let { complexRentSummary(it) }
             ?: "보증금 · 월세는 상세 공고에서 확인"
     }
+
+    /** 단지 ID/이름과 매칭되는 활성 공고에서 가장 가까운 마감일 */
+    fun nearestDeadlineForComplex(
+        complexId: String?,
+        complexName: String,
+        notices: List<HousingNoticeResponse>
+    ): String {
+        val normalizedName = complexName.trim()
+        return notices
+            .filter { notice ->
+                val matchedId = notice.matchedComplex?.complexId
+                when {
+                    complexId != null && matchedId == complexId -> true
+                    complexId != null && notice.hsmpSn == complexId -> true
+                    normalizedName.isNotBlank() && !notice.hsmpNm.isNullOrBlank() ->
+                        notice.hsmpNm!!.contains(normalizedName) || normalizedName.contains(notice.hsmpNm!!)
+                    else -> false
+                }
+            }
+            .mapNotNull { notice ->
+                notice.applicationEnd?.take(10)?.replace("-", ".")?.takeIf { it.isNotBlank() }
+            }
+            .firstOrNull()
+            .orEmpty()
+    }
 }

@@ -33,6 +33,9 @@ interface CalendarDao {
      */
     @Query("SELECT * FROM calendar_events WHERE userId = :userId ORDER BY endDate ASC")
     fun getEventsByUserId(userId: String): Flow<List<CalendarEvent>>
+
+    @Query("SELECT * FROM calendar_events WHERE userId = :userId ORDER BY endDate ASC")
+    suspend fun getEventsByUserIdOnce(userId: String): List<CalendarEvent>
     
     /**
      * 특정 타입의 일정 조회

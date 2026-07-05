@@ -20,6 +20,11 @@ import com.wiseyoung.pro.ui.theme.ThemeWrapper
 import com.google.firebase.auth.FirebaseAuth
 import com.wiseyoung.pro.ui.components.BottomNavigationBar
 import com.wiseyoung.pro.ads.BannerAd
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.Manifest
+import com.wiseyoung.pro.util.NotificationPermissionHelper
 import com.wiseyoung.pro.data.CalendarRepository
 
 class MainActivity : ComponentActivity() {
@@ -51,6 +56,19 @@ fun MainScreen(userId: String, calendarRepository: CalendarRepository) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: "home"
     var homeRefreshTrigger by remember { mutableIntStateOf(0) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { /* 허용/거부 모두 앱 사용 가능 — FCM은 권한 없으면 시스템 알림만 제한 */ }
+
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            !NotificationPermissionHelper.hasNotificationPermission(context)
+        ) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
     
     Scaffold(
         bottomBar = {

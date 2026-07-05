@@ -37,6 +37,10 @@ class CalendarRepository(context: Context) {
     fun getEventsByUserId(userId: String): Flow<List<CalendarEvent>> {
         return calendarDao.getEventsByUserId(userId)
     }
+
+    suspend fun getEventsByUserIdOnce(userId: String): List<CalendarEvent> {
+        return calendarDao.getEventsByUserIdOnce(userId)
+    }
     
     /**
      * 특정 타입의 일정 조회

@@ -39,6 +39,7 @@ import com.wiseyoung.pro.data.model.UserProfileResponse
 import com.wiseyoung.pro.data.model.DeleteAccountRequest
 import com.wiseyoung.pro.util.RegionConstants
 import com.wiseyoung.pro.network.NetworkModule
+import com.wiseyoung.pro.ads.BannerAd
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.android.gms.auth.api.signin.GoogleSignIn
@@ -296,6 +297,9 @@ fun ProfileScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                         )
                     }
+
+                    Spacer(modifier = Modifier.height(Spacing.md))
+                    BannerAd()
                 }
             }
         }

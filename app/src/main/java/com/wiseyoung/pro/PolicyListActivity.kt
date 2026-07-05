@@ -41,6 +41,8 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import com.wiseyoung.pro.service.CalendarService
 import com.wiseyoung.pro.ui.components.BottomNavigationBar
+import com.wiseyoung.pro.ads.BannerAd
+import com.wiseyoung.pro.ads.InterstitialAdManager
 import com.wiseyoung.pro.ui.theme.AppColors
 import com.wiseyoung.pro.ui.theme.Spacing
 import com.wiseyoung.pro.ui.theme.ThemeWrapper
@@ -236,8 +238,10 @@ class PolicyListActivity : ComponentActivity() {
                 PolicyListScreen(
                     userId = userId,
                     onNavigateHome = {
-                        startActivity(Intent(this, MainActivity::class.java))
-                        finish()
+                        InterstitialAdManager.tryShow(this) {
+                            startActivity(Intent(this, MainActivity::class.java))
+                            finish()
+                        }
                     },
                     onNavigateCalendar = {
                         startActivity(Intent(this, CalendarActivity::class.java))
@@ -427,13 +431,16 @@ fun PolicyListScreen(
     Box(modifier = Modifier.fillMaxSize()) {
     Scaffold(
         bottomBar = {
-            BottomNavigationBar(
+            Column(modifier = Modifier.fillMaxWidth()) {
+                BannerAd()
+                BottomNavigationBar(
                 currentScreen = "home",
                 onNavigateHome = onNavigateHome,
                 onNavigateCalendar = onNavigateCalendar,
                 onNavigateBookmark = onNavigateBookmark,
                 onNavigateProfile = onNavigateProfile
-            )
+                )
+            }
         },
         modifier = Modifier.fillMaxSize()
     ) { paddingValues ->

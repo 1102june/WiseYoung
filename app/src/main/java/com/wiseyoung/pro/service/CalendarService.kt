@@ -15,6 +15,7 @@ import com.wiseyoung.pro.data.model.CalendarEventResponse
 import com.wiseyoung.pro.network.NetworkModule
 import com.wiseyoung.pro.util.CalendarPermissionHelper
 import com.wiseyoung.pro.util.DeviceCalendarHelper
+import com.wiseyoung.pro.util.HousingDisplayUtils
 import com.wiseyoung.pro.work.CalendarNotificationScheduler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -97,6 +98,113 @@ class CalendarService(private val context: Context) {
         }
     }
 
+    /**
+     * 북마크 저장 후 마감일을 조회·해석해 D-day 캘린더(Room + 서버 + 알림)에 추가.
+     */
+    fun addHousingBookmarkToCalendar(
+        userId: String,
+        title: String,
+        organization: String?,
+        contentId: String,
+        preferredDeadline: String?,
+        notificationSettings: NotificationSettings,
+        isAnnouncement: Boolean = false,
+        showToast: Boolean = true
+    ) {
+        if (auth.currentUser == null) return
+        CoroutineScope(Dispatchers.IO).launch {
+            val deadline = resolveHousingDeadline(userId, contentId, title, preferredDeadline)
+            if (deadline == null) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(
+                        context,
+                        "마감일 정보가 없어 D-day 캘린더에 추가하지 못했습니다.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+                android.util.Log.w(
+                    "CalendarService",
+                    "임대주택 캘린더 추가 스kip: contentId=$contentId, title=$title"
+                )
+                return@launch
+            }
+            val added = addEventInternal(
+                userId = userId,
+                title = title,
+                organization = organization,
+                deadline = deadline,
+                policyId = null,
+                housingId = contentId,
+                eventType = if (isAnnouncement) EventType.HOUSING_ANNOUNCEMENT else EventType.HOUSING,
+                backendEventType = "housing",
+                notificationSettings = notificationSettings
+            )
+            if (added && showToast) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "D-day 캘린더에 마감일이 추가되었습니다.", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private suspend fun resolveHousingDeadline(
+        userId: String,
+        contentId: String,
+        title: String,
+        preferredDeadline: String?
+    ): String? {
+        preferredDeadline?.takeIf { it.isNotBlank() }?.let { formatDeadlineForStorage(it) }?.let { return it }
+
+        try {
+            val housingResponse = NetworkModule.apiService.getHousingById(
+                housingId = contentId,
+                userIdParam = userId
+            )
+            if (housingResponse.isSuccessful && housingResponse.body()?.success == true) {
+                housingResponse.body()?.data?.applicationEnd
+                    ?.let { formatDeadlineForStorage(it) }
+                    ?.let { return it }
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("CalendarService", "getHousingById 마감일 조회 실패: ${e.message}")
+        }
+
+        try {
+            val noticesResponse = NetworkModule.apiService.getHousingNotices(
+                userId = userId,
+                limit = 300
+            )
+            if (noticesResponse.isSuccessful && noticesResponse.body()?.success == true) {
+                val notices = noticesResponse.body()?.data ?: emptyList()
+                notices.find { it.noticeId == contentId || it.panId == contentId }
+                    ?.applicationEnd
+                    ?.let { formatDeadlineForStorage(it) }
+                    ?.let { return it }
+                HousingDisplayUtils.nearestDeadlineForComplex(
+                    complexId = contentId,
+                    complexName = title,
+                    notices = notices
+                ).takeIf { it.isNotBlank() }
+                    ?.let { formatDeadlineForStorage(it) }
+                    ?.let { return it }
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("CalendarService", "공고 API 마감일 조회 실패: ${e.message}")
+        }
+        return null
+    }
+
+    private fun formatDeadlineForStorage(raw: String): String? {
+        val normalized = raw.trim().take(10)
+        parseDate(normalized)?.let {
+            return it.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        }
+        parseDate(normalized.replace(".", "-"))?.let {
+            return it.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        }
+        return null
+    }
+
     /** 서버 활성 일정 → Room DB 동기화 (앱 캘린더 표시용) */
     suspend fun syncFromBackend(userId: String) = withContext(Dispatchers.IO) {
         try {
@@ -148,25 +256,25 @@ class CalendarService(private val context: Context) {
         eventType: EventType,
         backendEventType: String,
         notificationSettings: NotificationSettings
-    ) {
+    ): Boolean {
         try {
             val endDate = parseDate(deadline) ?: run {
                 android.util.Log.e("CalendarService", "날짜 파싱 실패로 일정 추가 취소: $deadline")
-                return
+                return false
             }
 
             if (policyId != null) {
                 val dup = findDuplicate(userId, policyId = policyId, housingId = null, title, endDate)
                 if (dup != null) {
                     syncDeviceCalendarIfPermitted(title, organization, endDate)
-                    return
+                    return false
                 }
             }
             if (housingId != null) {
                 val dup = findDuplicate(userId, policyId = null, housingId = housingId, title, endDate)
                 if (dup != null) {
                     syncDeviceCalendarIfPermitted(title, organization, endDate)
-                    return
+                    return false
                 }
             }
 
@@ -199,8 +307,10 @@ class CalendarService(private val context: Context) {
             }
 
             syncDeviceCalendarIfPermitted(title, organization, endDate)
+            return true
         } catch (e: Exception) {
             android.util.Log.e("CalendarService", "캘린더 일정 추가 실패: ${e.message}", e)
+            return false
         }
     }
 
@@ -211,7 +321,7 @@ class CalendarService(private val context: Context) {
         title: String,
         endDate: LocalDate
     ): CalendarEvent? {
-        val events = repository.getEventsByDate(endDate)
+        val events = repository.getEventsByUserIdOnce(userId)
         return events.find { event ->
             event.userId == userId && (
                 (policyId != null && event.policyId == policyId) ||

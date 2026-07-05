@@ -90,6 +90,14 @@ object HousingRegionUtils {
         return null
     }
 
+    /** 프로필 region(예: "충남 천안시", "충남 충청남도") → 필터용 시·도명 */
+    fun profileRegionToProvinceFilter(profileRegion: String?): String? {
+        if (profileRegion.isNullOrBlank()) return null
+        normalizeRegion(profileRegion)?.let { return it }
+        val firstToken = profileRegion.trim().split("\\s+".toRegex()).firstOrNull() ?: return null
+        return normalizeRegion(firstToken) ?: canonicalByCompact[firstToken.replace(" ", "")]
+    }
+
     fun matchesRegion(itemRegion: String, filterRegion: String): Boolean {
         if (filterRegion == "전체") return true
         if (itemRegion.isBlank()) return false

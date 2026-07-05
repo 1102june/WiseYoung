@@ -4,10 +4,7 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 import java.time.LocalDateTime
 
-/**
- * 알림 엔티티 (Room Database)
- * 알림함에 표시될 알림 데이터
- */
+
 @Entity(tableName = "notifications")
 data class Notification(
     @PrimaryKey(autoGenerate = true)

@@ -17,8 +17,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.foundation.shape.RoundedCornerShape
 import com.wiseyoung.pro.ui.theme.AppColors
 import com.wiseyoung.pro.ui.theme.Spacing
 
@@ -44,29 +42,26 @@ fun BottomNavigationBar(
     onNavigateBookmark: () -> Unit,
     onNavigateProfile: () -> Unit
 ) {
-    // 시스템 네비게이션 바 높이를 고려한 패딩
     val navigationBarsPadding = WindowInsets.navigationBars.asPaddingValues()
-    
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 2.5.dp
+        shadowElevation = 2.dp
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .padding(top = 2.dp)
                 .padding(bottom = navigationBarsPadding.calculateBottomPadding())
         ) {
-            // 상단 패딩 제거 (챗봇 튀어나옴 제거로 불필요)
-            
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = Spacing.lg, vertical = 4.dp),
+                    .padding(horizontal = Spacing.lg, vertical = 2.dp),
                 horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-            // 홈 버튼
             BottomNavButton(
                 icon = Icons.Default.Home,
                 filledIcon = Icons.Filled.Home,
@@ -74,8 +69,7 @@ fun BottomNavigationBar(
                 isSelected = currentScreen == "home",
                 onClick = onNavigateHome
             )
-            
-            // 캘린더 버튼
+
             BottomNavButton(
                 icon = Icons.Default.CalendarToday,
                 filledIcon = Icons.Filled.CalendarToday,
@@ -83,8 +77,7 @@ fun BottomNavigationBar(
                 isSelected = currentScreen == "calendar",
                 onClick = onNavigateCalendar
             )
-            
-            // 좋아요 버튼 (하트 아이콘)
+
             BottomNavButton(
                 icon = Icons.Default.Favorite,
                 filledIcon = Icons.Filled.Favorite,
@@ -92,8 +85,7 @@ fun BottomNavigationBar(
                 isSelected = currentScreen == "bookmark",
                 onClick = onNavigateBookmark
             )
-            
-            // 프로필 버튼
+
             BottomNavButton(
                 icon = Icons.Default.Person,
                 filledIcon = Icons.Filled.Person,
@@ -117,14 +109,13 @@ private fun BottomNavButton(
     Column(
         modifier = Modifier
             .clickable { onClick() }
-            .padding(horizontal = 8.dp, vertical = 2.dp), // 상하 패딩 축소
+            .padding(horizontal = 6.dp, vertical = 1.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(2.dp) // 간격 축소
+        verticalArrangement = Arrangement.spacedBy(1.dp)
     ) {
-        // 선택된 버튼에 배경 추가
         Box(
             modifier = Modifier
-                .size(if (isSelected) 48.dp else 40.dp) // 크기 축소 (56/48 -> 48/40)
+                .size(if (isSelected) 32.dp else 28.dp)
                 .clip(CircleShape)
                 .background(
                     if (isSelected) AppColors.LightBlue.copy(alpha = 0.1f) else Color.Transparent
@@ -134,15 +125,15 @@ private fun BottomNavButton(
             Icon(
                 imageVector = if (isSelected && filledIcon != null) filledIcon else icon,
                 contentDescription = label,
-                modifier = Modifier.size(if (isSelected) 26.dp else 24.dp), // 아이콘 크기 축소 (32/28 -> 26/24)
+                modifier = Modifier.size(if (isSelected) 20.dp else 18.dp),
                 tint = if (isSelected) AppColors.LightBlue else AppColors.TextSecondary
             )
         }
         Text(
             text = label,
-            fontSize = 11.sp, // 텍스트 크기 축소 (13 -> 11)
+            fontSize = 10.sp,
             color = if (isSelected) AppColors.LightBlue else AppColors.TextSecondary,
-            fontWeight = if (isSelected) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
         )
     }
 }

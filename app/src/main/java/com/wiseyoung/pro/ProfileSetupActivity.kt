@@ -123,10 +123,7 @@ class ProfileSetupActivity : ComponentActivity() {
                             loadExistingProfile(callback)
                         },
                         onBack = {
-                            if (isFromGoogleLogin) {
-                                // Google 로그인에서 온 경우 LoginActivity로 이동
-                                startActivity(Intent(this@ProfileSetupActivity, LoginActivity::class.java))
-                            }
+                            startActivity(Intent(this@ProfileSetupActivity, LoginActivity::class.java))
                             finish()
                         },
                         onSubmit = { payload ->
@@ -175,28 +172,12 @@ class ProfileSetupActivity : ComponentActivity() {
                     return@launch
                 }
 
-                // Firebase 토큰 발급 (네트워크 오류 시 캐시된 토큰 사용)
+                // 캐시된 토큰 우선 (재가입 시 응답 속도 개선), 실패 시에만 갱신
                 val idToken = try {
-                    // 먼저 강제 새로고침 시도
-                    currentUser.getIdToken(true).await()
+                    currentUser.getIdToken(false).await()
                 } catch (e: Exception) {
-                    Log.w("ProfileSetup", "새 토큰 발급 실패, 캐시된 토큰 사용 시도: ${e.message}")
-                    try {
-                        // 네트워크 오류 시 캐시된 토큰 사용
-                        currentUser.getIdToken(false).await()
-                    } catch (e2: Exception) {
-                        Log.e("ProfileSetup", "토큰 발급 실패: ${e2.message}")
-                        withContext(Dispatchers.Main) {
-                            val errorMsg = when {
-                                e2.message?.contains("network", ignoreCase = true) == true -> 
-                                    "네트워크 연결을 확인해주세요. Firebase 서버에 연결할 수 없습니다."
-                                else -> 
-                                    "인증 토큰 발급 실패: ${e2.message}"
-                            }
-                            onResult(false, errorMsg)
-                        }
-                        return@launch
-                    }
+                    Log.w("ProfileSetup", "캐시 토큰 실패, 새 토큰 발급 시도: ${e.message}")
+                    currentUser.getIdToken(true).await()
                 }
 
                 val appVersion = DeviceInfo.getAppVersion(this@ProfileSetupActivity)

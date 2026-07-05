@@ -38,6 +38,10 @@ import com.wiseyoung.pro.data.CalendarRepository
 import com.wiseyoung.pro.data.CalendarEvent
 import com.wiseyoung.pro.data.EventType
 import com.wiseyoung.pro.service.CalendarService
+import com.wiseyoung.pro.data.model.displayDeadline
+import com.wiseyoung.pro.data.model.displayOrganization
+import com.wiseyoung.pro.data.model.displayTitle
+import com.wiseyoung.pro.network.NetworkModule
 import com.google.firebase.auth.FirebaseAuth
 import com.google.gson.Gson
 import androidx.compose.ui.platform.LocalContext
@@ -154,6 +158,12 @@ fun CalendarScreen(
             } catch (e: Exception) {
                 android.util.Log.e("CalendarActivity", "서버 캘린더 동기화 실패: ${e.message}", e)
             }
+            val existingEvents = try {
+                repository.getEventsByUserIdOnce(user.uid)
+            } catch (e: Exception) {
+                android.util.Log.e("CalendarActivity", "로컬 캘린더 조회 실패: ${e.message}", e)
+                emptyList()
+            }
             try {
                 // 정책 북마크 가져오기
                 val policyBookmarksResponse = com.wiseyoung.pro.network.NetworkModule.apiService.getBookmarks(
@@ -163,16 +173,16 @@ fun CalendarScreen(
                 if (policyBookmarksResponse.isSuccessful && policyBookmarksResponse.body()?.success == true) {
                     val policyBookmarks = policyBookmarksResponse.body()?.data ?: emptyList()
                     policyBookmarks.forEach { bookmark ->
-                        // 이미 캘린더에 있는지 확인
-                        val existingEvent = allEvents.find { 
-                            it.policyId == bookmark.contentId 
+                        val existingEvent = existingEvents.find {
+                            it.policyId == bookmark.contentId
                         }
-                        if (existingEvent == null && !bookmark.title.isNullOrBlank()) {
-                            // 캘린더에 추가
+                        val title = bookmark.displayTitle()
+                        val deadline = bookmark.displayDeadline()
+                        if (existingEvent == null && !title.isNullOrBlank() && !deadline.isNullOrBlank()) {
                             calendarService.addPolicyToCalendar(
-                                title = bookmark.title,
-                                organization = bookmark.organization,
-                                deadline = bookmark.deadline ?: "",
+                                title = title,
+                                organization = bookmark.displayOrganization(),
+                                deadline = deadline,
                                 policyId = bookmark.contentId,
                                 notificationSettings = NotificationSettings(
                                     sevenDays = true,
@@ -196,43 +206,27 @@ fun CalendarScreen(
                 if (housingBookmarksResponse.isSuccessful && housingBookmarksResponse.body()?.success == true) {
                     val housingBookmarks = housingBookmarksResponse.body()?.data ?: emptyList()
                     housingBookmarks.forEach { bookmark ->
-                        // 이미 캘린더에 있는지 확인
-                        val existingEvent = allEvents.find { 
-                            it.housingId == bookmark.contentId 
+                        val existingEvent = existingEvents.find {
+                            it.housingId == bookmark.contentId
                         }
-                        if (existingEvent == null && !bookmark.title.isNullOrBlank()) {
-                            // 임대주택 상세 정보 조회하여 마감일 가져오기
-                            coroutineScope.launch {
-                                try {
-                                    val housingResponse = com.wiseyoung.pro.network.NetworkModule.apiService.getHousingById(
-                                        housingId = bookmark.contentId ?: "",
-                                        userIdParam = user.uid
-                                    )
-                                    if (housingResponse.isSuccessful && housingResponse.body()?.success == true) {
-                                        val housing = housingResponse.body()?.data
-                                        val deadline = housing?.applicationEnd?.take(10)?.replace("-", ".") ?: bookmark.deadline ?: ""
-                                        if (deadline.isNotEmpty()) {
-                                            calendarService.addHousingToCalendar(
-                                                title = bookmark.title,
-                                                organization = bookmark.organization,
-                                                deadline = deadline,
-                                                housingId = bookmark.contentId,
-                                                notificationSettings = NotificationSettings(
-                                                    sevenDays = true,
-                                                    sevenDaysTime = "09:00",
-                                                    oneDay = true,
-                                                    oneDayTime = "10:00",
-                                                    custom = false,
-                                                    customDays = 3,
-                                                    customTime = "09:00"
-                                                )
-                                            )
-                                        }
-                                    }
-                                } catch (e: Exception) {
-                                    android.util.Log.e("CalendarActivity", "임대주택 상세 정보 조회 실패: ${e.message}", e)
-                                }
-                            }
+                        val title = bookmark.displayTitle()
+                        if (existingEvent == null && !title.isNullOrBlank()) {
+                            calendarService.addHousingBookmarkToCalendar(
+                                userId = user.uid,
+                                title = title,
+                                organization = bookmark.displayOrganization(),
+                                contentId = bookmark.contentId,
+                                preferredDeadline = bookmark.displayDeadline(),
+                                notificationSettings = NotificationSettings(
+                                    sevenDays = true,
+                                    sevenDaysTime = "09:00",
+                                    oneDay = true,
+                                    oneDayTime = "10:00",
+                                    custom = false,
+                                    customDays = 3,
+                                    customTime = "09:00"
+                                )
+                            )
                         }
                     }
                 }
