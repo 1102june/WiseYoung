@@ -31,10 +31,18 @@ import com.wiseyoung.pro.data.model.displayApplicationPeriod
 import com.wiseyoung.pro.ui.components.ElevatedCard
 import com.wiseyoung.pro.network.NetworkModule
 import com.google.firebase.auth.FirebaseAuth
-import kotlinx.coroutines.launch
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
 import android.util.Log
@@ -107,6 +115,7 @@ fun BookmarkScreen(
     val scope = rememberCoroutineScope()
     var activeTab by remember { mutableStateOf("policy") }
     var isLoading by remember { mutableStateOf(true) }
+    var loadingMessage by remember { mutableStateOf("좋아요 목록을 불러오는 중입니다") }
     
     // 상세 다이얼로그 상태
     var showPolicyDetailDialog by remember { mutableStateOf(false) }
@@ -149,23 +158,24 @@ fun BookmarkScreen(
     LaunchedEffect(userId, refreshKey) {
         Log.d("BookmarkActivity", "북마크 로딩 시작: userId=$userId")
         isLoading = true
+        loadingMessage = "좋아요 목록을 불러오는 중입니다"
         try {
-            // 정책 북마크 가져오기
-            val policyResponse = NetworkModule.apiService.getBookmarks(
-                userId = userId,
-                contentType = "policy"
-            )
-            
-            // 임대주택 북마크 가져오기
-            val housingResponse = NetworkModule.apiService.getBookmarks(
-                userId = userId,
-                contentType = "housing"
-            )
-            
-            val (policiesList, apartmentsList) = coroutineScope {
-                val policiesList = mutableListOf<Pair<Int, PolicyItem>>() // bookmarkId to PolicyItem
-                val apartmentsList = mutableListOf<Pair<Int, ApartmentItem>>() // bookmarkId to ApartmentItem
-                
+            val (policyResponse, housingResponse) = withContext(Dispatchers.IO) {
+                val policyDeferred = async {
+                    NetworkModule.apiService.getBookmarks(userId = userId, contentType = "policy")
+                }
+                val housingDeferred = async {
+                    NetworkModule.apiService.getBookmarks(userId = userId, contentType = "housing")
+                }
+                Pair(policyDeferred.await(), housingDeferred.await())
+            }
+
+            loadingMessage = "상세 정보를 불러오는 중입니다"
+
+            val (policiesList, apartmentsList, announcementsListResult) = coroutineScope {
+                val policiesList = mutableListOf<Pair<Int, PolicyItem>>()
+                val apartmentsList = mutableListOf<Pair<Int, ApartmentItem>>()
+                val announcementItemsList = mutableListOf<HousingAnnouncementItem>()
                 // 정책 북마크 변환 (상세 정보 조회 및 PolicyItem 생성)
                 if (policyResponse.isSuccessful && policyResponse.body()?.success == true) {
                     val policyBookmarks = policyResponse.body()?.data ?: emptyList()
@@ -174,10 +184,12 @@ fun BookmarkScreen(
                         val policyItems = policyBookmarks.map { bookmarkResponse ->
                             async {
                                 try {
-                                    val detailResponse = NetworkModule.apiService.getPolicyById(
-                                        policyId = bookmarkResponse.contentId,
-                                        userId = userId
-                                    )
+                                    val detailResponse = withContext(Dispatchers.IO) {
+                                        NetworkModule.apiService.getPolicyById(
+                                            policyId = bookmarkResponse.contentId,
+                                            userId = userId
+                                        )
+                                    }
                                     
                                     if (detailResponse.isSuccessful && detailResponse.body()?.success == true) {
                                         val policy = detailResponse.body()?.data
@@ -224,11 +236,13 @@ fun BookmarkScreen(
                     
                     if (housingBookmarks.isNotEmpty()) {
                         // 공고 정보 먼저 조회
-                        val noticesResponse = NetworkModule.apiService.getHousingNotices(
-                            userId = userId,
-                            userIdParam = null,
-                            limit = 100
-                        )
+                        val noticesResponse = withContext(Dispatchers.IO) {
+                            NetworkModule.apiService.getHousingNotices(
+                                userId = userId,
+                                userIdParam = null,
+                                limit = 100
+                            )
+                        }
                         val allNotices = if (noticesResponse.isSuccessful && noticesResponse.body()?.success == true) {
                             noticesResponse.body()?.data ?: emptyList()
                         } else {
@@ -266,10 +280,12 @@ fun BookmarkScreen(
                                         null
                                     } else {
                                         // contentId로 상세 정보 조회 시도
-                                        val detailResponse = NetworkModule.apiService.getHousingById(
-                                            housingId = bookmarkResponse.contentId,
-                                            userIdParam = userId
-                                        )
+                                        val detailResponse = withContext(Dispatchers.IO) {
+                                            NetworkModule.apiService.getHousingById(
+                                                housingId = bookmarkResponse.contentId,
+                                                userIdParam = userId
+                                            )
+                                        }
                                         
                                         if (detailResponse.isSuccessful && detailResponse.body()?.success == true) {
                                             val housing = detailResponse.body()?.data
@@ -332,49 +348,50 @@ fun BookmarkScreen(
                         apartmentsList.addAll(fetchedApartments)
                         
                         // 공고 아이템 별도 처리
-                        val announcementItemsList = mutableListOf<HousingAnnouncementItem>()
                         housingBookmarks.forEach { bookmarkResponse ->
                             val notice = allNotices.find { it.noticeId == bookmarkResponse.contentId }
                             if (notice != null) {
-                                val announcement = HousingAnnouncementItem(
-                                    id = bookmarkResponse.bookmarkId,
-                                    noticeId = notice.noticeId,
-                                    title = notice.panNm ?: bookmarkResponse.title ?: "",
-                                    organization = notice.uppAisTpNm ?: "",
-                                    region = notice.cnpCdNm ?: "",
-                                    housingType = notice.aisTpCdNm ?: "",
-                                    status = notice.panSs ?: "공고중",
-                                    deadline = notice.applicationEnd?.take(10)?.replace("-", ".") ?: "",
-                                    recruitmentPeriod = notice.displayApplicationPeriod(),
-                                    address = "",
-                                    totalUnits = 0,
-                                    area = "",
-                                    deposit = 0,
-                                    depositDisplay = "",
-                                    monthlyRent = 0,
-                                    monthlyRentDisplay = "",
-                                    announcementDate = notice.panDt?.take(10)?.replace("-", ".") ?: "",
-                                    link = notice.dtlUrl
+                                announcementItemsList.add(
+                                    HousingAnnouncementItem(
+                                        id = bookmarkResponse.bookmarkId,
+                                        noticeId = notice.noticeId,
+                                        title = notice.panNm ?: bookmarkResponse.title ?: "",
+                                        organization = notice.uppAisTpNm ?: "",
+                                        region = notice.cnpCdNm ?: "",
+                                        housingType = notice.aisTpCdNm ?: "",
+                                        status = notice.panSs ?: "공고중",
+                                        deadline = notice.applicationEnd?.take(10)?.replace("-", ".") ?: "",
+                                        recruitmentPeriod = notice.displayApplicationPeriod(),
+                                        address = "",
+                                        totalUnits = 0,
+                                        area = "",
+                                        deposit = 0,
+                                        depositDisplay = "",
+                                        monthlyRent = 0,
+                                        monthlyRentDisplay = "",
+                                        announcementDate = notice.panDt?.take(10)?.replace("-", ".") ?: "",
+                                        link = notice.dtlUrl
+                                    )
                                 )
-                                announcementItemsList.add(announcement)
                             }
                         }
-                        announcementItems = announcementItemsList
                     }
                 }
-                
-                Pair(policiesList, apartmentsList)
+
+                Triple(policiesList, apartmentsList, announcementItemsList)
             }
-            
-            // PolicyItem과 ApartmentItem 리스트 설정 (id에 이미 bookmarkId가 저장됨)
+
             policyItems = policiesList.map { it.second }
             apartmentItems = apartmentsList.mapNotNull { it.second }
-            // announcementItems는 이미 위에서 설정됨
-            
+            announcementItems = announcementsListResult
+
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e("BookmarkActivity", "서버에서 북마크 가져오기 실패: ${e.message}", e)
             policyItems = emptyList()
             apartmentItems = emptyList()
+            announcementItems = emptyList()
         } finally {
             isLoading = false
         }
@@ -396,10 +413,20 @@ fun BookmarkScreen(
             )
             
             // Content
-            Column(
+            Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
+            ) {
+                if (isLoading) {
+                    BookmarkStagedLoadingOverlay(
+                        message = loadingMessage,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.md)
             ) {
@@ -526,6 +553,8 @@ fun BookmarkScreen(
                     }
                 }
             }
+                }
+            }
             
             // Policy Detail Dialog
             if (showPolicyDetailDialog && detailPolicy != null) {
@@ -623,6 +652,38 @@ fun BookmarkScreen(
                 )
             }
         }
+}
+
+@Composable
+private fun BookmarkStagedLoadingOverlay(
+    message: String,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(horizontal = Spacing.lg)
+        ) {
+            CircularProgressIndicator(color = Color(0xFF59ABF7))
+            Spacer(modifier = Modifier.height(12.dp))
+            AnimatedContent(
+                targetState = message,
+                transitionSpec = {
+                    fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(180))
+                },
+                label = "bookmarkLoadMessage"
+            ) { text ->
+                Text(
+                    text = text,
+                    color = AppColors.TextSecondary,
+                    fontSize = 13.sp
+                )
+            }
+        }
+    }
 }
 
 @Composable
