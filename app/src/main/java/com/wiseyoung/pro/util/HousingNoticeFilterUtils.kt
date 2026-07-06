@@ -68,6 +68,27 @@ object HousingNoticeFilterUtils {
             HousingRegionUtils.matchesRegion(item, filter)
     }
 
+    /** 프로필 region → 공고 탭 위치 필터 (cnpCdNm 목록 중 최적 매칭) */
+    fun profileToNoticeRegionFilter(
+        profileRegion: String?,
+        availableRegions: List<String>
+    ): String? {
+        if (profileRegion.isNullOrBlank()) return null
+        val profile = profileRegion.trim()
+        if (availableRegions.isNotEmpty()) {
+            availableRegions.find { matchesCnpRegion(it, profile) }?.let { return it }
+            HousingRegionUtils.profileRegionToProvinceFilter(profile)?.let { province ->
+                availableRegions.find { matchesCnpRegion(it, province) }?.let { return it }
+            }
+            val localPart = profile.split("\\s+".toRegex()).drop(1).joinToString(" ")
+            if (localPart.isNotBlank()) {
+                availableRegions.find { matchesCnpRegion(it, localPart) }?.let { return it }
+            }
+        }
+        return HousingRegionUtils.profileRegionToProvinceFilter(profile)
+            ?: profile.split("\\s+".toRegex()).firstOrNull()?.takeIf { it.isNotBlank() }
+    }
+
     private fun matchesAny(value: String, candidates: List<String>): Boolean =
         candidates.any { c -> value.contains(c) || c.contains(value) }
 

@@ -109,18 +109,21 @@ class CalendarService(private val context: Context) {
         preferredDeadline: String?,
         notificationSettings: NotificationSettings,
         isAnnouncement: Boolean = false,
-        showToast: Boolean = true
+        showToast: Boolean = true,
+        showFailureToast: Boolean = false
     ) {
         if (auth.currentUser == null) return
         CoroutineScope(Dispatchers.IO).launch {
             val deadline = resolveHousingDeadline(userId, contentId, title, preferredDeadline)
             if (deadline == null) {
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(
-                        context,
-                        "마감일 정보가 없어 D-day 캘린더에 추가하지 못했습니다.",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                if (showFailureToast) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(
+                            context,
+                            "마감일 정보가 없어 D-day 캘린더에 추가하지 못했습니다.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
                 }
                 android.util.Log.w(
                     "CalendarService",

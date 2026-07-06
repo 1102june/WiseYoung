@@ -243,7 +243,8 @@ interface ApiService {
         @Query("lat") lat: Double? = null,
         @Query("lon") lon: Double? = null,
         @Query("radius") radius: Int? = null,
-        @Query("limit") limit: Int? = null
+        @Query("limit") limit: Int? = null,
+        @Query("brtcNm") brtcNm: String? = null
     ): Response<ApiResponse<List<HousingComplexResponse>>>
     
     /**

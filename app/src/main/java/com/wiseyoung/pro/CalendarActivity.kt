@@ -210,13 +210,14 @@ fun CalendarScreen(
                             it.housingId == bookmark.contentId
                         }
                         val title = bookmark.displayTitle()
-                        if (existingEvent == null && !title.isNullOrBlank()) {
+                        val deadline = bookmark.displayDeadline()
+                        if (existingEvent == null && !title.isNullOrBlank() && !deadline.isNullOrBlank()) {
                             calendarService.addHousingBookmarkToCalendar(
                                 userId = user.uid,
                                 title = title,
                                 organization = bookmark.displayOrganization(),
                                 contentId = bookmark.contentId,
-                                preferredDeadline = bookmark.displayDeadline(),
+                                preferredDeadline = deadline,
                                 notificationSettings = NotificationSettings(
                                     sevenDays = true,
                                     sevenDaysTime = "09:00",
@@ -225,7 +226,9 @@ fun CalendarScreen(
                                     custom = false,
                                     customDays = 3,
                                     customTime = "09:00"
-                                )
+                                ),
+                                showToast = false,
+                                showFailureToast = false
                             )
                         }
                     }

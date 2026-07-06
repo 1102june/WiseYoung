@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import android.location.Geocoder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -46,8 +47,6 @@ import com.wiseyoung.pro.ui.theme.ThemeWrapper
 import com.wiseyoung.pro.data.openApplicationLink
 import com.wiseyoung.pro.data.model.displayApplicationPeriod
 import com.wiseyoung.pro.ui.components.AppPullToRefreshBox
-import com.wiseyoung.pro.ui.components.DataSourceNoticeDialog
-import com.wiseyoung.pro.ui.components.HOUSING_DATA_SOURCE_NOTICE_MESSAGE
 import com.wiseyoung.pro.ui.components.NO_HOUSING_APPLICATION_LINK_MESSAGE
 import com.wiseyoung.pro.ui.components.NoApplicationLinkDialog
 import com.wiseyoung.pro.ui.components.BottomNavigationBar
@@ -220,6 +219,7 @@ fun HousingMapScreen(
     var selectedApartment by remember { mutableStateOf<Any?>(null) } // ApartmentItem or HousingAnnouncementItem
     var showNotificationDialog by remember { mutableStateOf(false) }
     var showFilterDialog by remember { mutableStateOf(false) }
+    var showFullscreenMap by remember { mutableStateOf(false) }
     var selectedHousing by remember { mutableStateOf<Any?>(null) }
     val context = LocalContext.current
     
@@ -242,27 +242,12 @@ fun HousingMapScreen(
     var isRefreshing by remember { mutableStateOf(false) }
     var refreshKey by remember { mutableIntStateOf(0) }
     var showNoLinkDialog by remember { mutableStateOf(false) }
-    var showDataSourceNotice by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val calendarService = remember { CalendarService(context) }
     var mapCameraFocus by remember { mutableStateOf<MapCameraFocus?>(null) }
     var userProfileRegion by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(userId) {
-        try {
-            val response = NetworkModule.apiService.getUserProfile(userId)
-            if (response.isSuccessful && response.body()?.success == true) {
-                userProfileRegion = response.body()?.data?.region
-            }
-        } catch (_: Exception) {
-        }
-    }
-
-    LaunchedEffect(userId) {
-        showDataSourceNotice = DataSourceNoticePreferences.shouldShowHousingNotice(context, userId)
-    }
-    
     var complexFilters by remember {
         mutableStateOf(ComplexFilters())
     }
@@ -270,6 +255,8 @@ fun HousingMapScreen(
         mutableStateOf(NoticeFilters())
     }
     var complexFiltersInitialized by remember { mutableStateOf(false) }
+    var noticeFiltersInitialized by remember { mutableStateOf(false) }
+    var profileLoaded by remember { mutableStateOf(false) }
     
     var notifications by remember {
         mutableStateOf<NotificationSettings>(
@@ -284,7 +271,19 @@ fun HousingMapScreen(
             )
         )
     }
-    
+
+    LaunchedEffect(userId) {
+        try {
+            val response = NetworkModule.apiService.getUserProfile(userId)
+            if (response.isSuccessful && response.body()?.success == true) {
+                userProfileRegion = response.body()?.data?.region
+            }
+        } catch (_: Exception) {
+        } finally {
+            profileLoaded = true
+        }
+    }
+
     LaunchedEffect(userProfileRegion) {
         if (!complexFiltersInitialized && !userProfileRegion.isNullOrBlank()) {
             HousingComplexFilterUtils.profileToBrtcFilter(userProfileRegion)?.let { brtc ->
@@ -297,7 +296,7 @@ fun HousingMapScreen(
         }
     }
 
-    // 공고 탭 — housing_notice API만 (단지와 완전 분리)
+    // 공고 탭 — housing_notice API (단지와 완전 분리)
     LaunchedEffect(userId, refreshKey) {
         if (refreshKey == 0) {
             isLoadingNotices = true
@@ -318,23 +317,38 @@ fun HousingMapScreen(
                 val msg = noticesResponse.body()?.message
                     ?: "공고 조회 실패 (${noticesResponse.code()})"
                 noticesApiError = msg
-                android.util.Log.e("HousingMapActivity", "공고 정보 조회 실패: $msg")
                 emptyList()
             }
 
-            if (notices.isNotEmpty()) {
-                android.util.Log.d("HousingMapActivity", "공고 정보 조회 성공: ${notices.size}개")
-                announcementsList = try {
+            announcementsList = if (notices.isEmpty()) {
+                emptyList()
+            } else {
+                try {
                     parseHousingAnnouncements(notices)
-                } catch (e: Exception) {
-                    android.util.Log.e("HousingMapActivity", "HousingAnnouncementItem 변환 오류: ${e.message}", e)
+                } catch (_: Exception) {
                     emptyList()
                 }
-            } else {
-                announcementsList = emptyList()
+            }
+
+            if (!noticeFiltersInitialized && !userProfileRegion.isNullOrBlank()) {
+                val noticeRegions = buildList {
+                    add("전체")
+                    addAll(
+                        announcementsList.map { it.region }
+                            .filter { it.isNotBlank() }
+                            .distinct()
+                            .sorted()
+                    )
+                }
+                HousingNoticeFilterUtils.profileToNoticeRegionFilter(
+                    userProfileRegion,
+                    noticeRegions
+                )?.let { region ->
+                    noticeFilters = noticeFilters.copy(region = region)
+                }
+                noticeFiltersInitialized = true
             }
         } catch (e: Exception) {
-            android.util.Log.e("HousingMapActivity", "공고 로드 오류: ${e.message}", e)
             noticesApiError = "공고를 불러오지 못했습니다. 네트워크를 확인해 주세요."
             announcementsList = emptyList()
         } finally {
@@ -343,12 +357,16 @@ fun HousingMapScreen(
         }
     }
 
-    // 단지 탭 — housing_complex API만 (공고와 완전 분리)
-    LaunchedEffect(userId, refreshKey) {
+    // 단지 탭 — housing_complex API (공고와 완전 분리, 프로필·지역 필터 반영 후 1회)
+    LaunchedEffect(userId, refreshKey, complexFilters.region, profileLoaded) {
+        if (!profileLoaded) return@LaunchedEffect
         if (refreshKey == 0) {
             isLoadingComplexes = true
         }
         errorMessage = null
+
+        val brtcForFetch = complexFilters.region.takeIf { it != "전체" }
+            ?: HousingComplexFilterUtils.profileToBrtcFilter(userProfileRegion)
 
         try {
             val complexesResponse = withContext(Dispatchers.IO) {
@@ -358,74 +376,21 @@ fun HousingMapScreen(
                     lat = null,
                     lon = null,
                     radius = null,
-                    limit = 200
+                    limit = 200,
+                    brtcNm = brtcForFetch
                 )
             }
 
-            if (complexesResponse.isSuccessful && complexesResponse.body()?.success == true) {
-                val complexes = complexesResponse.body()?.data ?: emptyList()
-                android.util.Log.d("HousingMapActivity", "단지 정보 조회 성공: ${complexes.size}개")
-                apartmentsList = try {
-                    complexes.mapIndexed { index, complex ->
-                        val depositWon = complex.deposit ?: 0
-                        val monthlyWon = complex.monthlyRent ?: 0
-                        val complexName = complex.displayName()
-                        val brtc = complex.brtcNm?.trim().orEmpty().ifBlank {
-                            HousingRegionUtils.normalizeRegion(complex.region)
-                                ?: complex.region?.trim().orEmpty()
-                        }
-                        ApartmentItem(
-                            id = index + 1,
-                            housingId = complex.complexId,
-                            name = complexName,
-                            distance = complex.distanceDisplay
-                                ?: HousingDisplayUtils.formatDistanceMeters(complex.distanceFromUser)
-                                ?: "거리 정보 없음",
-                            deposit = depositWon / 10000,
-                            depositDisplay = complex.depositDisplay
-                                ?: HousingDisplayUtils.formatMoneyWon(depositWon),
-                            monthlyRent = monthlyWon / 10000,
-                            monthlyRentDisplay = complex.monthlyRentDisplay
-                                ?: HousingDisplayUtils.formatMoneyWon(monthlyWon),
-                            deadline = "",
-                            address = complex.displayAddress(),
-                            area = complex.supplyArea?.toInt() ?: 0,
-                            completionDate = complex.displayCompletionDate(),
-                            organization = complex.displayOrganization(),
-                            count = 0,
-                            region = brtc,
-                            brtcNm = brtc,
-                            housingType = complex.displayHousingType(),
-                            heatingType = complex.displayHeatingType(),
-                            hasElevator = complex.displayHasElevator(),
-                            parkingSpaces = complex.parkingSpaces ?: 0,
-                            convertibleDeposit = "",
-                            totalUnits = complex.totalUnits ?: 0,
-                            link = null,
-                            latitude = complex.latitude,
-                            longitude = complex.longitude,
-                            rentSummary = HousingDisplayUtils.complexRentSummary(complex),
-                            summaryLine = HousingDisplayUtils.complexSummaryLine(complex),
-                            supplyAreaDisplay = complex.supplyAreaDisplay
-                                ?: HousingDisplayUtils.formatSupplyArea(complex.supplyArea),
-                            activeNoticeCount = 0,
-                            hasCoordinates = complex.hasCoordinates == true
-                                || (complex.latitude != null && complex.longitude != null)
-                        )
-                    }
-                } catch (e: Exception) {
-                    android.util.Log.e("HousingMapActivity", "ApartmentItem 변환 오류: ${e.message}", e)
+            apartmentsList = if (complexesResponse.isSuccessful && complexesResponse.body()?.success == true) {
+                try {
+                    mapComplexesToApartments(complexesResponse.body()?.data ?: emptyList())
+                } catch (_: Exception) {
                     emptyList()
                 }
             } else {
-                android.util.Log.e(
-                    "HousingMapActivity",
-                    "단지 정보 조회 실패: ${complexesResponse.body()?.message}"
-                )
-                apartmentsList = emptyList()
+                emptyList()
             }
         } catch (e: Exception) {
-            android.util.Log.e("HousingMapActivity", "단지 로드 오류: ${e.message}", e)
             errorMessage = "네트워크 오류: ${e.message}"
             apartmentsList = emptyList()
         } finally {
@@ -556,6 +521,7 @@ fun HousingMapScreen(
                         item {
                             MapContainer(
                                 onFilterClick = { showFilterDialog = true },
+                                onExpandClick = { showFullscreenMap = true },
                                 totalCount = filteredApartments.size,
                                 regionLabel = complexFilters.region.takeUnless { it == "전체" },
                                 apartments = filteredApartments,
@@ -588,10 +554,10 @@ fun HousingMapScreen(
                                 Text(
                                     text = when {
                                         errorMessage != null -> errorMessage!!
-                                        apartmentsList.isEmpty() ->
-                                            "표시할 임대주택 단지가 없습니다.\n(서버에 해당 지역 단지 데이터가 없을 수 있습니다.)"
                                         complexFilters.region != "전체" ->
                                             "'${complexFilters.region}' 지역 단지가 없습니다.\n필터에서 다른 지역을 선택하거나 '전체'로 변경해 보세요."
+                                        apartmentsList.isEmpty() ->
+                                            "표시할 임대주택 단지가 없습니다.\n(서버에 해당 지역 단지 데이터가 없을 수 있습니다.)"
                                         else -> "표시할 임대주택 단지가 없습니다."
                                     },
                                     fontSize = 14.sp,
@@ -935,15 +901,28 @@ fun HousingMapScreen(
                                     val prefs = context.getSharedPreferences("bookmark_prefs", android.content.Context.MODE_PRIVATE)
                                     prefs.edit().putLong("last_bookmark_update", System.currentTimeMillis()).apply()
 
-                                    calendarService.addHousingBookmarkToCalendar(
-                                        userId = userId,
-                                        title = housing.title,
-                                        organization = housing.organization,
-                                        contentId = contentId,
-                                        preferredDeadline = housing.deadline,
-                                        notificationSettings = notifications,
-                                        isAnnouncement = true
-                                    )
+                                    val deadline = housing.deadline.takeIf { it.isNotBlank() }
+                                        ?: housing.recruitmentPeriod.substringAfterLast("~").trim()
+                                            .takeIf { it.matches(Regex("\\d{4}[.\\-/]\\d{2}[.\\-/]\\d{2}.*")) }
+                                    if (deadline.isNullOrBlank()) {
+                                        Toast.makeText(
+                                            context,
+                                            "마감일 정보가 없어 D-day 캘린더에 추가하지 못했습니다.",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    } else {
+                                        calendarService.addHousingBookmarkToCalendar(
+                                            userId = userId,
+                                            title = housing.title,
+                                            organization = housing.organization,
+                                            contentId = contentId,
+                                            preferredDeadline = deadline,
+                                            notificationSettings = notifications,
+                                            isAnnouncement = true,
+                                            showToast = true,
+                                            showFailureToast = false
+                                        )
+                                    }
                                 } else {
                                     android.util.Log.e(
                                         "HousingMapActivity",
@@ -966,6 +945,48 @@ fun HousingMapScreen(
         )
     }
     
+    if (showFullscreenMap) {
+        Dialog(
+            onDismissRequest = { showFullscreenMap = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.White)
+            ) {
+                MapContainer(
+                    onFilterClick = null,
+                    onExpandClick = null,
+                    totalCount = filteredApartments.size,
+                    regionLabel = complexFilters.region.takeUnless { it == "전체" },
+                    apartments = filteredApartments,
+                    cameraFocus = mapCameraFocus,
+                    isDataLoading = isLoadingComplexes && !isRefreshing,
+                    onMarkerClick = { apartment ->
+                        selectedApartment = apartment
+                        showDetailDialog = true
+                    },
+                    fillMaxSize = true,
+                    modifier = Modifier.fillMaxSize()
+                )
+                IconButton(
+                    onClick = { showFullscreenMap = false },
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(Spacing.md)
+                        .background(Color.White.copy(alpha = 0.9f), CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "전체화면 닫기",
+                        tint = AppColors.TextPrimary
+                    )
+                }
+            }
+        }
+    }
+
     // Filter Dialog (단지 탭 전용)
     if (showFilterDialog && activeTab == "housing") {
         ComplexFilterDialog(
@@ -982,18 +1003,6 @@ fun HousingMapScreen(
         NoApplicationLinkDialog(
             message = NO_HOUSING_APPLICATION_LINK_MESSAGE,
             onDismiss = { showNoLinkDialog = false }
-        )
-    }
-
-    if (showDataSourceNotice) {
-        DataSourceNoticeDialog(
-            message = HOUSING_DATA_SOURCE_NOTICE_MESSAGE,
-            onConfirm = { hideForOneDay ->
-                if (hideForOneDay) {
-                    DataSourceNoticePreferences.hideHousingNoticeForOneDay(context, userId)
-                }
-                showDataSourceNotice = false
-            }
         )
     }
 }
@@ -1065,48 +1074,57 @@ private fun AnnouncementFilterBar(
 
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
         border = androidx.compose.foundation.BorderStroke(1.dp, AppColors.Border),
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(Spacing.md),
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+                .padding(horizontal = Spacing.sm, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Text(
-                text = "진행중인 공고 ${totalCount}건",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = AppColors.TextPrimary
-            )
-
-            AnnouncementFilterDropdown(
-                label = "위치",
-                value = filters.region,
-                options = regionOptions.ifEmpty { listOf("전체") },
-                onValueChange = onRegionChange,
-                modifier = Modifier.fillMaxWidth()
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "진행중인 공고 ${totalCount}건",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = AppColors.TextPrimary,
+                    modifier = Modifier.weight(1f)
+                )
+                AnnouncementFilterDropdown(
+                    label = "위치",
+                    value = filters.region,
+                    options = regionOptions.ifEmpty { listOf("전체") },
+                    onValueChange = onRegionChange,
+                    compact = true,
+                    modifier = Modifier.weight(1.2f)
+                )
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 AnnouncementFilterDropdown(
                     label = "주택유형",
                     value = filters.mainCategory,
                     options = HousingNoticeFilterUtils.mainCategories,
                     onValueChange = onMainCategoryChange,
+                    compact = true,
                     modifier = Modifier.weight(1f)
                 )
                 if (filters.mainCategory != "전체") {
                     AnnouncementFilterDropdown(
-                        label = "세부 유형",
+                        label = "세부",
                         value = filters.subCategory,
                         options = subCategoryOptions,
                         onValueChange = onSubCategoryChange,
+                        compact = true,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -1121,27 +1139,33 @@ private fun AnnouncementFilterDropdown(
     value: String,
     options: List<String>,
     onValueChange: (String) -> Unit,
+    compact: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
     Column(modifier = modifier) {
-        Text(
-            text = label,
-            fontSize = 12.sp,
-            color = AppColors.TextSecondary,
-            modifier = Modifier.padding(bottom = 4.dp)
-        )
+        if (!compact) {
+            Text(
+                text = label,
+                fontSize = 12.sp,
+                color = AppColors.TextSecondary,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+        }
         Box {
             OutlinedButton(
                 onClick = { expanded = true },
                 modifier = Modifier.fillMaxWidth(),
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                contentPadding = PaddingValues(
+                    horizontal = if (compact) 8.dp else 10.dp,
+                    vertical = if (compact) 4.dp else 8.dp
+                ),
                 colors = whiteFilterOutlinedButtonColors(),
                 border = BorderStroke(1.dp, AppColors.Border)
             ) {
                 Text(
-                    text = value,
-                    fontSize = 13.sp,
+                    text = if (compact) "$label: $value" else value,
+                    fontSize = if (compact) 12.sp else 13.sp,
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
@@ -1181,30 +1205,54 @@ private fun AnnouncementFilterDropdown(
 @Composable
 private fun MapContainer(
     onFilterClick: (() -> Unit)?,
+    onExpandClick: (() -> Unit)? = null,
     totalCount: Int,
     regionLabel: String?,
     apartments: List<ApartmentItem>,
     cameraFocus: MapCameraFocus? = null,
     isDataLoading: Boolean = false,
     onMarkerClick: ((ApartmentItem) -> Unit)? = null,
+    fillMaxSize: Boolean = false,
     modifier: Modifier = Modifier,
     onMapTouchStart: (() -> Unit)? = null,
     onMapTouchEnd: (() -> Unit)? = null
 ) {
+    val mapBoxModifier = if (fillMaxSize) {
+        Modifier.fillMaxSize()
+    } else {
+        Modifier
+            .fillMaxWidth()
+            .aspectRatio(4f / 3f)
+    }
+
     Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, AppColors.Border),
+        modifier = if (fillMaxSize) modifier.fillMaxSize() else modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(if (fillMaxSize) 0.dp else 16.dp),
+        border = if (fillMaxSize) {
+            null
+        } else {
+            androidx.compose.foundation.BorderStroke(1.dp, AppColors.Border)
+        },
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
-        Column {
+        Column(
+            modifier = if (fillMaxSize) Modifier.fillMaxSize() else Modifier.fillMaxWidth()
+        ) {
+            Box(
+                modifier = if (fillMaxSize) {
+                    Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                } else {
+                    mapBoxModifier.fillMaxWidth()
+                }
+            ) {
             // Map Area
             val rootView = LocalView.current
             
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(4f / 3f)
+                    .fillMaxSize()
                     .background(AppColors.Border)
                     // 지도 영역에서 발생하는 모든 터치 이벤트를 가로채서 부모 스크롤 비활성화
                     .pointerInteropFilter(
@@ -1470,7 +1518,7 @@ private fun MapContainer(
                     isMapMarkersLoading = true
                     try {
                         android.util.Log.d("HousingMapActivity", "마커 추가 시작: 아파트 ${apartments.size}개")
-                        addApartmentMarkersWithGeocoding(
+                        addApartmentMarkers(
                             context = context,
                             kakaoMap = kakaoMapInstance!!,
                             apartments = apartments,
@@ -1490,8 +1538,8 @@ private fun MapContainer(
                     }
                 }
                 
-                // 지도 로딩 중 또는 오류 표시
-                if (isMapMarkersLoading || isDataLoading) {
+                // API 데이터 로딩 중에만 지도 오버레이 (클라이언트 지오코딩 없음)
+                if (isDataLoading) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -1502,7 +1550,7 @@ private fun MapContainer(
                             CircularProgressIndicator(color = Color(0xFF59ABF7))
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
-                                text = if (isDataLoading) "임대주택 단지를 불러오는 중..." else "지도에 단지를 표시하는 중...",
+                                text = "임대주택 단지를 불러오는 중...",
                                 color = AppColors.TextSecondary,
                                 fontSize = 13.sp
                             )
@@ -1604,14 +1652,13 @@ private fun MapContainer(
                             }
                         }
                     )
-                    MapControlButton(
-                        icon = Icons.Default.LocationOn,
-                        onClick = { 
-                            // 현재 위치로 이동 기능 - 카카오맵 SDK v2 API 확인 필요
-                            // TODO: 위치 권한 확인 및 현재 위치 가져오기 구현
-                            android.util.Log.d("HousingMapActivity", "현재 위치 버튼 클릭")
-                        }
-                    )
+                    onExpandClick?.let { expandClick ->
+                        MapControlButton(
+                            icon = Icons.Default.Fullscreen,
+                            onClick = expandClick,
+                            contentDescription = "지도 전체화면"
+                        )
+                    }
                 }
                 
                 // Filter Button - Left (onFilterClick이 null이 아닐 때만 표시)
@@ -1666,6 +1713,16 @@ private fun MapContainer(
                     }
                 }
             }
+            }
+
+            if (!fillMaxSize) {
+                Text(
+                    text = "임대주택 카드를 클릭시 해당 위치로 이동합니다.",
+                    fontSize = 11.sp,
+                    color = AppColors.TextTertiary,
+                    modifier = Modifier.padding(horizontal = Spacing.sm, vertical = 6.dp)
+                )
+            }
         }
     }
 }
@@ -1673,7 +1730,8 @@ private fun MapContainer(
 @Composable
 private fun MapControlButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    contentDescription: String? = null
 ) {
     Surface(
         modifier = Modifier.clickable { onClick() },
@@ -1683,7 +1741,7 @@ private fun MapControlButton(
     ) {
         Icon(
             imageVector = icon,
-            contentDescription = null,
+            contentDescription = contentDescription,
             modifier = Modifier
                 .size(40.dp)
                 .padding(Spacing.sm),
@@ -2132,14 +2190,18 @@ fun AnnouncementCard(
             
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 OutlinedButton(
                     onClick = onDetailClick,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = whiteFilterOutlinedButtonColors(),
-                    border = BorderStroke(1.dp, AppColors.Border)
+                    border = BorderStroke(1.dp, AppColors.Border),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
                 ) {
                     Text("상세보기", fontSize = 14.sp)
                 }
@@ -2151,7 +2213,8 @@ fun AnnouncementCard(
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = AppColors.BackgroundGradientStart
-                    )
+                    ),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
                 ) {
                     Text(
                         text = "신청하기",
@@ -3101,6 +3164,58 @@ private fun HousingWheelPicker(
             }
         }
         Text(label, fontSize = 12.sp, color = AppColors.TextSecondary)
+    }
+}
+
+private fun mapComplexesToApartments(
+    complexes: List<com.wiseyoung.pro.data.model.HousingComplexResponse>
+): List<ApartmentItem> {
+    return complexes.mapIndexed { index, complex ->
+        val depositWon = complex.deposit ?: 0
+        val monthlyWon = complex.monthlyRent ?: 0
+        val complexName = complex.displayName()
+        val brtc = complex.brtcNm?.trim().orEmpty().ifBlank {
+            HousingRegionUtils.normalizeRegion(complex.region)
+                ?: complex.region?.trim().orEmpty()
+        }
+        ApartmentItem(
+            id = index + 1,
+            housingId = complex.complexId,
+            name = complexName,
+            distance = complex.distanceDisplay
+                ?: HousingDisplayUtils.formatDistanceMeters(complex.distanceFromUser)
+                ?: "거리 정보 없음",
+            deposit = depositWon / 10000,
+            depositDisplay = complex.depositDisplay
+                ?: HousingDisplayUtils.formatMoneyWon(depositWon),
+            monthlyRent = monthlyWon / 10000,
+            monthlyRentDisplay = complex.monthlyRentDisplay
+                ?: HousingDisplayUtils.formatMoneyWon(monthlyWon),
+            deadline = "",
+            address = complex.displayAddress(),
+            area = complex.supplyArea?.toInt() ?: 0,
+            completionDate = complex.displayCompletionDate(),
+            organization = complex.displayOrganization(),
+            count = 0,
+            region = brtc,
+            brtcNm = brtc,
+            housingType = complex.displayHousingType(),
+            heatingType = complex.displayHeatingType(),
+            hasElevator = complex.displayHasElevator(),
+            parkingSpaces = complex.parkingSpaces ?: 0,
+            convertibleDeposit = "",
+            totalUnits = complex.totalUnits ?: 0,
+            link = null,
+            latitude = complex.latitude,
+            longitude = complex.longitude,
+            rentSummary = HousingDisplayUtils.complexRentSummary(complex),
+            summaryLine = HousingDisplayUtils.complexSummaryLine(complex),
+            supplyAreaDisplay = complex.supplyAreaDisplay
+                ?: HousingDisplayUtils.formatSupplyArea(complex.supplyArea),
+            activeNoticeCount = 0,
+            hasCoordinates = complex.hasCoordinates == true
+                || (complex.latitude != null && complex.longitude != null)
+        )
     }
 }
 
