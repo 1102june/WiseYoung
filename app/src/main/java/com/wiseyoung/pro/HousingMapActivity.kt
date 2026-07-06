@@ -6,6 +6,11 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
@@ -33,6 +38,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import android.location.Geocoder
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -256,7 +262,10 @@ fun HousingMapScreen(
     }
     var complexFiltersInitialized by remember { mutableStateOf(false) }
     var noticeFiltersInitialized by remember { mutableStateOf(false) }
-    var profileLoaded by remember { mutableStateOf(false) }
+    var complexesFetchTrigger by remember { mutableIntStateOf(0) }
+    var profileFetchDone by remember { mutableStateOf(false) }
+    var isParsingNotices by remember { mutableStateOf(false) }
+    var isHousingMapReady by remember { mutableStateOf(false) }
     
     var notifications by remember {
         mutableStateOf<NotificationSettings>(
@@ -274,25 +283,31 @@ fun HousingMapScreen(
 
     LaunchedEffect(userId) {
         try {
-            val response = NetworkModule.apiService.getUserProfile(userId)
+            val response = withContext(Dispatchers.IO) {
+                NetworkModule.apiService.getUserProfile(userId)
+            }
             if (response.isSuccessful && response.body()?.success == true) {
                 userProfileRegion = response.body()?.data?.region
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (_: Exception) {
         } finally {
-            profileLoaded = true
+            profileFetchDone = true
+            if (!complexFiltersInitialized) {
+                complexFiltersInitialized = true
+                complexesFetchTrigger++
+            }
         }
     }
 
     LaunchedEffect(userProfileRegion) {
-        if (!complexFiltersInitialized && !userProfileRegion.isNullOrBlank()) {
-            HousingComplexFilterUtils.profileToBrtcFilter(userProfileRegion)?.let { brtc ->
-                complexFilters = complexFilters.copy(region = brtc)
-                ProvinceMapUtils.findCenter(brtc)?.let { (lat, lon) ->
-                    mapCameraFocus = MapCameraFocus(lat, lon, zoomLevel = 12)
-                }
+        if (userProfileRegion.isNullOrBlank()) return@LaunchedEffect
+        HousingComplexFilterUtils.profileToBrtcFilter(userProfileRegion)?.let { brtc ->
+            complexFilters = complexFilters.copy(region = brtc)
+            ProvinceMapUtils.findCenter(brtc)?.let { (lat, lon) ->
+                mapCameraFocus = MapCameraFocus(lat, lon, zoomLevel = 12)
             }
-            complexFiltersInitialized = true
         }
     }
 
@@ -319,6 +334,9 @@ fun HousingMapScreen(
                 noticesApiError = msg
                 emptyList()
             }
+
+            isLoadingNotices = false
+            isParsingNotices = true
 
             announcementsList = if (notices.isEmpty()) {
                 emptyList()
@@ -348,21 +366,25 @@ fun HousingMapScreen(
                 }
                 noticeFiltersInitialized = true
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             noticesApiError = "공고를 불러오지 못했습니다. 네트워크를 확인해 주세요."
             announcementsList = emptyList()
         } finally {
             isLoadingNotices = false
-            isRefreshing = false
+            isParsingNotices = false
+            if (refreshKey > 0) {
+                isRefreshing = false
+            }
         }
     }
 
-    // 단지 탭 — housing_complex API (공고와 완전 분리, 프로필·지역 필터 반영 후 1회)
-    LaunchedEffect(userId, refreshKey, complexFilters.region, profileLoaded) {
-        if (!profileLoaded) return@LaunchedEffect
-        if (refreshKey == 0) {
-            isLoadingComplexes = true
-        }
+    // 단지 탭 — housing_complex API (프로필/필터 준비 후 fetch)
+    LaunchedEffect(userId, refreshKey, complexesFetchTrigger) {
+        if (complexesFetchTrigger == 0) return@LaunchedEffect
+
+        isLoadingComplexes = true
         errorMessage = null
 
         val brtcForFetch = complexFilters.region.takeIf { it != "전체" }
@@ -390,13 +412,27 @@ fun HousingMapScreen(
             } else {
                 emptyList()
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             errorMessage = "네트워크 오류: ${e.message}"
             apartmentsList = emptyList()
         } finally {
             isLoadingComplexes = false
-            isRefreshing = false
+            if (refreshKey > 0) {
+                isRefreshing = false
+            }
         }
+    }
+
+    // pull-to-refresh: 공고·단지 모두 갱신
+
+    val showHousingContent = profileFetchDone && !isLoadingComplexes && isHousingMapReady
+    val isNoticeLoading = (isLoadingNotices || isParsingNotices) && !isRefreshing
+    val noticeLoadingMessage = when {
+        isLoadingNotices -> "임대주택 공고를 불러오는 중입니다"
+        isParsingNotices -> "접수 중인 공고만 정리하는 중입니다"
+        else -> ""
     }
     
     val filteredApartments = apartmentsList.filter { apt ->
@@ -503,6 +539,7 @@ fun HousingMapScreen(
                 onRefresh = {
                     isRefreshing = true
                     refreshKey++
+                    complexesFetchTrigger++
                 },
                 modifier = Modifier
                     .weight(1f)
@@ -526,7 +563,9 @@ fun HousingMapScreen(
                                 regionLabel = complexFilters.region.takeUnless { it == "전체" },
                                 apartments = filteredApartments,
                                 cameraFocus = mapCameraFocus,
-                                isDataLoading = isLoadingComplexes && !isRefreshing,
+                                isProfileLoading = !profileFetchDone,
+                                isComplexesLoading = isLoadingComplexes && !isRefreshing,
+                                onMapReadyChanged = { isHousingMapReady = it },
                                 onMarkerClick = { apartment ->
                                     selectedApartment = apartment
                                     showDetailDialog = true
@@ -538,18 +577,8 @@ fun HousingMapScreen(
                             )
                         }
 
-                        if (isLoadingComplexes && !isRefreshing) {
-                            item {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(Spacing.xl),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    CircularProgressIndicator(color = Color(0xFF59ABF7))
-                                }
-                            }
-                        } else if (filteredApartments.isEmpty()) {
+                        if (showHousingContent) {
+                        if (filteredApartments.isEmpty()) {
                             item {
                                 Text(
                                     text = when {
@@ -630,6 +659,7 @@ fun HousingMapScreen(
                                 )
                             }
                         }
+                        }
                     }
                 }
                 "announcement" -> {
@@ -655,15 +685,13 @@ fun HousingMapScreen(
                                 .padding(horizontal = Spacing.screenHorizontal)
                                 .padding(bottom = Spacing.sm)
                         )
-                        if (isLoadingNotices && !isRefreshing) {
-                            Box(
+                        if (isNoticeLoading) {
+                            HousingStagedLoadingOverlay(
+                                message = noticeLoadingMessage,
                                 modifier = Modifier
                                     .weight(1f)
-                                    .fillMaxWidth(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator(color = Color(0xFF59ABF7))
-                            }
+                                    .fillMaxWidth()
+                            )
                         } else if (filteredAnnouncements.isEmpty()) {
                             Box(
                                 modifier = Modifier
@@ -962,7 +990,8 @@ fun HousingMapScreen(
                     regionLabel = complexFilters.region.takeUnless { it == "전체" },
                     apartments = filteredApartments,
                     cameraFocus = mapCameraFocus,
-                    isDataLoading = isLoadingComplexes && !isRefreshing,
+                    isProfileLoading = !profileFetchDone,
+                    isComplexesLoading = isLoadingComplexes && !isRefreshing,
                     onMarkerClick = { apartment ->
                         selectedApartment = apartment
                         showDetailDialog = true
@@ -994,7 +1023,10 @@ fun HousingMapScreen(
             regionOptions = complexRegionFilterOptions,
             housingTypeOptions = complexHousingTypeOptions,
             onFiltersChange = { complexFilters = it },
-            onApply = { showFilterDialog = false },
+            onApply = {
+                showFilterDialog = false
+                complexesFetchTrigger++
+            },
             onDismiss = { showFilterDialog = false }
         )
     }
@@ -1203,6 +1235,46 @@ private fun AnnouncementFilterDropdown(
 }
 
 @Composable
+private fun HousingStagedLoadingOverlay(
+    message: String,
+    modifier: Modifier = Modifier,
+    scrim: Boolean = false
+) {
+    Box(
+        modifier = modifier
+            .then(
+                if (scrim) {
+                    Modifier.background(Color.White.copy(alpha = 0.72f))
+                } else {
+                    Modifier
+                }
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(horizontal = Spacing.lg)
+        ) {
+            CircularProgressIndicator(color = Color(0xFF59ABF7))
+            Spacer(modifier = Modifier.height(12.dp))
+            AnimatedContent(
+                targetState = message,
+                transitionSpec = {
+                    fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(180))
+                },
+                label = "housingStagedLoadMessage"
+            ) { text ->
+                Text(
+                    text = text,
+                    color = AppColors.TextSecondary,
+                    fontSize = 13.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun MapContainer(
     onFilterClick: (() -> Unit)?,
     onExpandClick: (() -> Unit)? = null,
@@ -1210,7 +1282,9 @@ private fun MapContainer(
     regionLabel: String?,
     apartments: List<ApartmentItem>,
     cameraFocus: MapCameraFocus? = null,
-    isDataLoading: Boolean = false,
+    isProfileLoading: Boolean = false,
+    isComplexesLoading: Boolean = false,
+    onMapReadyChanged: (Boolean) -> Unit = {},
     onMarkerClick: ((ApartmentItem) -> Unit)? = null,
     fillMaxSize: Boolean = false,
     modifier: Modifier = Modifier,
@@ -1497,8 +1571,8 @@ private fun MapContainer(
                 val apartmentMarkerKey = apartments.joinToString("|") {
                     "${it.housingId}:${it.latitude}:${it.longitude}:${it.address}"
                 }
-                LaunchedEffect(apartmentMarkerKey, kakaoMapInstance, isDataLoading) {
-                    if (isDataLoading) {
+                LaunchedEffect(apartmentMarkerKey, kakaoMapInstance, isProfileLoading, isComplexesLoading) {
+                    if (isProfileLoading || isComplexesLoading) {
                         isMapMarkersLoading = true
                         return@LaunchedEffect
                     }
@@ -1538,24 +1612,24 @@ private fun MapContainer(
                     }
                 }
                 
-                // API 데이터 로딩 중에만 지도 오버레이 (클라이언트 지오코딩 없음)
-                if (isDataLoading) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.White.copy(alpha = 0.72f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            CircularProgressIndicator(color = Color(0xFF59ABF7))
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                text = "임대주택 단지를 불러오는 중...",
-                                color = AppColors.TextSecondary,
-                                fontSize = 13.sp
-                            )
-                        }
-                    }
+                val mapLoadingMessage = when {
+                    isProfileLoading -> "회원 지역 정보를 확인하는 중입니다"
+                    isComplexesLoading -> "임대주택 단지를 불러오는 중입니다"
+                    kakaoMapInstance == null && mapError == null -> "지도를 준비하는 중입니다"
+                    isMapMarkersLoading -> "지도에 임대주택을 표시하는 중입니다"
+                    else -> null
+                }
+
+                LaunchedEffect(mapLoadingMessage) {
+                    onMapReadyChanged(mapLoadingMessage == null)
+                }
+
+                if (mapLoadingMessage != null) {
+                    HousingStagedLoadingOverlay(
+                        message = mapLoadingMessage,
+                        modifier = Modifier.fillMaxSize(),
+                        scrim = true
+                    )
                 }
 
                 if (mapError != null) {
