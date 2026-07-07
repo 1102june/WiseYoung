@@ -19,6 +19,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.DisposableEffect
+import android.content.SharedPreferences
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -45,6 +47,7 @@ import com.wiseyoung.pro.ui.components.NoApplicationLinkDialog
 import com.wiseyoung.pro.ui.components.AppPullToRefreshBox
 import android.widget.Toast
 import com.wiseyoung.pro.service.CalendarService
+import com.wiseyoung.pro.ads.BannerAd
 
 data class PolicyRecommendation(
     val id: Int,
@@ -87,6 +90,23 @@ fun HomeScreen(
     var isLoading by remember { mutableStateOf(true) }
     var isRefreshing by remember { mutableStateOf(false) }
     var refreshKey by remember { mutableIntStateOf(0) }
+    val profilePrefs = context.getSharedPreferences("profile_prefs", android.content.Context.MODE_PRIVATE)
+    var profileRefreshKey by remember {
+        mutableLongStateOf(profilePrefs.getLong("last_profile_update", 0L))
+    }
+
+    DisposableEffect(Unit) {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == "last_profile_update") {
+                profileRefreshKey = profilePrefs.getLong("last_profile_update", 0L)
+            }
+        }
+        profilePrefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose {
+            profilePrefs.unregisterOnSharedPreferenceChangeListener(listener)
+        }
+    }
+
     var showNoLinkDialog by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var bookmarkedPolicies by remember { mutableStateOf(setOf<String>()) }
@@ -109,11 +129,11 @@ fun HomeScreen(
 
 
     // 메인 페이지 데이터 로드 (AI 추천 정책은 항상 서버 데이터만 사용)
-    LaunchedEffect(userId, refreshTrigger, refreshKey) {
+    LaunchedEffect(userId, refreshTrigger, refreshKey, profileRefreshKey) {
         if (userId != null) {
-            if (refreshKey == 0) isLoading = true
+            if (refreshKey == 0 && aiRecommendationsList.isEmpty()) isLoading = true
             errorMessage = null
-            if (refreshKey == 0) currentIndex = 0
+            if (refreshKey == 0 && aiRecommendationsList.isEmpty()) currentIndex = 0
             try {
                 val profileResponse = com.wiseyoung.pro.network.NetworkModule.apiService.getUserProfile(userId)
                 if (profileResponse.isSuccessful && profileResponse.body()?.success == true) {
@@ -319,6 +339,10 @@ fun HomeScreen(
                                 Color(0xFFFF6B2C)
                             ),
                             onClick = onNavigateHousing
+                        )
+
+                        BannerAd(
+                            modifier = Modifier.padding(top = Spacing.xs)
                         )
                     }
                 }

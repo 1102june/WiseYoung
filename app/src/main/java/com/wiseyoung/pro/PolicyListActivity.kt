@@ -18,6 +18,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.DisposableEffect
+import android.content.SharedPreferences
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -288,6 +293,40 @@ fun PolicyListScreen(
     var refreshKey by remember { mutableIntStateOf(0) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+
+    val context = LocalContext.current
+    val profilePrefs = context.getSharedPreferences("profile_prefs", android.content.Context.MODE_PRIVATE)
+    var profileRefreshKey by remember {
+        mutableLongStateOf(profilePrefs.getLong("last_profile_update", 0L))
+    }
+
+    DisposableEffect(Unit) {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == "last_profile_update") {
+                profileRefreshKey = profilePrefs.getLong("last_profile_update", 0L)
+            }
+        }
+        profilePrefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose {
+            profilePrefs.unregisterOnSharedPreferenceChangeListener(listener)
+        }
+    }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                val ts = profilePrefs.getLong("last_profile_update", 0L)
+                if (ts != profileRefreshKey) {
+                    profileRefreshKey = ts
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
     
     var notifications by remember {
         mutableStateOf(
@@ -303,48 +342,36 @@ fun PolicyListScreen(
         )
     }
     
-    val context = LocalContext.current
-
-    LaunchedEffect(userId) {
-        showDataSourceNotice = DataSourceNoticePreferences.shouldShowPolicyNotice(context, userId)
-    }
-
     // 프로필 정보
     var profile by remember { mutableStateOf<com.wiseyoung.pro.data.model.UserProfileResponse?>(null) }
 
     // 프로필 + 정책 목록 로드
-    LaunchedEffect(userId, selectedCategory, refreshKey) {
-        if (refreshKey == 0) isLoading = true
+    LaunchedEffect(userId, selectedCategory, refreshKey, profileRefreshKey) {
+        if (refreshKey == 0 && profile == null) isLoading = true
         errorMessage = null
         try {
-            // 1) 프로필 정보 조회 (userId 변경 시에만, pull refresh 시 재조회)
-            if (profile == null || refreshKey > 0) {
-                try {
-                    android.util.Log.d("PolicyListActivity", "프로필 조회 시작: userId=$userId")
-                    val profileResponse = com.wiseyoung.pro.network.NetworkModule.apiService.getUserProfile(userId)
-                    android.util.Log.d("PolicyListActivity", "프로필 응답: code=${profileResponse.code()}, success=${profileResponse.body()?.success}")
-                    
-                    if (profileResponse.isSuccessful && profileResponse.body()?.success == true) {
-                        val profileData = profileResponse.body()?.data
-                        profile = profileData
-                        profileData?.let { p ->
-                            android.util.Log.d("PolicyListActivity", "✅ 프로필 조회 성공: 닉네임=${p.nickname}, 나이=${p.age}, 지역=${p.region}, 관심사=${p.interests}")
-                        } ?: run {
-                            android.util.Log.w("PolicyListActivity", "⚠️ 프로필 데이터가 null입니다.")
-                        }
-                    } else {
-                        val errorMsg = profileResponse.body()?.message ?: "알 수 없는 오류"
-                        android.util.Log.w("PolicyListActivity", "프로필 조회 실패: code=${profileResponse.code()}, message=$errorMsg")
-                        // 프로필이 없으면 null로 유지 (기본값 표시)
-                        profile = null
+            // 1) 프로필 정보 조회 (지역 변경 등 반영)
+            try {
+                android.util.Log.d("PolicyListActivity", "프로필 조회 시작: userId=$userId")
+                val profileResponse = com.wiseyoung.pro.network.NetworkModule.apiService.getUserProfile(userId)
+                android.util.Log.d("PolicyListActivity", "프로필 응답: code=${profileResponse.code()}, success=${profileResponse.body()?.success}")
+                
+                if (profileResponse.isSuccessful && profileResponse.body()?.success == true) {
+                    val profileData = profileResponse.body()?.data
+                    profile = profileData
+                    profileData?.let { p ->
+                        android.util.Log.d("PolicyListActivity", "✅ 프로필 조회 성공: 닉네임=${p.nickname}, 나이=${p.age}, 지역=${p.region}, 관심사=${p.interests}")
+                    } ?: run {
+                        android.util.Log.w("PolicyListActivity", "⚠️ 프로필 데이터가 null입니다.")
                     }
-                } catch (e: Exception) {
-                    android.util.Log.e("PolicyListActivity", "프로필 조회 오류: ${e.message}", e)
-                    // 프로필 조회 실패 시 null로 유지 (기본값 표시)
+                } else {
+                    val errorMsg = profileResponse.body()?.message ?: "알 수 없는 오류"
+                    android.util.Log.w("PolicyListActivity", "프로필 조회 실패: code=${profileResponse.code()}, message=$errorMsg")
                     profile = null
                 }
-            } else {
-                android.util.Log.d("PolicyListActivity", "프로필 이미 로드됨: ${profile?.nickname}")
+            } catch (e: Exception) {
+                android.util.Log.e("PolicyListActivity", "프로필 조회 오류: ${e.message}", e)
+                profile = null
             }
 
             // 2) 맞춤 정책 추천 목록 조회 (추천 로직 사용 - 점수 기반 추천 후 limit만큼만 반환)
@@ -399,6 +426,10 @@ fun PolicyListScreen(
             isLoading = false
             isRefreshing = false
         }
+    }
+
+    LaunchedEffect(userId) {
+        showDataSourceNotice = DataSourceNoticePreferences.shouldShowPolicyNotice(context, userId)
     }
     
     // 카테고리 + 통합검색(제목/내용/주관기관/카테고리) 필터링

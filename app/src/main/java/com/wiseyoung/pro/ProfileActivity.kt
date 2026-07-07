@@ -492,6 +492,7 @@ private suspend fun saveProfileUpdate(
 
         val saved = isProfileSaveSuccessful(response)
         if (saved) {
+            notifyProfileUpdated(context)
             refreshProfileAfterSave(currentUser.uid, onProfileRefreshed)
             Toast.makeText(context, "프로필이 업데이트되었습니다.", Toast.LENGTH_SHORT).show()
             true
@@ -505,6 +506,7 @@ private suspend fun saveProfileUpdate(
         android.util.Log.e("ProfileActivity", "프로필 업데이트 실패: ${e.message}", e)
         val verified = verifyProfileSaved(currentUser.uid, nickname, jobStatus, onProfileRefreshed)
         if (verified) {
+            notifyProfileUpdated(context)
             Toast.makeText(context, "프로필이 업데이트되었습니다.", Toast.LENGTH_SHORT).show()
             true
         } else {
@@ -512,6 +514,13 @@ private suspend fun saveProfileUpdate(
             false
         }
     }
+}
+
+private fun notifyProfileUpdated(context: android.content.Context) {
+    context.getSharedPreferences("profile_prefs", android.content.Context.MODE_PRIVATE)
+        .edit()
+        .putLong("last_profile_update", System.currentTimeMillis())
+        .apply()
 }
 
 private suspend fun refreshProfileAfterSave(

@@ -220,7 +220,7 @@ fun HousingMapScreen(
     onNavigateBookmark: () -> Unit,
     onNavigateProfile: () -> Unit
 ) {
-    var activeTab by remember { mutableStateOf<String>("housing") }
+    var activeTab by remember { mutableStateOf<String>("announcement") }
     var showDetailDialog by remember { mutableStateOf(false) }
     var selectedApartment by remember { mutableStateOf<Any?>(null) } // ApartmentItem or HousingAnnouncementItem
     var showNotificationDialog by remember { mutableStateOf(false) }
@@ -1853,15 +1853,15 @@ private fun TabNavigation(
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
     ) {
         TabButton(
-            text = "임대주택",
-            isSelected = activeTab == "housing",
-            onClick = { onTabChange("housing") },
-            modifier = Modifier.weight(1f)
-        )
-        TabButton(
             text = "임대주택 공고",
             isSelected = activeTab == "announcement",
             onClick = { onTabChange("announcement") },
+            modifier = Modifier.weight(1f)
+        )
+        TabButton(
+            text = "임대주택",
+            isSelected = activeTab == "housing",
+            onClick = { onTabChange("housing") },
             modifier = Modifier.weight(1f)
         )
     }
