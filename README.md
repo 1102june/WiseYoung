@@ -5,6 +5,7 @@
 [![Kotlin](https://img.shields.io/badge/Language-Kotlin-7F52FF?logo=kotlin)](#)
 [![Spring Boot](https://img.shields.io/badge/Backend-Spring%20Boot-6DB33F?logo=springboot)](#)
 
+## PlayStore: [https://play.google.com/store/apps/details?id=com.wiseyoung.pro&hl=ko]
 ### Backend: [https://github.com/1102june/1208spring]
 
 ## 📌 Project Overview
