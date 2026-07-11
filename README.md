@@ -14,6 +14,14 @@
 ## 🏗 System Architecture
 <img width="4161" height="2402" alt="wiseyoung_출시구조도" src="https://github.com/user-attachments/assets/982e4347-1fa9-423b-bda2-6f33e0419576" />
 
+## Overview
+<img width="1080" height="1440" alt="446shots_so" src="https://github.com/user-attachments/assets/6b569cde-2ed8-44b3-a4bd-ba33a46afccd" />
+<img width="1080" height="1440" alt="36shots_so" src="https://github.com/user-attachments/assets/4a11cbf2-889f-4051-b9ad-2c82d54c879a" />
+<img width="1080" height="1440" alt="248shots_so" src="https://github.com/user-attachments/assets/e983d230-5745-4d78-bd6b-3cabb2cb1a3d" />
+<img width="1080" height="1440" alt="480shots_so" src="https://github.com/user-attachments/assets/4db5a6ce-98c6-4eca-bf79-c45f04eb85f2" />
+<img width="1920" height="1280" alt="917shots_so" src="https://github.com/user-attachments/assets/35d7da8d-4a8a-4cd3-8ff8-a7613b9ea333" />
+
+
 ## 🔔 Core Features
 1. **맞춤 정책 추천:** 사용자 프로필(나이, 소득, 지역 등) 기반 적합도 판별 및 추천
 2. **임대주택 통합 조회:** LH 공용 데이터 기반 조건별(보증금/월세) 주택 공고 검색
