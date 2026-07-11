@@ -24,7 +24,7 @@
 
 <p align="center">
   <!-- 두 번째 줄 (3장) -->
-  <img width="280" height= "720" alt="917shots_so" src="https://github.com/user-attachments/assets/ed9dfa73-8155-490f-8ae3-37a9b5b05598" style="margin: 0 5px;" />
+  <img width="280" height= "360" alt="917shots_so" src="https://github.com/user-attachments/assets/ed9dfa73-8155-490f-8ae3-37a9b5b05598" style="margin: 0 5px;" />
   <img width="280" alt="446shots_so" src="https://github.com/user-attachments/assets/6b569cde-2ed8-44b3-a4bd-ba33a46afccd" style="margin: 0 5px;" />
   <img width="280" alt="69shots_so" src="https://github.com/user-attachments/assets/f68690e5-d703-4188-a1c7-3e447b7fad99" style="margin: 0 5px;" />
 </p>
