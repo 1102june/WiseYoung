@@ -1,0 +1,3361 @@
+package com.wiseyoung.pro
+
+import android.content.Intent
+import android.net.Uri
+import android.os.Bundle
+import android.widget.Toast
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import android.location.Geocoder
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
+import com.wiseyoung.pro.ui.theme.AppColors
+import com.wiseyoung.pro.ui.theme.Spacing
+import com.wiseyoung.pro.ui.theme.ThemeWrapper
+import com.wiseyoung.pro.data.openApplicationLink
+import com.wiseyoung.pro.data.model.displayApplicationPeriod
+import com.wiseyoung.pro.ui.components.AppPullToRefreshBox
+import com.wiseyoung.pro.ui.components.NO_HOUSING_APPLICATION_LINK_MESSAGE
+import com.wiseyoung.pro.ui.components.NoApplicationLinkDialog
+import com.wiseyoung.pro.ui.components.BottomNavigationBar
+import com.wiseyoung.pro.service.CalendarService
+import com.wiseyoung.pro.util.MapCameraFocus
+import com.wiseyoung.pro.util.ProvinceMapUtils
+import com.wiseyoung.pro.ads.BannerAd
+import com.wiseyoung.pro.ads.InterstitialAdManager
+import com.wiseyoung.pro.util.HousingComplexFilterUtils
+import com.wiseyoung.pro.util.HousingDisplayUtils
+import com.wiseyoung.pro.util.HousingNoticeFilterUtils
+import com.wiseyoung.pro.util.HousingRegionUtils
+import com.wiseyoung.pro.network.NetworkModule
+import androidx.compose.ui.platform.LocalContext
+import java.text.SimpleDateFormat
+import java.util.*
+import java.util.Calendar
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.pointerInteropFilter
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.platform.LocalView
+import androidx.recyclerview.widget.RecyclerView
+import com.kakao.vectormap.MapView
+import com.kakao.vectormap.label.LabelOptions
+import com.kakao.vectormap.label.LabelStyle
+import com.kakao.vectormap.label.LabelStyles
+import com.kakao.vectormap.LatLng
+import com.google.firebase.auth.FirebaseAuth
+import androidx.compose.ui.platform.LocalDensity
+
+data class ApartmentItem(
+    val id: Int,
+    val housingId: String? = null, // 실제 임대주택 ID (북마크용)
+    val name: String,
+    val distance: String,
+    val deposit: Int, // 만원 단위
+    val depositDisplay: String,
+    val monthlyRent: Int, // 만원 단위
+    val monthlyRentDisplay: String,
+    val deadline: String,
+    val address: String,
+    val area: Int, // 제곱미터
+    val completionDate: String,
+    val organization: String,
+    val count: Int,
+    val region: String,
+    val brtcNm: String = "",
+    val housingType: String,
+    val heatingType: String,
+    val hasElevator: Boolean,
+    val parkingSpaces: Int,
+    val convertibleDeposit: String,
+    val totalUnits: Int,
+    val link: String? = null, // 신청 링크
+    val latitude: Double? = null, // 위도
+    val longitude: Double? = null, // 경도
+    val rentSummary: String = "",
+    val summaryLine: String = "",
+    val supplyAreaDisplay: String = "",
+    val activeNoticeCount: Int = 0,
+    val hasCoordinates: Boolean = false
+)
+
+data class HousingAnnouncementItem(
+    val id: Int,
+    val noticeId: String? = null, // 실제 공고 ID (북마크용)
+    val title: String,
+    val organization: String,
+    val region: String,
+    val housingType: String,
+    val status: String, // "접수중", "예정", "마감"
+    val deadline: String,
+    val recruitmentPeriod: String,
+    val address: String,
+    val totalUnits: Int,
+    val area: String, // "59㎡" 형식
+    val deposit: Int, // 만원 단위
+    val depositDisplay: String,
+    val monthlyRent: Int, // 만원 단위
+    val monthlyRentDisplay: String,
+    val announcementDate: String,
+    val link: String? = null, // 신청 링크
+    val rentSummary: String = "",
+    val supplyAreaDisplay: String = "",
+    val aisTpCdNm: String = "",
+    val uppAisTpNm: String = ""
+)
+
+/** 임대주택(단지) 탭 전용 필터 */
+data class ComplexFilters(
+    var region: String = "전체",
+    var maxDeposit: Int = 20000,
+    var maxMonthlyRent: Int = 100,
+    var housingType: String = "전체"
+)
+
+/** 임대주택 공고 탭 전용 필터 */
+data class NoticeFilters(
+    var region: String = "전체",
+    var mainCategory: String = "전체",
+    var subCategory: String = "전체"
+)
+
+// 주소에서 지역 추출 함수
+private fun extractRegionFromAddress(address: String): String {
+    if (address.isEmpty()) return ""
+    // 주소에서 첫 번째 공백 이전의 부분을 지역으로 추출
+    // 예: "수원시 팔달구..." -> "수원시"
+    val parts = address.split(" ")
+    if (parts.isNotEmpty()) {
+        val firstPart = parts[0]
+        // "시", "도", "군", "구" 등이 포함된 경우 그대로 반환
+        if (firstPart.contains("시") || firstPart.contains("도") || firstPart.contains("군")) {
+            return firstPart
+        }
+    }
+    return ""
+}
+
+class HousingMapActivity : ComponentActivity() {
+    private val auth = FirebaseAuth.getInstance()
+    
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // 카카오맵 SDK는 YouthApplication에서 이미 초기화됨 (중복 초기화 방지)
+        val userId = auth.currentUser?.uid ?: "test-user"
+        
+        setContent {
+            ThemeWrapper {
+                HousingMapScreen(
+                    userId = userId,
+                    onNavigateHome = {
+                        InterstitialAdManager.tryShow(this@HousingMapActivity) {
+                            startActivity(Intent(this@HousingMapActivity, MainActivity::class.java))
+                            finish()
+                        }
+                    },
+                    onNavigateCalendar = {
+                        startActivity(Intent(this, CalendarActivity::class.java))
+                        finish()
+                    },
+                    onNavigateBookmark = {
+                        startActivity(Intent(this, BookmarkActivity::class.java))
+                        finish()
+                    },
+                    onNavigateProfile = {
+                        startActivity(Intent(this, ProfileActivity::class.java))
+                        finish()
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun HousingMapScreen(
+    userId: String,
+    onNavigateHome: () -> Unit,
+    onNavigateCalendar: () -> Unit,
+    onNavigateBookmark: () -> Unit,
+    onNavigateProfile: () -> Unit
+) {
+    var activeTab by remember { mutableStateOf<String>("announcement") }
+    var showDetailDialog by remember { mutableStateOf(false) }
+    var selectedApartment by remember { mutableStateOf<Any?>(null) } // ApartmentItem or HousingAnnouncementItem
+    var showNotificationDialog by remember { mutableStateOf(false) }
+    var showFilterDialog by remember { mutableStateOf(false) }
+    var showFullscreenMap by remember { mutableStateOf(false) }
+    var selectedHousing by remember { mutableStateOf<Any?>(null) }
+    val context = LocalContext.current
+    
+    // 북마크 초기 상태 불러오기
+    var bookmarkedHousings by remember {
+        mutableStateOf(
+            BookmarkPreferences.getBookmarks(context)
+                .filter { it.type == BookmarkType.HOUSING }
+                .map { it.title }
+                .toSet()
+        )
+    }
+    
+    // API 데이터
+    var apartmentsList by remember { mutableStateOf<List<ApartmentItem>>(emptyList()) }
+    var announcementsList by remember { mutableStateOf<List<HousingAnnouncementItem>>(emptyList()) }
+    var isLoadingNotices by remember { mutableStateOf(true) }
+    var isLoadingComplexes by remember { mutableStateOf(true) }
+    var noticesApiError by remember { mutableStateOf<String?>(null) }
+    var isRefreshing by remember { mutableStateOf(false) }
+    var refreshKey by remember { mutableIntStateOf(0) }
+    var showNoLinkDialog by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    val calendarService = remember { CalendarService(context) }
+    var mapCameraFocus by remember { mutableStateOf<MapCameraFocus?>(null) }
+    var userProfileRegion by remember { mutableStateOf<String?>(null) }
+
+    var complexFilters by remember {
+        mutableStateOf(ComplexFilters())
+    }
+    var noticeFilters by remember {
+        mutableStateOf(NoticeFilters())
+    }
+    var complexFiltersInitialized by remember { mutableStateOf(false) }
+    var noticeFiltersInitialized by remember { mutableStateOf(false) }
+    var complexesFetchTrigger by remember { mutableIntStateOf(0) }
+    var profileFetchDone by remember { mutableStateOf(false) }
+    var isParsingNotices by remember { mutableStateOf(false) }
+    var isHousingMapReady by remember { mutableStateOf(false) }
+    
+    var notifications by remember {
+        mutableStateOf<NotificationSettings>(
+            NotificationSettings(
+                sevenDays = true,
+                sevenDaysTime = "09:00",
+                oneDay = true,
+                oneDayTime = "10:00",
+                custom = false,
+                customDays = 3,
+                customTime = "09:00"
+            )
+        )
+    }
+
+    LaunchedEffect(userId) {
+        try {
+            val response = withContext(Dispatchers.IO) {
+                NetworkModule.apiService.getUserProfile(userId)
+            }
+            if (response.isSuccessful && response.body()?.success == true) {
+                userProfileRegion = response.body()?.data?.region
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+        } finally {
+            profileFetchDone = true
+            if (!complexFiltersInitialized) {
+                complexFiltersInitialized = true
+                complexesFetchTrigger++
+            }
+        }
+    }
+
+    LaunchedEffect(userProfileRegion) {
+        if (userProfileRegion.isNullOrBlank()) return@LaunchedEffect
+        HousingComplexFilterUtils.profileToBrtcFilter(userProfileRegion)?.let { brtc ->
+            complexFilters = complexFilters.copy(region = brtc)
+            ProvinceMapUtils.findCenter(brtc)?.let { (lat, lon) ->
+                mapCameraFocus = MapCameraFocus(lat, lon, zoomLevel = 12)
+            }
+        }
+    }
+
+    // 공고 탭 — housing_notice API (단지와 완전 분리)
+    LaunchedEffect(userId, refreshKey) {
+        if (refreshKey == 0) {
+            isLoadingNotices = true
+        }
+        noticesApiError = null
+
+        try {
+            val noticesResponse = withContext(Dispatchers.IO) {
+                NetworkModule.apiService.getHousingNotices(
+                    userId = userId,
+                    userIdParam = null,
+                    limit = 300
+                )
+            }
+            val notices = if (noticesResponse.isSuccessful && noticesResponse.body()?.success == true) {
+                noticesResponse.body()?.data ?: emptyList()
+            } else {
+                val msg = noticesResponse.body()?.message
+                    ?: "공고 조회 실패 (${noticesResponse.code()})"
+                noticesApiError = msg
+                emptyList()
+            }
+
+            isLoadingNotices = false
+            isParsingNotices = true
+
+            announcementsList = if (notices.isEmpty()) {
+                emptyList()
+            } else {
+                try {
+                    parseHousingAnnouncements(notices)
+                } catch (_: Exception) {
+                    emptyList()
+                }
+            }
+
+            if (!noticeFiltersInitialized && !userProfileRegion.isNullOrBlank()) {
+                val noticeRegions = buildList {
+                    add("전체")
+                    addAll(
+                        announcementsList.map { it.region }
+                            .filter { it.isNotBlank() }
+                            .distinct()
+                            .sorted()
+                    )
+                }
+                HousingNoticeFilterUtils.profileToNoticeRegionFilter(
+                    userProfileRegion,
+                    noticeRegions
+                )?.let { region ->
+                    noticeFilters = noticeFilters.copy(region = region)
+                }
+                noticeFiltersInitialized = true
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            noticesApiError = "공고를 불러오지 못했습니다. 네트워크를 확인해 주세요."
+            announcementsList = emptyList()
+        } finally {
+            isLoadingNotices = false
+            isParsingNotices = false
+            if (refreshKey > 0) {
+                isRefreshing = false
+            }
+        }
+    }
+
+    // 단지 탭 — housing_complex API (프로필/필터 준비 후 fetch)
+    LaunchedEffect(userId, refreshKey, complexesFetchTrigger) {
+        if (complexesFetchTrigger == 0) return@LaunchedEffect
+
+        isLoadingComplexes = true
+        errorMessage = null
+
+        val brtcForFetch = complexFilters.region.takeIf { it != "전체" }
+            ?: HousingComplexFilterUtils.profileToBrtcFilter(userProfileRegion)
+
+        try {
+            val complexesResponse = withContext(Dispatchers.IO) {
+                NetworkModule.apiService.getHousingComplexes(
+                    userId = userId,
+                    userIdParam = null,
+                    lat = null,
+                    lon = null,
+                    radius = null,
+                    limit = 200,
+                    brtcNm = brtcForFetch
+                )
+            }
+
+            apartmentsList = if (complexesResponse.isSuccessful && complexesResponse.body()?.success == true) {
+                try {
+                    mapComplexesToApartments(complexesResponse.body()?.data ?: emptyList())
+                } catch (_: Exception) {
+                    emptyList()
+                }
+            } else {
+                emptyList()
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            errorMessage = "네트워크 오류: ${e.message}"
+            apartmentsList = emptyList()
+        } finally {
+            isLoadingComplexes = false
+            if (refreshKey > 0) {
+                isRefreshing = false
+            }
+        }
+    }
+
+    // pull-to-refresh: 공고·단지 모두 갱신
+
+    val showHousingContent = profileFetchDone && !isLoadingComplexes && isHousingMapReady
+    val isNoticeLoading = (isLoadingNotices || isParsingNotices) && !isRefreshing
+    val noticeLoadingMessage = when {
+        isLoadingNotices -> "임대주택 공고를 불러오는 중입니다"
+        isParsingNotices -> "접수 중인 공고만 정리하는 중입니다"
+        else -> ""
+    }
+    
+    val filteredApartments = apartmentsList.filter { apt ->
+        if (!HousingComplexFilterUtils.matchesBrtcRegion(apt.brtcNm.ifBlank { apt.region }, complexFilters.region)) {
+            return@filter false
+        }
+        if (apt.deposit > complexFilters.maxDeposit) return@filter false
+        if (apt.monthlyRent > complexFilters.maxMonthlyRent) return@filter false
+        if (complexFilters.housingType != "전체" &&
+            !matchesHousingType(apt.housingType, complexFilters.housingType)
+        ) {
+            return@filter false
+        }
+        true
+    }
+
+    val activeAnnouncements = remember(announcementsList) {
+        announcementsList.filter { it.status == "접수중" }
+    }
+
+    val filteredAnnouncements = activeAnnouncements.filter { announcement ->
+        if (!HousingNoticeFilterUtils.matchesCnpRegion(announcement.region, noticeFilters.region)) {
+            return@filter false
+        }
+        if (!HousingNoticeFilterUtils.matchesMainCategory(
+                announcement.aisTpCdNm,
+                announcement.uppAisTpNm,
+                noticeFilters.mainCategory
+            )
+        ) {
+            return@filter false
+        }
+        if (!HousingNoticeFilterUtils.matchesSubCategory(
+                announcement.aisTpCdNm,
+                noticeFilters.mainCategory,
+                noticeFilters.subCategory
+            )
+        ) {
+            return@filter false
+        }
+        true
+    }
+
+    val complexRegionFilterOptions = remember {
+        HousingRegionUtils.provinceFilterOptions
+    }
+
+    val complexHousingTypeOptions = remember(apartmentsList) {
+        buildList {
+            add("전체")
+            addAll(
+                apartmentsList.map { it.housingType }
+                    .filter { it.isNotBlank() }
+                    .distinct()
+                    .sorted()
+            )
+        }
+    }
+
+    val noticeRegionOptions = remember(activeAnnouncements) {
+        buildList {
+            add("전체")
+            addAll(
+                activeAnnouncements.map { it.region }
+                    .filter { it.isNotBlank() }
+                    .distinct()
+                    .sorted()
+            )
+        }
+    }
+    
+    Scaffold(
+        bottomBar = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                BannerAd()
+                BottomNavigationBar(
+                currentScreen = "home",
+                onNavigateHome = onNavigateHome,
+                onNavigateCalendar = onNavigateCalendar,
+                onNavigateBookmark = onNavigateBookmark,
+                onNavigateProfile = onNavigateProfile
+                )
+            }
+        },
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .background(MaterialTheme.colorScheme.background)
+        ) {
+            // Header
+            HousingMapHeader(onBack = onNavigateHome)
+            
+            // Tab Navigation
+            TabNavigation(
+                activeTab = activeTab,
+                onTabChange = { activeTab = it },
+                modifier = Modifier.padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.md)
+            )
+            
+            AppPullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = {
+                    isRefreshing = true
+                    refreshKey++
+                    complexesFetchTrigger++
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            ) {
+            Column(
+                modifier = Modifier.fillMaxSize()
+            ) {
+            when (activeTab) {
+                "housing" -> {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .fillMaxWidth()
+                    ) {
+                        item {
+                            MapContainer(
+                                onFilterClick = { showFilterDialog = true },
+                                onExpandClick = { showFullscreenMap = true },
+                                totalCount = filteredApartments.size,
+                                regionLabel = complexFilters.region.takeUnless { it == "전체" },
+                                apartments = filteredApartments,
+                                cameraFocus = mapCameraFocus,
+                                isProfileLoading = !profileFetchDone,
+                                isComplexesLoading = isLoadingComplexes && !isRefreshing,
+                                onMapReadyChanged = { isHousingMapReady = it },
+                                onMarkerClick = { apartment ->
+                                    selectedApartment = apartment
+                                    showDetailDialog = true
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = Spacing.screenHorizontal)
+                                    .padding(bottom = Spacing.md)
+                            )
+                        }
+
+                        if (showHousingContent) {
+                        if (filteredApartments.isEmpty()) {
+                            item {
+                                Text(
+                                    text = when {
+                                        errorMessage != null -> errorMessage!!
+                                        complexFilters.region != "전체" ->
+                                            "'${complexFilters.region}' 지역 단지가 없습니다.\n필터에서 다른 지역을 선택하거나 '전체'로 변경해 보세요."
+                                        apartmentsList.isEmpty() ->
+                                            "표시할 임대주택 단지가 없습니다.\n(서버에 해당 지역 단지 데이터가 없을 수 있습니다.)"
+                                        else -> "표시할 임대주택 단지가 없습니다."
+                                    },
+                                    fontSize = 14.sp,
+                                    color = AppColors.TextSecondary,
+                                    modifier = Modifier.padding(
+                                        horizontal = Spacing.screenHorizontal,
+                                        vertical = Spacing.md
+                                    )
+                                )
+                            }
+                        } else {
+                            items(filteredApartments) { apartment ->
+                                ApartmentCard(
+                                    apartment = apartment,
+                                    isBookmarked = bookmarkedHousings.contains(apartment.name),
+                                    onCardClick = {
+                                        scope.launch {
+                                            resolveApartmentMapFocus(context, apartment)?.let {
+                                                mapCameraFocus = it
+                                            }
+                                        }
+                                    },
+                                    onHeartClick = {
+                                        if (!bookmarkedHousings.contains(apartment.name)) {
+                                            scope.launch {
+                                                saveApartmentBookmarkDirectly(
+                                                    userId = userId,
+                                                    apartment = apartment,
+                                                    context = context,
+                                                    onBookmarked = {
+                                                        bookmarkedHousings = bookmarkedHousings + apartment.name
+                                                    }
+                                                )
+                                            }
+                                        } else {
+                                            bookmarkedHousings = bookmarkedHousings - apartment.name
+                                            scope.launch {
+                                                try {
+                                                    val response = com.wiseyoung.pro.network.NetworkModule.apiService.getBookmarks(
+                                                        userId = userId,
+                                                        contentType = "housing"
+                                                    )
+                                                    if (response.isSuccessful && response.body()?.success == true) {
+                                                        val bookmarks = response.body()?.data ?: emptyList()
+                                                        val bookmark = bookmarks.find {
+                                                            it.contentId == apartment.housingId || it.contentId == apartment.id.toString()
+                                                        }
+                                                        bookmark?.let {
+                                                            com.wiseyoung.pro.network.NetworkModule.apiService.deleteBookmark(
+                                                                userId = userId,
+                                                                bookmarkId = it.bookmarkId
+                                                            )
+                                                            val prefs = context.getSharedPreferences("bookmark_prefs", android.content.Context.MODE_PRIVATE)
+                                                            prefs.edit().putLong("last_bookmark_update", System.currentTimeMillis()).apply()
+                                                        }
+                                                    }
+                                                } catch (e: Exception) {
+                                                    android.util.Log.e("HousingMapActivity", "서버 북마크 삭제 실패: ${e.message}", e)
+                                                }
+                                            }
+                                        }
+                                    },
+                                    onDetailClick = {
+                                        selectedApartment = apartment
+                                        showDetailDialog = true
+                                    },
+                                    modifier = Modifier
+                                        .padding(horizontal = Spacing.screenHorizontal)
+                                        .padding(bottom = Spacing.sm)
+                                )
+                            }
+                        }
+                        }
+                    }
+                }
+                "announcement" -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .fillMaxWidth()
+                    ) {
+                        AnnouncementFilterBar(
+                            filters = noticeFilters,
+                            regionOptions = noticeRegionOptions,
+                            totalCount = filteredAnnouncements.size,
+                            onRegionChange = { noticeFilters = noticeFilters.copy(region = it) },
+                            onMainCategoryChange = { category ->
+                                noticeFilters = noticeFilters.copy(
+                                    mainCategory = category,
+                                    subCategory = "전체"
+                                )
+                            },
+                            onSubCategoryChange = { noticeFilters = noticeFilters.copy(subCategory = it) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = Spacing.screenHorizontal)
+                                .padding(bottom = Spacing.sm)
+                        )
+                        if (isNoticeLoading) {
+                            HousingStagedLoadingOverlay(
+                                message = noticeLoadingMessage,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth()
+                            )
+                        } else if (filteredAnnouncements.isEmpty()) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth()
+                                    .padding(horizontal = Spacing.screenHorizontal),
+                                contentAlignment = Alignment.TopCenter
+                            ) {
+                                Text(
+                                    text = when {
+                                        noticesApiError != null -> noticesApiError!!
+                                        activeAnnouncements.isEmpty() ->
+                                            "진행중인 공고 0건"
+                                        noticeFilters.region != "전체" ||
+                                            noticeFilters.mainCategory != "전체" ||
+                                            noticeFilters.subCategory != "전체" ->
+                                            "진행중인 공고 0건\n선택한 필터에 맞는 공고가 없습니다."
+                                        else -> "진행중인 공고 0건"
+                                    },
+                                    fontSize = 14.sp,
+                                    color = AppColors.TextSecondary,
+                                    modifier = Modifier.padding(top = Spacing.md)
+                                )
+                            }
+                        } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .padding(horizontal = Spacing.screenHorizontal)
+                    ) {
+                        items(filteredAnnouncements) { announcement ->
+                            AnnouncementCard(
+                                announcement = announcement,
+                                isBookmarked = bookmarkedHousings.contains(announcement.title),
+                                onHeartClick = {
+                                    if (!bookmarkedHousings.contains(announcement.title)) {
+                                        selectedHousing = announcement
+                                        showNotificationDialog = true
+                                    } else {
+                                        // 북마크 제거
+                                        bookmarkedHousings = bookmarkedHousings - announcement.title
+                                        // 서버에 북마크 삭제 요청
+                                        scope.launch {
+                                            try {
+                                                // 서버에서 북마크 목록 조회하여 해당 북마크 찾기
+                                                val response = com.wiseyoung.pro.network.NetworkModule.apiService.getBookmarks(
+                                                    userId = userId,
+                                                    contentType = "housing"
+                                                )
+                                                if (response.isSuccessful && response.body()?.success == true) {
+                                                    val bookmarks = response.body()?.data ?: emptyList()
+                                                    // contentId로 북마크 찾기
+                                                    val bookmark = bookmarks.find {
+                                                        it.contentId == announcement.noticeId ||
+                                                            it.contentId == announcement.id.toString()
+                                                    }
+                                                    bookmark?.let {
+                                                        com.wiseyoung.pro.network.NetworkModule.apiService.deleteBookmark(
+                                                            userId = userId,
+                                                            bookmarkId = it.bookmarkId
+                                                        )
+                                                        android.util.Log.d("HousingMapActivity", "서버 북마크 삭제 성공: ${it.bookmarkId}")
+                                                        // 북마크 새로고침 플래그 업데이트
+                                                        val prefs = context.getSharedPreferences("bookmark_prefs", android.content.Context.MODE_PRIVATE)
+                                                        prefs.edit().putLong("last_bookmark_update", System.currentTimeMillis()).apply()
+                                                    }
+                                                }
+                                            } catch (e: Exception) {
+                                                android.util.Log.e("HousingMapActivity", "서버 북마크 삭제 실패: ${e.message}", e)
+                                            }
+                                        }
+                                    }
+                                },
+                                onDetailClick = {
+                                    selectedApartment = announcement
+                                    showDetailDialog = true
+                                },
+                                onApplyClick = {
+                                    val link = announcement.link
+                                    if (!link.isNullOrBlank()) {
+                                        openApplicationLink(context, link)
+                                    } else {
+                                        showNoLinkDialog = true
+                                    }
+                                },
+                                modifier = Modifier.padding(bottom = Spacing.sm)
+                            )
+                        }
+                    }
+                    }
+                }
+            }
+            }
+            }
+            }
+        }
+    }
+    
+    // Detail Dialog
+    if (showDetailDialog && selectedApartment != null) {
+        when (val item = selectedApartment) {
+            is ApartmentItem -> {
+                ApartmentDetailDialog(
+                    apartment = item,
+                    isBookmarked = bookmarkedHousings.contains(item.name),
+                    onHeartClick = {
+                        if (!bookmarkedHousings.contains(item.name)) {
+                            scope.launch {
+                                saveApartmentBookmarkDirectly(
+                                    userId = userId,
+                                    apartment = item,
+                                    context = context,
+                                    onBookmarked = {
+                                        bookmarkedHousings = bookmarkedHousings + item.name
+                                    }
+                                )
+                            }
+                        } else {
+                            bookmarkedHousings = bookmarkedHousings - item.name
+                            scope.launch {
+                                try {
+                                    val response = com.wiseyoung.pro.network.NetworkModule.apiService.getBookmarks(
+                                        userId = userId,
+                                        contentType = "housing"
+                                    )
+                                    if (response.isSuccessful && response.body()?.success == true) {
+                                        val bookmarks = response.body()?.data ?: emptyList()
+                                        val contentId = item.housingId
+                                        val bookmark = bookmarks.find {
+                                            it.contentId == contentId || it.title == item.name
+                                        }
+                                        bookmark?.let {
+                                            com.wiseyoung.pro.network.NetworkModule.apiService.deleteBookmark(
+                                                userId = userId,
+                                                bookmarkId = it.bookmarkId
+                                            )
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    android.util.Log.e("HousingMapActivity", "서버 북마크 삭제 실패: ${e.message}", e)
+                                }
+                            }
+                        }
+                    },
+                    onClose = {
+                        showDetailDialog = false
+                        selectedApartment = null
+                    }
+                )
+            }
+            is HousingAnnouncementItem -> {
+                AnnouncementDetailDialog(
+                    announcement = item,
+                    isBookmarked = bookmarkedHousings.contains(item.title),
+                    onHeartClick = {
+                        if (!bookmarkedHousings.contains(item.title)) {
+                            selectedHousing = item
+                            showDetailDialog = false
+                            showNotificationDialog = true
+                        } else {
+                            // 북마크 제거
+                            bookmarkedHousings = bookmarkedHousings - item.title
+                            // 서버에 북마크 삭제 요청
+                            scope.launch {
+                                try {
+                                    val response = com.wiseyoung.pro.network.NetworkModule.apiService.getBookmarks(
+                                        userId = userId,
+                                        contentType = "housing"
+                                    )
+                                    if (response.isSuccessful && response.body()?.success == true) {
+                                        val bookmarks = response.body()?.data ?: emptyList()
+                                        // title로 북마크 찾기
+                                        val bookmark = bookmarks.find { it.title == item.title }
+                                        bookmark?.let {
+                                            com.wiseyoung.pro.network.NetworkModule.apiService.deleteBookmark(
+                                                userId = userId,
+                                                bookmarkId = it.bookmarkId
+                                            )
+                                            android.util.Log.d("HousingMapActivity", "서버 북마크 삭제 성공: ${it.bookmarkId}")
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    android.util.Log.e("HousingMapActivity", "서버 북마크 삭제 실패: ${e.message}", e)
+                                }
+                            }
+                        }
+                    },
+                    onClose = {
+                        showDetailDialog = false
+                        selectedApartment = null
+                    },
+                    onApply = {
+                        val link = item.link
+                        if (!link.isNullOrBlank()) {
+                            openApplicationLink(context, link)
+                        } else {
+                            showNoLinkDialog = true
+                        }
+                    }
+                )
+            }
+            else -> {
+                // 타입이 맞지 않으면 다이얼로그를 닫음
+                showDetailDialog = false
+                selectedApartment = null
+            }
+        }
+    }
+    
+    // Notification Dialog
+    if (showNotificationDialog) {
+        HousingNotificationDialog(
+            notifications = notifications,
+            onNotificationsChange = { newNotifications -> notifications = newNotifications },
+            onSave = {
+                selectedHousing?.let { housing ->
+                    if (housing is HousingAnnouncementItem) {
+                        bookmarkedHousings = bookmarkedHousings + housing.title
+
+                        scope.launch {
+                            try {
+                                val contentId = housing.noticeId ?: housing.id.toString()
+                                val bookmarkResponse = com.wiseyoung.pro.network.NetworkModule.apiService.addBookmark(
+                                    userId = userId,
+                                    request = com.wiseyoung.pro.data.model.BookmarkRequest(
+                                        userId = userId,
+                                        contentType = "housing",
+                                        contentId = contentId
+                                    )
+                                )
+                                if (bookmarkResponse.isSuccessful && bookmarkResponse.body()?.success == true) {
+                                    android.util.Log.d("HousingMapActivity", "서버 북마크 저장 성공")
+
+                                    val prefs = context.getSharedPreferences("bookmark_prefs", android.content.Context.MODE_PRIVATE)
+                                    prefs.edit().putLong("last_bookmark_update", System.currentTimeMillis()).apply()
+
+                                    val deadline = housing.deadline.takeIf { it.isNotBlank() }
+                                        ?: housing.recruitmentPeriod.substringAfterLast("~").trim()
+                                            .takeIf { it.matches(Regex("\\d{4}[.\\-/]\\d{2}[.\\-/]\\d{2}.*")) }
+                                    if (deadline.isNullOrBlank()) {
+                                        Toast.makeText(
+                                            context,
+                                            "마감일 정보가 없어 D-day 캘린더에 추가하지 못했습니다.",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    } else {
+                                        calendarService.addHousingBookmarkToCalendar(
+                                            userId = userId,
+                                            title = housing.title,
+                                            organization = housing.organization,
+                                            contentId = contentId,
+                                            preferredDeadline = deadline,
+                                            notificationSettings = notifications,
+                                            isAnnouncement = true,
+                                            showToast = true,
+                                            showFailureToast = false
+                                        )
+                                    }
+                                } else {
+                                    android.util.Log.e(
+                                        "HousingMapActivity",
+                                        "서버 북마크 저장 실패: code=${bookmarkResponse.code()}, message=${bookmarkResponse.body()?.message}"
+                                    )
+                                }
+                            } catch (e: Exception) {
+                                android.util.Log.e("HousingMapActivity", "서버 저장 실패: ${e.message}", e)
+                            }
+                        }
+                    }
+                }
+                showNotificationDialog = false
+                selectedHousing = null
+            },
+            onDismiss = {
+                showNotificationDialog = false
+                selectedHousing = null
+            }
+        )
+    }
+    
+    if (showFullscreenMap) {
+        Dialog(
+            onDismissRequest = { showFullscreenMap = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.White)
+            ) {
+                MapContainer(
+                    onFilterClick = null,
+                    onExpandClick = null,
+                    totalCount = filteredApartments.size,
+                    regionLabel = complexFilters.region.takeUnless { it == "전체" },
+                    apartments = filteredApartments,
+                    cameraFocus = mapCameraFocus,
+                    isProfileLoading = !profileFetchDone,
+                    isComplexesLoading = isLoadingComplexes && !isRefreshing,
+                    onMarkerClick = { apartment ->
+                        selectedApartment = apartment
+                        showDetailDialog = true
+                    },
+                    fillMaxSize = true,
+                    modifier = Modifier.fillMaxSize()
+                )
+                IconButton(
+                    onClick = { showFullscreenMap = false },
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(Spacing.md)
+                        .background(Color.White.copy(alpha = 0.9f), CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "전체화면 닫기",
+                        tint = AppColors.TextPrimary
+                    )
+                }
+            }
+        }
+    }
+
+    // Filter Dialog (단지 탭 전용)
+    if (showFilterDialog && activeTab == "housing") {
+        ComplexFilterDialog(
+            filters = complexFilters,
+            regionOptions = complexRegionFilterOptions,
+            housingTypeOptions = complexHousingTypeOptions,
+            onFiltersChange = { complexFilters = it },
+            onApply = {
+                showFilterDialog = false
+                complexesFetchTrigger++
+            },
+            onDismiss = { showFilterDialog = false }
+        )
+    }
+
+    if (showNoLinkDialog) {
+        NoApplicationLinkDialog(
+            message = NO_HOUSING_APPLICATION_LINK_MESSAGE,
+            onDismiss = { showNoLinkDialog = false }
+        )
+    }
+}
+
+@Composable
+private fun HousingMapHeader(onBack: () -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = Color.White,
+        shadowElevation = 1.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.sm), // 패딩 축소
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    imageVector = Icons.Default.ArrowBack,
+                    contentDescription = "Back",
+                    modifier = Modifier.size(24.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            
+            Text(
+                text = "임대주택 추천",
+                fontSize = 16.sp, // 폰트 크기 축소
+                fontWeight = FontWeight.Bold,
+                color = AppColors.TextPrimary
+            )
+            
+            Spacer(modifier = Modifier.size(24.dp)) // 균형 공간 축소
+        }
+    }
+}
+
+@Composable
+private fun whiteDropdownMenuItemColors() = MenuDefaults.itemColors(
+    textColor = AppColors.TextPrimary,
+    leadingIconColor = AppColors.TextPrimary,
+    trailingIconColor = AppColors.TextPrimary,
+    disabledTextColor = AppColors.TextDisabled,
+    disabledLeadingIconColor = AppColors.TextDisabled,
+    disabledTrailingIconColor = AppColors.TextDisabled
+)
+
+@Composable
+private fun whiteFilterOutlinedButtonColors() = ButtonDefaults.outlinedButtonColors(
+    containerColor = Color.White,
+    contentColor = AppColors.TextPrimary
+)
+
+@Composable
+private fun AnnouncementFilterBar(
+    filters: NoticeFilters,
+    regionOptions: List<String>,
+    totalCount: Int,
+    onRegionChange: (String) -> Unit,
+    onMainCategoryChange: (String) -> Unit,
+    onSubCategoryChange: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val subCategoryOptions = remember(filters.mainCategory) {
+        HousingNoticeFilterUtils.subCategories(filters.mainCategory)
+    }
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, AppColors.Border),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.sm, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "진행중인 공고 ${totalCount}건",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = AppColors.TextPrimary,
+                    modifier = Modifier.weight(1f)
+                )
+                AnnouncementFilterDropdown(
+                    label = "위치",
+                    value = filters.region,
+                    options = regionOptions.ifEmpty { listOf("전체") },
+                    onValueChange = onRegionChange,
+                    compact = true,
+                    modifier = Modifier.weight(1.2f)
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                AnnouncementFilterDropdown(
+                    label = "주택유형",
+                    value = filters.mainCategory,
+                    options = HousingNoticeFilterUtils.mainCategories,
+                    onValueChange = onMainCategoryChange,
+                    compact = true,
+                    modifier = Modifier.weight(1f)
+                )
+                if (filters.mainCategory != "전체") {
+                    AnnouncementFilterDropdown(
+                        label = "세부",
+                        value = filters.subCategory,
+                        options = subCategoryOptions,
+                        onValueChange = onSubCategoryChange,
+                        compact = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AnnouncementFilterDropdown(
+    label: String,
+    value: String,
+    options: List<String>,
+    onValueChange: (String) -> Unit,
+    compact: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Column(modifier = modifier) {
+        if (!compact) {
+            Text(
+                text = label,
+                fontSize = 12.sp,
+                color = AppColors.TextSecondary,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+        }
+        Box {
+            OutlinedButton(
+                onClick = { expanded = true },
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(
+                    horizontal = if (compact) 8.dp else 10.dp,
+                    vertical = if (compact) 4.dp else 8.dp
+                ),
+                colors = whiteFilterOutlinedButtonColors(),
+                border = BorderStroke(1.dp, AppColors.Border)
+            ) {
+                Text(
+                    text = if (compact) "$label: $value" else value,
+                    fontSize = if (compact) 12.sp else 13.sp,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Start
+                )
+                Icon(
+                    imageVector = if (expanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+                modifier = Modifier
+                    .heightIn(max = 320.dp)
+                    .fillMaxWidth(0.9f),
+                containerColor = Color.White,
+                tonalElevation = 0.dp,
+                shadowElevation = 4.dp
+            ) {
+                options.forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(option, fontSize = 13.sp, color = AppColors.TextPrimary) },
+                        colors = whiteDropdownMenuItemColors(),
+                        onClick = {
+                            onValueChange(option)
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HousingStagedLoadingOverlay(
+    message: String,
+    modifier: Modifier = Modifier,
+    scrim: Boolean = false
+) {
+    Box(
+        modifier = modifier
+            .then(
+                if (scrim) {
+                    Modifier.background(Color.White.copy(alpha = 0.72f))
+                } else {
+                    Modifier
+                }
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(horizontal = Spacing.lg)
+        ) {
+            CircularProgressIndicator(color = Color(0xFF59ABF7))
+            Spacer(modifier = Modifier.height(12.dp))
+            AnimatedContent(
+                targetState = message,
+                transitionSpec = {
+                    fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(180))
+                },
+                label = "housingStagedLoadMessage"
+            ) { text ->
+                Text(
+                    text = text,
+                    color = AppColors.TextSecondary,
+                    fontSize = 13.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MapContainer(
+    onFilterClick: (() -> Unit)?,
+    onExpandClick: (() -> Unit)? = null,
+    totalCount: Int,
+    regionLabel: String?,
+    apartments: List<ApartmentItem>,
+    cameraFocus: MapCameraFocus? = null,
+    isProfileLoading: Boolean = false,
+    isComplexesLoading: Boolean = false,
+    onMapReadyChanged: (Boolean) -> Unit = {},
+    onMarkerClick: ((ApartmentItem) -> Unit)? = null,
+    fillMaxSize: Boolean = false,
+    modifier: Modifier = Modifier,
+    onMapTouchStart: (() -> Unit)? = null,
+    onMapTouchEnd: (() -> Unit)? = null
+) {
+    val mapBoxModifier = if (fillMaxSize) {
+        Modifier.fillMaxSize()
+    } else {
+        Modifier
+            .fillMaxWidth()
+            .aspectRatio(4f / 3f)
+    }
+
+    Card(
+        modifier = if (fillMaxSize) modifier.fillMaxSize() else modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(if (fillMaxSize) 0.dp else 16.dp),
+        border = if (fillMaxSize) {
+            null
+        } else {
+            androidx.compose.foundation.BorderStroke(1.dp, AppColors.Border)
+        },
+        colors = CardDefaults.cardColors(containerColor = Color.White)
+    ) {
+        Column(
+            modifier = if (fillMaxSize) Modifier.fillMaxSize() else Modifier.fillMaxWidth()
+        ) {
+            Box(
+                modifier = if (fillMaxSize) {
+                    Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                } else {
+                    mapBoxModifier.fillMaxWidth()
+                }
+            ) {
+            // Map Area
+            val rootView = LocalView.current
+            
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(AppColors.Border)
+                    // 지도 영역에서 발생하는 모든 터치 이벤트를 가로채서 부모 스크롤 비활성화
+                    .pointerInteropFilter(
+                        onTouchEvent = { event ->
+                            when (event.action) {
+                                android.view.MotionEvent.ACTION_DOWN -> {
+                                    onMapTouchStart?.invoke()
+                                    // 터치가 시작되면 부모 스크롤 비활성화
+                                    rootView.parent?.let { parent ->
+                                        var currentParent: android.view.ViewParent? = parent
+                                        while (currentParent != null) {
+                                            currentParent.requestDisallowInterceptTouchEvent(true)
+                                            if (currentParent is android.view.ViewGroup) {
+                                                currentParent.isNestedScrollingEnabled = false
+                                                if (currentParent is RecyclerView) {
+                                                    currentParent.stopScroll()
+                                                }
+                                            }
+                                            currentParent = currentParent.parent
+                                        }
+                                    }
+                                    false // 터치 이벤트를 MapView로 전달 (지도 드래그 가능)
+                                }
+                                android.view.MotionEvent.ACTION_MOVE -> {
+                                    // MOVE 이벤트에서도 부모 스크롤 비활성화 유지
+                                    rootView.parent?.let { parent ->
+                                        var currentParent: android.view.ViewParent? = parent
+                                        while (currentParent != null) {
+                                            currentParent.requestDisallowInterceptTouchEvent(true)
+                                            if (currentParent is android.view.ViewGroup) {
+                                                currentParent.isNestedScrollingEnabled = false
+                                                if (currentParent is RecyclerView) {
+                                                    currentParent.stopScroll()
+                                                }
+                                            }
+                                            currentParent = currentParent.parent
+                                        }
+                                    }
+                                    false // 터치 이벤트를 MapView로 전달 (지도 드래그 가능)
+                                }
+                                android.view.MotionEvent.ACTION_UP,
+                                android.view.MotionEvent.ACTION_CANCEL -> {
+                                    onMapTouchEnd?.invoke()
+                                    // 터치 종료 시에도 부모 스크롤 비활성화 유지 (지도 영역에서는 스크롤 비활성화)
+                                    rootView.parent?.let { parent ->
+                                        var currentParent: android.view.ViewParent? = parent
+                                        while (currentParent != null) {
+                                            currentParent.requestDisallowInterceptTouchEvent(true)
+                                            if (currentParent is android.view.ViewGroup) {
+                                                currentParent.isNestedScrollingEnabled = false
+                                                if (currentParent is RecyclerView) {
+                                                    currentParent.stopScroll()
+                                                }
+                                            }
+                                            currentParent = currentParent.parent
+                                        }
+                                    }
+                                    false // 터치 이벤트를 MapView로 전달
+                                }
+                                else -> false
+                            }
+                        }
+                    )
+            ) {
+                // 카카오맵 SDK MapView 직접 사용
+                // MapView를 remember로 유지하여 재생성 방지
+                val mapView = remember { mutableStateOf<MapView?>(null) }
+                var kakaoMapInstance by remember { mutableStateOf<com.kakao.vectormap.KakaoMap?>(null) }
+                var mapError by remember { mutableStateOf<String?>(null) }
+                
+                // 지도 영역에서 스크롤을 완전히 차단
+                DisposableEffect(Unit) {
+                    val view = rootView
+                    // 지도 영역에 포커스가 있을 때 스크롤 비활성화
+                    view.parent?.let { parent ->
+                        var currentParent: android.view.ViewParent? = parent
+                        while (currentParent != null) {
+                            if (currentParent is android.view.ViewGroup) {
+                                currentParent.isNestedScrollingEnabled = false
+                                if (currentParent is RecyclerView) {
+                                    currentParent.stopScroll()
+                                }
+                            }
+                            currentParent = currentParent.parent
+                        }
+                    }
+                    onDispose {
+                        // 정리 작업
+                    }
+                }
+
+                AndroidView(
+                    factory = { ctx ->
+                        // 이미 MapView가 생성되어 있으면 재사용
+                        if (mapView.value != null) {
+                            return@AndroidView mapView.value!!
+                        }
+                        try {
+                            val view = MapView(ctx)
+                            // 지도 터치 이벤트가 부모 스크롤과 간섭하지 않도록 설정
+                            view.isClickable = true
+                            view.isFocusable = true
+                            view.isFocusableInTouchMode = true
+                            
+                            // 터치 이벤트 리스너로 부모 스크롤 간섭 방지 (강화)
+                            // MapView가 터치 이벤트를 처리하도록 하되, 부모 스크롤은 완전히 비활성화
+                            var touchStartX = 0f
+                            var touchStartY = 0f
+                            var isMapDragging = false
+                            
+                            view.setOnTouchListener { v, event ->
+                                when (event.action) {
+                                    android.view.MotionEvent.ACTION_DOWN -> {
+                                        touchStartX = event.x
+                                        touchStartY = event.y
+                                        isMapDragging = false
+                                        
+                                        // DOWN 이벤트에서 즉시 모든 부모 뷰의 스크롤 비활성화
+                                        var parent = v.parent
+                                        while (parent != null) {
+                                            parent.requestDisallowInterceptTouchEvent(true)
+                                            if (parent is android.view.ViewGroup) {
+                                                parent.isNestedScrollingEnabled = false
+                                                // RecyclerView인 경우 즉시 스크롤 중지
+                                                if (parent is RecyclerView) {
+                                                    parent.stopScroll()
+                                                }
+                                            }
+                                            parent = parent.parent
+                                        }
+                                    }
+                                    android.view.MotionEvent.ACTION_MOVE -> {
+                                        // 이동 거리 계산
+                                        val dx = kotlin.math.abs(event.x - touchStartX)
+                                        val dy = kotlin.math.abs(event.y - touchStartY)
+                                        
+                                        // 수평 또는 수직으로 3px 이상 이동하면 지도 드래그로 판단
+                                        if (dx > 3 || dy > 3) {
+                                            isMapDragging = true
+                                        }
+                                        
+                                        // MOVE 이벤트에서는 항상 부모 스크롤 비활성화 (위/아래 드래그 포함)
+                                        // 모든 부모 뷰를 순회하며 스크롤 차단
+                                        var parent = v.parent
+                                        while (parent != null) {
+                                            parent.requestDisallowInterceptTouchEvent(true)
+                                            if (parent is android.view.ViewGroup) {
+                                                parent.isNestedScrollingEnabled = false
+                                                // LazyColumn의 RecyclerView인 경우 스크롤 완전히 차단
+                                                if (parent.javaClass.simpleName.contains("RecyclerView") ||
+                                                    parent.javaClass.simpleName.contains("LazyList")) {
+                                                    parent.isNestedScrollingEnabled = false
+                                                    // RecyclerView의 스크롤 중지
+                                                    try {
+                                                        val recyclerView = parent as? RecyclerView
+                                                        recyclerView?.stopScroll()
+                                                    } catch (e: Exception) {
+                                                        // RecyclerView가 아니면 무시
+                                                    }
+                                                }
+                                            }
+                                            parent = parent.parent
+                                        }
+                                    }
+                                    android.view.MotionEvent.ACTION_UP,
+                                    android.view.MotionEvent.ACTION_CANCEL -> {
+                                        // 터치 종료 시에도 부모 스크롤 비활성화 유지 (지도 영역에서는 스크롤 비활성화)
+                                        // 지도 영역에서는 스크롤을 완전히 차단
+                                        var parent = v.parent
+                                        while (parent != null) {
+                                            parent.requestDisallowInterceptTouchEvent(true)
+                                            if (parent is android.view.ViewGroup) {
+                                                parent.isNestedScrollingEnabled = false
+                                                if (parent is RecyclerView) {
+                                                    parent.stopScroll()
+                                                }
+                                            }
+                                            parent = parent.parent
+                                        }
+                                        isMapDragging = false
+                                    }
+                                }
+                                // false를 반환하여 MapView가 터치 이벤트를 처리하도록 함
+                                false
+                            }
+                            
+                            // 추가: MapView 자체의 스크롤 가능 여부 설정
+                            view.isScrollContainer = false
+                            view.isNestedScrollingEnabled = false
+                            
+                            view.start(object : com.kakao.vectormap.MapLifeCycleCallback() {
+                                override fun onMapDestroy() {
+                                    android.util.Log.d("HousingMapActivity", "Kakao Map Destroyed")
+                                    kakaoMapInstance = null
+                                }
+
+                                override fun onMapError(error: Exception?) {
+                                    android.util.Log.e("HousingMapActivity", "Kakao Map Error: ${error?.message}", error)
+                                    mapError = error?.message ?: "지도 로드 오류"
+                                }
+                            }, object : com.kakao.vectormap.KakaoMapReadyCallback() {
+                                override fun onMapReady(kakaoMap: com.kakao.vectormap.KakaoMap) {
+                                    android.util.Log.d("HousingMapActivity", "Kakao Map Ready")
+                                    mapError = null
+                                    kakaoMapInstance = kakaoMap
+                                    
+                                    // 지도 클릭 이벤트는 LabelManager의 클릭 리스너로 처리됨
+                                    
+                                    // 마커는 LaunchedEffect에서 apartments 리스트가 준비되면 추가됨
+                                }
+                            })
+                            mapView.value = view
+                            view
+                        } catch (e: Exception) {
+                            android.util.Log.e("HousingMapActivity", "Map creation failed: ${e.message}", e)
+                            mapError = "지도를 불러올 수 없습니다: ${e.message}"
+                            android.widget.TextView(ctx).apply {
+                                text = "지도를 불러올 수 없습니다.\n${e.message}"
+                                textSize = 12f
+                                gravity = android.view.Gravity.CENTER
+                                setPadding(16, 16, 16, 16)
+                                setBackgroundColor(android.graphics.Color.LTGRAY)
+                                setTextColor(android.graphics.Color.DKGRAY)
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                    update = { view ->
+                        // MapView 업데이트 시 추가 작업 없음
+                        // 마커는 LaunchedEffect에서 처리됨
+                        // MapView가 이미 생성되어 있으면 재생성하지 않음
+                        if (mapView.value == null && view is MapView) {
+                            mapView.value = view
+                        }
+                    }
+                )
+                
+                var markersAddedFor by remember { mutableStateOf("") }
+                var isMapMarkersLoading by remember { mutableStateOf(false) }
+                // 아파트 리스트와 지도가 준비되면 마커 추가 (데이터 갱신 시 재실행)
+                val context = LocalContext.current
+                val apartmentMarkerKey = apartments.joinToString("|") {
+                    "${it.housingId}:${it.latitude}:${it.longitude}:${it.address}"
+                }
+                LaunchedEffect(apartmentMarkerKey, kakaoMapInstance, isProfileLoading, isComplexesLoading) {
+                    if (isProfileLoading || isComplexesLoading) {
+                        isMapMarkersLoading = true
+                        return@LaunchedEffect
+                    }
+                    if (apartments.isEmpty()) {
+                        isMapMarkersLoading = false
+                        markersAddedFor = ""
+                        return@LaunchedEffect
+                    }
+                    if (kakaoMapInstance == null) {
+                        isMapMarkersLoading = true
+                        return@LaunchedEffect
+                    }
+                    if (markersAddedFor == apartmentMarkerKey) {
+                        isMapMarkersLoading = false
+                        return@LaunchedEffect
+                    }
+                    isMapMarkersLoading = true
+                    try {
+                        android.util.Log.d("HousingMapActivity", "마커 추가 시작: 아파트 ${apartments.size}개")
+                        addApartmentMarkers(
+                            context = context,
+                            kakaoMap = kakaoMapInstance!!,
+                            apartments = apartments,
+                            onMarkerClick = onMarkerClick
+                        )
+                        markersAddedFor = apartmentMarkerKey
+                    } finally {
+                        isMapMarkersLoading = false
+                    }
+                }
+
+                LaunchedEffect(cameraFocus?.requestId, kakaoMapInstance) {
+                    val focus = cameraFocus
+                    val map = kakaoMapInstance
+                    if (focus != null && map != null) {
+                        moveMapCamera(map, focus.latitude, focus.longitude, focus.zoomLevel)
+                    }
+                }
+                
+                val mapLoadingMessage = when {
+                    isProfileLoading -> "회원 지역 정보를 확인하는 중입니다"
+                    isComplexesLoading -> "임대주택 단지를 불러오는 중입니다"
+                    kakaoMapInstance == null && mapError == null -> "지도를 준비하는 중입니다"
+                    isMapMarkersLoading -> "지도에 임대주택을 표시하는 중입니다"
+                    else -> null
+                }
+
+                LaunchedEffect(mapLoadingMessage) {
+                    onMapReadyChanged(mapLoadingMessage == null)
+                }
+
+                if (mapLoadingMessage != null) {
+                    HousingStagedLoadingOverlay(
+                        message = mapLoadingMessage,
+                        modifier = Modifier.fillMaxSize(),
+                        scrim = true
+                    )
+                }
+
+                if (mapError != null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.3f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            Text(
+                                text = mapError ?: "지도를 불러오는 중입니다...",
+                                color = Color.White,
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+                }
+
+
+                // MapView 생명주기 정리
+                DisposableEffect(Unit) {
+                    onDispose {
+                        // v2에서는 start() 시 전달한 callback에서 destroy 처리되거나
+                        // 뷰가 제거될 때 자동으로 처리됨 (일반적인 View)
+                    }
+                }
+                
+                // Map Controls - Right
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(Spacing.md),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.xs)
+                ) {
+                    MapControlButton(
+                        icon = Icons.Default.Add,
+                        onClick = { 
+                            // 줌 인 기능
+                            kakaoMapInstance?.let { map ->
+                                try {
+                                    // 방법 1: CameraUpdateFactory.zoomIn() 사용
+                                    map.moveCamera(
+                                        com.kakao.vectormap.camera.CameraUpdateFactory.zoomIn()
+                                    )
+                                } catch (e: Exception) {
+                                    android.util.Log.e("HousingMapActivity", "줌 인 실패: ${e.message}", e)
+                                    // 방법 2: 현재 줌 레벨 가져와서 증가
+                                    try {
+                                        val currentPosition = map.cameraPosition
+                                        if (currentPosition != null) {
+                                            val currentZoom = currentPosition.zoomLevel
+                                            val newZoom = (currentZoom + 1).coerceAtMost(20)
+                                            map.moveCamera(
+                                                com.kakao.vectormap.camera.CameraUpdateFactory.zoomTo(newZoom)
+                                            )
+                                        }
+                                    } catch (e2: Exception) {
+                                        android.util.Log.e("HousingMapActivity", "줌 인 대안 방법 실패: ${e2.message}", e2)
+                                    }
+                                }
+                            }
+                        }
+                    )
+                    MapControlButton(
+                        icon = Icons.Default.Remove,
+                        onClick = { 
+                            // 줌 아웃 기능
+                            kakaoMapInstance?.let { map ->
+                                try {
+                                    // 방법 1: CameraUpdateFactory.zoomOut() 사용
+                                    map.moveCamera(
+                                        com.kakao.vectormap.camera.CameraUpdateFactory.zoomOut()
+                                    )
+                                } catch (e: Exception) {
+                                    android.util.Log.e("HousingMapActivity", "줌 아웃 실패: ${e.message}", e)
+                                    // 방법 2: 현재 줌 레벨 가져와서 감소
+                                    try {
+                                        val currentPosition = map.cameraPosition
+                                        if (currentPosition != null) {
+                                            val currentZoom = currentPosition.zoomLevel
+                                            val newZoom = (currentZoom - 1).coerceAtLeast(1)
+                                            map.moveCamera(
+                                                com.kakao.vectormap.camera.CameraUpdateFactory.zoomTo(newZoom)
+                                            )
+                                        }
+                                    } catch (e2: Exception) {
+                                        android.util.Log.e("HousingMapActivity", "줌 아웃 대안 방법 실패: ${e2.message}", e2)
+                                    }
+                                }
+                            }
+                        }
+                    )
+                    onExpandClick?.let { expandClick ->
+                        MapControlButton(
+                            icon = Icons.Default.Fullscreen,
+                            onClick = expandClick,
+                            contentDescription = "지도 전체화면"
+                        )
+                    }
+                }
+                
+                // Filter Button - Left (onFilterClick이 null이 아닐 때만 표시)
+                onFilterClick?.let { filterClick ->
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(Spacing.md)
+                            .clickable { filterClick() },
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color.White,
+                        shadowElevation = 2.dp
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Tune,
+                                contentDescription = "Filter",
+                                modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "필터",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+                
+                // 검은 동그라미 제거 - 실제 마커로 대체됨
+
+                // Location Label (선택된 지역 기준 동적 텍스트)
+                regionLabel?.let { label ->
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .offset(y = (-40).dp),
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color.White,
+                        shadowElevation = 2.dp
+                    ) {
+                        Text(
+                            text = "$label 주변 임대주택",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = Spacing.sm, vertical = 4.dp)
+                        )
+                    }
+                }
+            }
+            }
+
+            if (!fillMaxSize) {
+                Text(
+                    text = "임대주택 카드를 클릭시 해당 위치로 이동합니다.",
+                    fontSize = 11.sp,
+                    color = AppColors.TextTertiary,
+                    modifier = Modifier.padding(horizontal = Spacing.sm, vertical = 6.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MapControlButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit,
+    contentDescription: String? = null
+) {
+    Surface(
+        modifier = Modifier.clickable { onClick() },
+        shape = RoundedCornerShape(8.dp),
+        color = Color.White,
+        shadowElevation = 2.dp
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            modifier = Modifier
+                .size(40.dp)
+                .padding(Spacing.sm),
+            tint = AppColors.TextSecondary
+        )
+    }
+}
+
+@Composable
+private fun LocationMarker(count: Int) {
+    Box(
+        modifier = Modifier
+            .size(48.dp)
+            .clip(CircleShape)
+            .background(AppColors.TextPrimary),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = count.toString(),
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
+    }
+}
+
+@Composable
+private fun TabNavigation(
+    activeTab: String,
+    onTabChange: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+    ) {
+        TabButton(
+            text = "임대주택 공고",
+            isSelected = activeTab == "announcement",
+            onClick = { onTabChange("announcement") },
+            modifier = Modifier.weight(1f)
+        )
+        TabButton(
+            text = "임대주택",
+            isSelected = activeTab == "housing",
+            onClick = { onTabChange("housing") },
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun TabButton(
+    text: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val isHousingTab = text == "임대주택" || text == "임대주택 공고"
+    val selectedColor = if (isHousingTab) {
+        Color(0xFFFF9800) // 주황색
+    } else {
+        null // 기본 그라데이션 사용
+    }
+    
+    Surface(
+        modifier = modifier.clickable { onClick() },
+        shape = RoundedCornerShape(12.dp),
+        color = if (isSelected) Color.Transparent else AppColors.Border.copy(alpha = 0.3f)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(
+                    if (isSelected) {
+                        if (selectedColor != null) {
+                            Modifier.background(selectedColor)
+                        } else {
+                            Modifier.background(
+                                Brush.horizontalGradient(
+                                    colors = listOf(AppColors.Purple, AppColors.BackgroundGradientStart)
+                                )
+                            )
+                        }
+                    } else {
+                        Modifier.background(
+                            Brush.horizontalGradient(colors = listOf(Color.Transparent, Color.Transparent))
+                        )
+                    }
+                )
+                .padding(vertical = Spacing.sm, horizontal = Spacing.sm)
+        ) {
+            Text(
+                text = text,
+                fontSize = 12.sp,
+                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                color = if (isSelected) Color.White else AppColors.TextSecondary,
+                modifier = Modifier.align(Alignment.Center)
+            )
+        }
+    }
+}
+
+@Composable
+fun ApartmentCard(
+    apartment: ApartmentItem,
+    isBookmarked: Boolean,
+    onHeartClick: () -> Unit,
+    onDetailClick: () -> Unit,
+    onCardClick: (() -> Unit)? = null,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable { onCardClick?.invoke() },
+        shape = RoundedCornerShape(16.dp),
+        border = androidx.compose.foundation.BorderStroke(2.dp, AppColors.BackgroundGradientStart.copy(alpha = 0.5f)),
+        colors = CardDefaults.cardColors(
+            containerColor = AppColors.BackgroundGradientStart.copy(alpha = 0.05f)
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.md)
+        ) {
+            // 상단: 제목 + 좋아요 버튼
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Text(
+                    text = apartment.name,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp)
+                )
+                
+                IconButton(
+                    onClick = onHeartClick,
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isBookmarked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = "Bookmark",
+                        tint = if (isBookmarked) AppColors.TextPrimary else AppColors.TextTertiary
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(Spacing.sm))
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (apartment.region.isNotBlank()) {
+                    HousingInfoChip(text = apartment.region)
+                }
+                if (apartment.housingType.isNotBlank()) {
+                    HousingInfoChip(text = apartment.housingType)
+                }
+                if (apartment.distance != "거리 정보 없음") {
+                    HousingInfoChip(text = apartment.distance)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            
+            // 정보 텍스트
+            Column(
+                verticalArrangement = Arrangement.spacedBy(Spacing.xs)
+            ) {
+                if (apartment.summaryLine.isNotBlank()) {
+                    Text(
+                        text = apartment.summaryLine,
+                        fontSize = 13.sp,
+                        color = AppColors.TextSecondary
+                    )
+                }
+                if (apartment.address.isNotBlank()) {
+                    Row(
+                        verticalAlignment = Alignment.Top,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = "위치",
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = apartment.address,
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+                Text(
+                    text = apartment.rentSummary.ifBlank {
+                        "보증금 ${apartment.depositDisplay} · 월세 ${apartment.monthlyRentDisplay}"
+                    },
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            Spacer(modifier = Modifier.height(Spacing.sm))
+
+            OutlinedButton(
+                onClick = onDetailClick,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("상세보기", fontSize = 14.sp)
+            }
+        }
+    }
+}
+
+@Composable
+fun ApartmentDetailDialog(
+    apartment: ApartmentItem,
+    isBookmarked: Boolean,
+    onHeartClick: () -> Unit,
+    onClose: () -> Unit
+) {
+    Dialog(onDismissRequest = onClose) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.9f), // 정책과 동일한 크기
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(Spacing.md)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "임대주택 상세 정보",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    // 오른쪽 상단 버튼들
+                    Column(
+                        horizontalAlignment = Alignment.End
+                    ) {
+                        IconButton(onClick = onClose) {
+                            Icon(Icons.Default.Close, contentDescription = "Close")
+                        }
+                        IconButton(onClick = onHeartClick) {
+                            Icon(
+                                imageVector = if (isBookmarked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                contentDescription = if (isBookmarked) "북마크 해제" else "북마크",
+                                tint = if (isBookmarked) Color(0xFFEF4444) else AppColors.TextTertiary
+                            )
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(Spacing.md))
+                
+                Text(
+                    text = apartment.name,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                
+                Spacer(modifier = Modifier.height(Spacing.lg))
+                
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+                ) {
+                    ApartmentDetailRow("위치 / 주소", apartment.address)
+                    ApartmentDetailRow("가격", "보증금 ${apartment.depositDisplay} / 월세 ${apartment.monthlyRentDisplay}")
+                    ApartmentDetailRow("공급전용면적", "${apartment.area}㎡ (${sqmToPyeong(apartment.area)}평)")
+                    ApartmentDetailRow("준공날짜", "${apartment.completionDate} (${getYearsSince(apartment.completionDate)}년차)")
+                    ApartmentDetailRow("기관명", apartment.organization)
+                    ApartmentDetailRow("지역", apartment.region)
+                    ApartmentDetailRow("주택유형", apartment.housingType)
+                    ApartmentDetailRow("난방종류", apartment.heatingType)
+                    ApartmentDetailRow("엘리베이터", if (apartment.hasElevator) "있음" else "없음")
+                    ApartmentDetailRow("주차공간", "${apartment.parkingSpaces}대")
+                    ApartmentDetailRow("총세대수", "${apartment.totalUnits}세대")
+                }
+                
+                Spacer(modifier = Modifier.height(Spacing.xl))
+            }
+        }
+    }
+}
+
+@Composable
+private fun ApartmentDetailRow(label: String, value: String) {
+    Column {
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            color = AppColors.TextTertiary,
+            modifier = Modifier.padding(bottom = 4.dp)
+        )
+        Text(
+            text = value,
+            fontSize = 14.sp,
+            color = AppColors.TextPrimary
+        )
+    }
+}
+
+@Composable
+private fun HousingInfoChip(text: String) {
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = Color(0xFFF3F4F6)
+    ) {
+        Text(
+            text = text,
+            fontSize = 11.sp,
+            color = AppColors.TextSecondary,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+        )
+    }
+}
+
+@Composable
+fun AnnouncementCard(
+    announcement: HousingAnnouncementItem,
+    isBookmarked: Boolean,
+    onHeartClick: () -> Unit,
+    onDetailClick: () -> Unit,
+    onApplyClick: () -> Unit,
+    onCardClick: (() -> Unit)? = null,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .then(
+                if (onCardClick != null) {
+                    Modifier.clickable { onCardClick() }
+                } else {
+                    Modifier
+                }
+            ),
+        shape = RoundedCornerShape(16.dp),
+        border = androidx.compose.foundation.BorderStroke(2.dp, AppColors.BackgroundGradientStart.copy(alpha = 0.5f)),
+        colors = CardDefaults.cardColors(
+            containerColor = AppColors.BackgroundGradientStart.copy(alpha = 0.05f)
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.md)
+        ) {
+            // 상단: 제목 + 좋아요 버튼
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = announcement.title,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(bottom = Spacing.sm)
+                    )
+                }
+                
+                IconButton(
+                    onClick = onHeartClick,
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isBookmarked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = "Bookmark",
+                        tint = if (isBookmarked) AppColors.TextPrimary else AppColors.TextTertiary
+                    )
+                }
+            }
+            
+            // 고정 정보: 모집기간, 주택유형, 지역, 공고중
+            Column(
+                verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+                modifier = Modifier.padding(bottom = Spacing.md)
+            ) {
+                Text(
+                    text = "📅 모집기간: ${announcement.recruitmentPeriod}",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "🏠 주택유형: ${announcement.housingType}",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "📍 ${announcement.region}",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = announcement.rentSummary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                if (announcement.supplyAreaDisplay.isNotBlank() && announcement.supplyAreaDisplay != "면적 미정") {
+                    Text(
+                        text = "📐 ${announcement.supplyAreaDisplay}",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                val statusColor = when (announcement.status) {
+                    "접수중", "상시" -> Color(0xFF10B981)
+                    "마감" -> AppColors.TextTertiary
+                    else -> Color(0xFFF59E0B)
+                }
+                Text(
+                    text = announcement.status,
+                    fontSize = 14.sp,
+                    color = statusColor,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(
+                    onClick = onDetailClick,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = whiteFilterOutlinedButtonColors(),
+                    border = BorderStroke(1.dp, AppColors.Border),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                ) {
+                    Text("상세보기", fontSize = 14.sp)
+                }
+                Button(
+                    onClick = onApplyClick,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AppColors.BackgroundGradientStart
+                    ),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                ) {
+                    Text(
+                        text = "신청하기",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AnnouncementDetailDialog(
+    announcement: HousingAnnouncementItem,
+    isBookmarked: Boolean,
+    onHeartClick: () -> Unit,
+    onClose: () -> Unit,
+    onApply: () -> Unit
+) {
+    Dialog(onDismissRequest = onClose) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.9f), // 정책과 동일한 크기
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(Spacing.md)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "임대주택 상세 정보",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    // 오른쪽 상단 버튼들
+                    Column(
+                        horizontalAlignment = Alignment.End
+                    ) {
+                        IconButton(onClick = onClose) {
+                            Icon(Icons.Default.Close, contentDescription = "Close")
+                        }
+                        IconButton(onClick = onHeartClick) {
+                            Icon(
+                                imageVector = if (isBookmarked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                contentDescription = if (isBookmarked) "북마크 해제" else "북마크",
+                                tint = if (isBookmarked) Color(0xFFEF4444) else AppColors.TextTertiary
+                            )
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(Spacing.md))
+                
+                Text(
+                    text = announcement.title,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                
+                Spacer(modifier = Modifier.height(Spacing.lg))
+                
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+                ) {
+                    ApartmentDetailRow("위치 / 주소", announcement.address)
+                    ApartmentDetailRow("가격", "보증금 ${announcement.depositDisplay} / 월세 ${announcement.monthlyRentDisplay}")
+                    ApartmentDetailRow("공급전용면적", announcement.area)
+                    ApartmentDetailRow("기관명", announcement.organization)
+                    ApartmentDetailRow("모집기간", announcement.recruitmentPeriod)
+                    ApartmentDetailRow("지역", announcement.region)
+                    ApartmentDetailRow("주택유형", announcement.housingType)
+                    ApartmentDetailRow("공고상태", announcement.status)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ComplexFilterDialog(
+    filters: ComplexFilters,
+    regionOptions: List<String>,
+    housingTypeOptions: List<String>,
+    onFiltersChange: (ComplexFilters) -> Unit,
+    onApply: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    var localFilters by remember { mutableStateOf(filters) }
+    
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 600.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White)
+                    .padding(Spacing.md)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Text(
+                    text = "필터 설정",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(bottom = Spacing.md)
+                )
+                
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(Spacing.md)
+                ) {
+                    // Region Filter
+                    Column {
+                        Text(
+                            text = "지역",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(bottom = Spacing.xs)
+                        )
+                        var expanded by remember { mutableStateOf(false) }
+                        Box {
+                            OutlinedButton(
+                                onClick = { expanded = true },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = whiteFilterOutlinedButtonColors(),
+                                border = BorderStroke(1.dp, AppColors.Border)
+                            ) {
+                                Text(
+                                    text = localFilters.region,
+                                    modifier = Modifier.weight(1f),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Start
+                                )
+                                Icon(
+                                    imageVector = if (expanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                                    contentDescription = null
+                                )
+                            }
+                            
+                            DropdownMenu(
+                                expanded = expanded,
+                                onDismissRequest = { expanded = false },
+                                modifier = Modifier
+                                    .heightIn(max = 320.dp)
+                                    .fillMaxWidth(0.95f),
+                                containerColor = Color.White,
+                                tonalElevation = 0.dp,
+                                shadowElevation = 4.dp
+                            ) {
+                                (if (regionOptions.isEmpty()) listOf("전체") else regionOptions).forEach { region ->
+                                    DropdownMenuItem(
+                                        text = { Text(region, color = AppColors.TextPrimary) },
+                                        colors = whiteDropdownMenuItemColors(),
+                                        onClick = {
+                                            localFilters = localFilters.copy(region = region)
+                                            expanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Housing Type Filter
+                    Column {
+                        Text(
+                            text = "주택유형",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(bottom = Spacing.xs)
+                        )
+                        var expanded by remember { mutableStateOf(false) }
+                        Box {
+                            OutlinedButton(
+                                onClick = { expanded = true },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = whiteFilterOutlinedButtonColors(),
+                                border = BorderStroke(1.dp, AppColors.Border)
+                            ) {
+                                Text(
+                                    text = localFilters.housingType,
+                                    modifier = Modifier.weight(1f),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Start
+                                )
+                                Icon(
+                                    imageVector = if (expanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                                    contentDescription = null
+                                )
+                            }
+                            
+                            DropdownMenu(
+                                expanded = expanded,
+                                onDismissRequest = { expanded = false },
+                                containerColor = Color.White,
+                                tonalElevation = 0.dp,
+                                shadowElevation = 4.dp
+                            ) {
+                                (if (housingTypeOptions.isEmpty()) listOf("전체") else housingTypeOptions).forEach { type ->
+                                    DropdownMenuItem(
+                                        text = { Text(type, color = AppColors.TextPrimary) },
+                                        colors = whiteDropdownMenuItemColors(),
+                                        onClick = {
+                                            localFilters = localFilters.copy(housingType = type)
+                                            expanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Max Deposit Slider
+                    Column {
+                        Text(
+                            text = "최대 보증금",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(bottom = Spacing.xs)
+                        )
+                        Slider(
+                            value = localFilters.maxDeposit.toFloat(),
+                            onValueChange = { localFilters = localFilters.copy(maxDeposit = it.toInt()) },
+                            valueRange = 0f..20000f,
+                            steps = 19
+                        )
+                        Text(
+                            text = "보증금: ${localFilters.maxDeposit}만원 이하",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Column {
+                        Text(
+                            text = "최대 월세",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(bottom = Spacing.xs)
+                        )
+                        Slider(
+                            value = localFilters.maxMonthlyRent.toFloat(),
+                            onValueChange = { localFilters = localFilters.copy(maxMonthlyRent = it.toInt()) },
+                            valueRange = 0f..100f,
+                            steps = 9
+                        )
+                        Text(
+                            text = "월세: ${localFilters.maxMonthlyRent}만원 이하",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(Spacing.md))
+                
+                Button(
+                    onClick = {
+                        onFiltersChange(localFilters)
+                        onApply()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AppColors.TextPrimary
+                    )
+                ) {
+                    Text("적용하기", color = Color.White)
+                }
+            }
+        }
+    }
+}
+
+
+private fun sqmToPyeong(sqm: Int): Int {
+    return (sqm / 3.3058).toInt()
+}
+
+private fun getYearsSince(completionDate: String): Int {
+    return try {
+        val dateFormat = SimpleDateFormat("yyyy.MM", Locale.getDefault())
+        val completion = dateFormat.parse(completionDate)
+        val now = Calendar.getInstance()
+        val completionCal = Calendar.getInstance()
+        completion?.let { completionCal.time = it }
+        
+        val years = now.get(Calendar.YEAR) - completionCal.get(Calendar.YEAR)
+        val months = now.get(Calendar.MONTH) - completionCal.get(Calendar.MONTH)
+        
+        if (months < 0 || (months == 0 && now.get(Calendar.DAY_OF_MONTH) < completionCal.get(Calendar.DAY_OF_MONTH))) {
+            years - 1
+        } else {
+            years
+        }
+    } catch (e: Exception) {
+        0
+    }
+}
+
+/**
+ * 도로명·지번 등 구체적 주소만 지오코딩 (시·도·구만 있으면 동일 좌표로 몰리는 문제 방지)
+ */
+private fun isSpecificEnoughForGeocoding(address: String): Boolean {
+    val trimmed = address.trim()
+    if (trimmed.length < 8) return false
+    return trimmed.contains(Regex("\\d")) ||
+        trimmed.contains("로 ") ||
+        trimmed.contains("길 ") ||
+        trimmed.contains("대로") ||
+        trimmed.contains("번길")
+}
+
+/**
+ * 도로명 주소를 지오코딩하여 위도/경도로 변환
+ */
+private suspend fun geocodeAddress(context: android.content.Context, address: String): Pair<Double?, Double?> {
+    return withContext(Dispatchers.IO) {
+        try {
+            if (!Geocoder.isPresent()) {
+                android.util.Log.w("HousingMapActivity", "Geocoder가 사용 불가능합니다.")
+                return@withContext Pair(null, null)
+            }
+            
+            val geocoder = Geocoder(context, Locale.getDefault())
+            val addresses = geocoder.getFromLocationName(address, 1)
+            
+            if (addresses != null && addresses.isNotEmpty()) {
+                val location = addresses[0]
+                val lat = location.latitude
+                val lon = location.longitude
+                android.util.Log.d("HousingMapActivity", "지오코딩 성공: $address -> ($lat, $lon)")
+                Pair(lat, lon)
+            } else {
+                android.util.Log.w("HousingMapActivity", "지오코딩 실패: 주소를 찾을 수 없습니다 - $address")
+                Pair(null, null)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("HousingMapActivity", "지오코딩 오류: $address, ${e.message}", e)
+            Pair(null, null)
+        }
+    }
+}
+
+/**
+ * 카카오맵에 임대주택 단지정보 마커 추가 (지오코딩 포함)
+ * 위도/경도가 없는 경우 도로명 주소를 지오코딩하여 마커를 표시합니다.
+ * 
+ * 참고: https://apis.map.kakao.com/android_v2/docs/getting-started/mapdraw/
+ * - LabelManager를 통해 마커(Label)를 추가합니다
+ * - LabelManager -> LabelLayer -> Label 순서로 사용합니다
+ */
+private suspend fun addApartmentMarkersWithGeocoding(
+    context: android.content.Context,
+    kakaoMap: com.kakao.vectormap.KakaoMap,
+    apartments: List<ApartmentItem>,
+    onMarkerClick: ((ApartmentItem) -> Unit)? = null
+) {
+    try {
+        // 위도/경도가 있는 아파트와 없는 아파트 분리
+        val apartmentsWithCoordinates = mutableListOf<ApartmentItem>()
+        val apartmentsWithoutCoordinates = mutableListOf<ApartmentItem>()
+        
+        apartments.forEach { apartment ->
+            if (apartment.hasCoordinates && apartment.latitude != null && apartment.longitude != null) {
+                apartmentsWithCoordinates.add(apartment)
+            } else if (!apartment.hasCoordinates) {
+                val geocodeAddress = apartment.address.takeIf { isSpecificEnoughForGeocoding(it) }
+                if (!geocodeAddress.isNullOrBlank()) {
+                    apartmentsWithoutCoordinates.add(apartment.copy(address = geocodeAddress))
+                }
+            } else if (apartment.latitude != null && apartment.longitude != null) {
+                apartmentsWithCoordinates.add(apartment)
+            }
+        }
+        
+        android.util.Log.d("HousingMapActivity", "좌표 있는 아파트: ${apartmentsWithCoordinates.size}, 지오코딩 필요한 아파트: ${apartmentsWithoutCoordinates.size}")
+        
+        // 지오코딩 병렬 처리 (최대 20건, 동시 5건)
+        val geocodedApartments = coroutineScope {
+            val semaphore = Semaphore(5)
+            apartmentsWithoutCoordinates.take(20).map { apartment ->
+                async {
+                    semaphore.withPermit {
+                        val (lat, lon) = geocodeAddress(context, apartment.address)
+                        if (lat != null && lon != null) {
+                            apartment.copy(latitude = lat, longitude = lon)
+                        } else {
+                            null
+                        }
+                    }
+                }
+            }.awaitAll().filterNotNull()
+        }
+        
+        // 모든 아파트 합치기
+        val allApartments = apartmentsWithCoordinates + geocodedApartments
+        android.util.Log.d("HousingMapActivity", "마커 추가 가능한 아파트 수: ${allApartments.size}")
+        
+        if (allApartments.isEmpty()) {
+            android.util.Log.w("HousingMapActivity", "마커 추가할 아파트가 없습니다.")
+            return
+        }
+        
+        // 마커 추가
+        addApartmentMarkers(context, kakaoMap, allApartments, onMarkerClick)
+    } catch (e: Exception) {
+        android.util.Log.e("HousingMapActivity", "마커 추가 중 오류: ${e.message}", e)
+    }
+}
+
+/**
+ * 카카오맵에 임대주택 단지정보 마커 추가
+ * 카카오맵 SDK v2 API를 사용하여 아파트 위치에 마커를 표시합니다.
+ * 
+ * 참고: https://apis.map.kakao.com/android_v2/docs/getting-started/mapdraw/
+ * - LabelManager를 통해 마커(Label)를 추가합니다
+ * - LabelManager -> LabelLayer -> Label 순서로 사용합니다
+ */
+private fun addApartmentMarkers(
+    context: android.content.Context,
+    kakaoMap: com.kakao.vectormap.KakaoMap,
+    apartments: List<ApartmentItem>,
+    onMarkerClick: ((ApartmentItem) -> Unit)? = null
+) {
+    try {
+        // 위도/경도가 있는 아파트만 마커 추가
+        val validApartments = apartments.filter { it.latitude != null && it.longitude != null }
+        android.util.Log.d("HousingMapActivity", "마커 추가 가능한 아파트 수: ${validApartments.size}")
+        
+        if (validApartments.isEmpty()) {
+            android.util.Log.w("HousingMapActivity", "마커 추가할 아파트가 없습니다. (위도/경도 정보가 없음)")
+            return
+        }
+        
+        // LabelManager 가져오기 (카카오맵 SDK v2 API)
+        // 참고: https://apis.map.kakao.com/android_v2/docs/getting-started/mapdraw/
+        // https://apis.map.kakao.com/android_v2/docs/api-guide/label/
+        val labelManager = kakaoMap.getLabelManager() ?: run {
+            android.util.Log.e("HousingMapActivity", "LabelManager를 가져올 수 없습니다.")
+            return
+        }
+        val labelLayer = labelManager.getLayer() ?: run {
+            android.util.Log.e("HousingMapActivity", "LabelLayer를 가져올 수 없습니다.")
+            return
+        }
+        
+        // 마커 스타일 생성 (아파트 아이콘 사용)
+        val drawable = context.resources.getDrawable(com.wiseyoung.pro.R.drawable.apartment, context.theme)
+        
+        // 아이콘 크기 조정 (작게 만들기 - 32dp 크기로)
+        val iconSize = (32 * context.resources.displayMetrics.density).toInt()
+        val bitmap = android.graphics.Bitmap.createBitmap(
+            iconSize,
+            iconSize,
+            android.graphics.Bitmap.Config.ARGB_8888
+        )
+        val canvas = android.graphics.Canvas(bitmap)
+        drawable.setBounds(0, 0, iconSize, iconSize)
+        drawable.draw(canvas)
+        
+        val markerStyle = LabelStyle.from(bitmap)
+        val markerStyles = LabelStyles.from("apartment_marker_style", markerStyle)
+        labelManager.addLabelStyles(markerStyles)
+        
+        // 마커와 아파트 정보를 매핑하기 위한 맵
+        val markerApartmentMap = mutableMapOf<com.kakao.vectormap.label.Label, ApartmentItem>()
+        
+        // 마커 추가
+        validApartments.forEach { apartment ->
+            val lat = apartment.latitude ?: return@forEach
+            val lon = apartment.longitude ?: return@forEach
+            
+            try {
+                // LatLng 생성 (위도, 경도)
+                // 참고: https://apis.map.kakao.com/android_v2/docs/api-guide/coordinate/
+                val latLng = LatLng.from(lat, lon)
+                
+                // LabelOptions 생성 (위치와 스타일 설정)
+                // 참고: https://apis.map.kakao.com/android_v2/docs/api-guide/label/
+                // setTexts()는 LabelTextBuilder를 받으므로 일단 제거 (아이콘만 표시)
+                val labelOptions = LabelOptions.from(latLng)
+                    .setStyles(markerStyles)
+                
+                // 마커 추가
+                val label = labelLayer.addLabel(labelOptions)
+                
+                // 마커와 아파트 정보 매핑
+                markerApartmentMap[label] = apartment
+                
+                android.util.Log.d("HousingMapActivity", "마커 추가 완료: ${apartment.name} - 주소: ${apartment.address}, 좌표: ($lat, $lon)")
+            } catch (e: Exception) {
+                android.util.Log.e("HousingMapActivity", "마커 추가 실패: ${apartment.name}, 오류: ${e.message}", e)
+            }
+        }
+        
+        // LabelManager에 클릭 리스너 등록 (마커 클릭 이벤트 처리)
+        if (onMarkerClick != null) {
+            // 카카오맵 SDK v2에서는 지도 클릭 이벤트로 처리하고, 클릭된 위치에 가장 가까운 마커를 찾음
+            kakaoMap.setOnMapClickListener { kakaoMap, latLng, pointF, poi ->
+                // 클릭된 위치에 가장 가까운 마커 찾기
+                var closestApartment: ApartmentItem? = null
+                var minDistance = Double.MAX_VALUE
+                
+                markerApartmentMap.forEach { (label, apartment) ->
+                    val lat = apartment.latitude ?: return@forEach
+                    val lon = apartment.longitude ?: return@forEach
+                    
+                    // 두 지점 간의 거리 계산 (간단한 유클리드 거리)
+                    val latDiff = latLng.latitude - lat
+                    val lonDiff = latLng.longitude - lon
+                    val distance = kotlin.math.sqrt(latDiff * latDiff + lonDiff * lonDiff)
+                    
+                    if (distance < minDistance && distance < 0.01) { // 약 1km 이내
+                        minDistance = distance
+                        closestApartment = apartment
+                    }
+                }
+                
+                if (closestApartment != null) {
+                    android.util.Log.d("HousingMapActivity", "마커 클릭: ${closestApartment.name}")
+                    onMarkerClick(closestApartment)
+                }
+            }
+        }
+        
+        // 지도 중심점 계산 및 이동 (모든 마커가 보이도록)
+        val lats = validApartments.mapNotNull { it.latitude }
+        val lons = validApartments.mapNotNull { it.longitude }
+        
+        if (lats.isNotEmpty() && lons.isNotEmpty()) {
+            val minLat = lats.minOrNull() ?: 37.5
+            val maxLat = lats.maxOrNull() ?: 37.6
+            val minLon = lons.minOrNull() ?: 127.0
+            val maxLon = lons.maxOrNull() ?: 127.1
+            
+            // 지도 중심점 계산
+            val centerLat = (minLat + maxLat) / 2
+            val centerLon = (minLon + maxLon) / 2
+            
+            // 카메라 이동 (모든 마커가 보이도록)
+            // 참고: https://apis.map.kakao.com/android_v2/docs/api-guide/kakaomap/
+            try {
+                val centerLatLng = LatLng.from(centerLat, centerLon)
+                // 카카오맵 SDK v2의 카메라 이동 API 확인 필요
+                // kakaoMap.moveCamera() 또는 다른 메서드 사용
+                android.util.Log.d("HousingMapActivity", "지도 중심점: (${centerLat}, ${centerLon}) - 카메라 이동 API 확인 필요")
+            } catch (e: Exception) {
+                android.util.Log.e("HousingMapActivity", "카메라 이동 실패: ${e.message}", e)
+            }
+        }
+    } catch (e: Exception) {
+        android.util.Log.e("HousingMapActivity", "마커 추가 중 오류: ${e.message}", e)
+    }
+}
+
+private fun moveMapCamera(
+    kakaoMap: com.kakao.vectormap.KakaoMap,
+    latitude: Double,
+    longitude: Double,
+    zoomLevel: Int = 15
+) {
+    try {
+        val latLng = com.kakao.vectormap.LatLng.from(latitude, longitude)
+        kakaoMap.moveCamera(
+            com.kakao.vectormap.camera.CameraUpdateFactory.newCenterPosition(latLng, zoomLevel)
+        )
+    } catch (e: Exception) {
+        android.util.Log.e("HousingMapActivity", "카메라 이동 실패: ${e.message}", e)
+    }
+}
+
+private suspend fun resolveApartmentMapFocus(
+    context: android.content.Context,
+    apartment: ApartmentItem
+): MapCameraFocus? {
+    apartment.latitude?.let { lat ->
+        apartment.longitude?.let { lon ->
+            return MapCameraFocus(lat, lon)
+        }
+    }
+    apartment.address?.takeIf { it.isNotBlank() }?.let { address ->
+        val (lat, lon) = geocodeAddress(context, address)
+        if (lat != null && lon != null) {
+            return MapCameraFocus(lat, lon)
+        }
+    }
+    return ProvinceMapUtils.findCenter(apartment.brtcNm.ifBlank { apartment.region })?.let { (lat, lon) ->
+        MapCameraFocus(lat, lon, zoomLevel = 12)
+    }
+}
+
+private suspend fun saveApartmentBookmarkDirectly(
+    userId: String,
+    apartment: ApartmentItem,
+    context: android.content.Context,
+    onBookmarked: () -> Unit
+) {
+    try {
+        val contentId = apartment.housingId ?: return
+        val bookmarkResponse = NetworkModule.apiService.addBookmark(
+            userId = userId,
+            request = com.wiseyoung.pro.data.model.BookmarkRequest(
+                userId = userId,
+                contentType = "housing",
+                contentId = contentId
+            )
+        )
+        if (bookmarkResponse.isSuccessful && bookmarkResponse.body()?.success == true) {
+            val prefs = context.getSharedPreferences("bookmark_prefs", android.content.Context.MODE_PRIVATE)
+            prefs.edit().putLong("last_bookmark_update", System.currentTimeMillis()).apply()
+            onBookmarked()
+            android.widget.Toast.makeText(context, "북마크에 추가되었습니다.", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    } catch (e: Exception) {
+        android.util.Log.e("HousingMapActivity", "단지 북마크 저장 실패: ${e.message}", e)
+    }
+}
+
+/**
+ * 임대주택 알림 설정 다이얼로그 (WheelPicker 사용)
+ */
+@Composable
+private fun HousingNotificationDialog(
+    notifications: NotificationSettings,
+    onNotificationsChange: (NotificationSettings) -> Unit,
+    onSave: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    var localNotifications by remember { mutableStateOf(notifications) }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color.White,
+        title = { 
+            Text(
+                "알림 설정",
+                color = Color(0xFF59ABF7)
+            ) 
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(Spacing.md)
+            ) {
+                HousingNotificationSettingRow(
+                    label = "7일전 알림",
+                    enabled = localNotifications.sevenDays,
+                    time = localNotifications.sevenDaysTime,
+                    onEnabledChange = {
+                        localNotifications = localNotifications.copy(sevenDays = it)
+                    },
+                    onTimeChange = {
+                        localNotifications = localNotifications.copy(sevenDaysTime = it)
+                    }
+                )
+                
+                HousingNotificationSettingRow(
+                    label = "1일전 알림",
+                    enabled = localNotifications.oneDay,
+                    time = localNotifications.oneDayTime,
+                    onEnabledChange = {
+                        localNotifications = localNotifications.copy(oneDay = it)
+                    },
+                    onTimeChange = {
+                        localNotifications = localNotifications.copy(oneDayTime = it)
+                    }
+                )
+                
+                HousingCustomNotificationRow(
+                    enabled = localNotifications.custom,
+                    days = localNotifications.customDays,
+                    time = localNotifications.customTime,
+                    onEnabledChange = {
+                        localNotifications = localNotifications.copy(custom = it)
+                    },
+                    onDaysChange = {
+                        localNotifications = localNotifications.copy(customDays = it)
+                    },
+                    onTimeChange = {
+                        localNotifications = localNotifications.copy(customTime = it)
+                    }
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onNotificationsChange(localNotifications)
+                    onSave()
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF59ABF7)
+                )
+            ) {
+                Text("저장하기", color = Color.White)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("취소", color = Color(0xFF59ABF7))
+            }
+        }
+    )
+}
+
+@Composable
+private fun HousingNotificationSettingRow(
+    label: String,
+    enabled: Boolean,
+    time: String,
+    onEnabledChange: (Boolean) -> Unit,
+    onTimeChange: (String) -> Unit
+) {
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(label, fontSize = 14.sp)
+            Switch(
+                checked = enabled,
+                onCheckedChange = onEnabledChange
+            )
+        }
+        
+        if (enabled) {
+            HousingTimePickerSection(
+                time = time,
+                onTimeChange = onTimeChange
+            )
+        }
+    }
+}
+
+@Composable
+private fun HousingCustomNotificationRow(
+    enabled: Boolean,
+    days: Int,
+    time: String,
+    onEnabledChange: (Boolean) -> Unit,
+    onDaysChange: (Int) -> Unit,
+    onTimeChange: (String) -> Unit
+) {
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("사용자 지정 알림", fontSize = 14.sp)
+            Switch(
+                checked = enabled,
+                onCheckedChange = onEnabledChange
+            )
+        }
+        
+        if (enabled) {
+            Column(
+                modifier = Modifier.padding(start = Spacing.md, top = Spacing.sm)
+            ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    modifier = Modifier.padding(bottom = Spacing.sm)
+            ) {
+                OutlinedTextField(
+                    value = days.toString(),
+                    onValueChange = { onDaysChange(it.toIntOrNull() ?: 0) },
+                    modifier = Modifier.width(80.dp),
+                    label = { Text("일") }
+                )
+                Text("일 전", fontSize = 14.sp)
+                }
+                
+                HousingTimePickerSection(
+                    time = time,
+                    onTimeChange = onTimeChange
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HousingTimePickerSection(
+    time: String,
+    onTimeChange: (String) -> Unit
+) {
+    val parts = time.split(":").mapNotNull { it.toIntOrNull() }
+    var selectedHour by remember(time) { mutableStateOf(if (parts.size == 2) parts[0] else 9) }
+    var selectedMinute by remember(time) { mutableStateOf(if (parts.size == 2) parts[1] else 0) }
+    
+    LaunchedEffect(selectedHour, selectedMinute) {
+        val newTime = String.format("%02d:%02d", selectedHour, selectedMinute)
+        if (newTime != time) {
+            onTimeChange(newTime)
+        }
+    }
+    
+    val hours = (0..23).toList()
+    val minutes = (0..55 step 5).toList()
+    
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "알림 시간",
+            fontSize = 12.sp,
+            color = AppColors.TextSecondary
+        )
+        
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(140.dp)
+                .border(1.dp, AppColors.Border, RoundedCornerShape(8.dp))
+                .padding(vertical = 8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                HousingWheelPicker(
+                    items = hours,
+                    selectedValue = selectedHour,
+                    onValueSelected = { selectedHour = it },
+                    label = "시"
+                )
+                
+                Text(
+                    ":", 
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                    fontWeight = FontWeight.Bold
+                )
+                
+                HousingWheelPicker(
+                    items = minutes,
+                    selectedValue = selectedMinute,
+                    onValueSelected = { selectedMinute = it },
+                    label = "분"
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HousingWheelPicker(
+    items: List<Int>,
+    selectedValue: Int,
+    onValueSelected: (Int) -> Unit,
+    label: String
+) {
+    val itemHeight = 36.dp
+    val listState = rememberLazyListState(
+        initialFirstVisibleItemIndex = items.indexOf(selectedValue).coerceAtLeast(0)
+    )
+    val density = LocalDensity.current
+    
+    LaunchedEffect(listState.isScrollInProgress) {
+        if (!listState.isScrollInProgress) {
+            val scrollOffset = with(density) { listState.firstVisibleItemScrollOffset.toDp() }
+            val itemIndex = listState.firstVisibleItemIndex
+            
+            val targetIndex = if (scrollOffset < itemHeight / 2) {
+                itemIndex
+            } else {
+                (itemIndex + 1).coerceAtMost(items.size - 1)
+            }
+            
+            if (targetIndex >= 0 && targetIndex < items.size) {
+                val value = items[targetIndex]
+                if (value != selectedValue) {
+                    onValueSelected(value)
+                }
+                listState.animateScrollToItem(targetIndex)
+            }
+        }
+    }
+    
+    LaunchedEffect(selectedValue) {
+        val index = items.indexOf(selectedValue)
+        if (index >= 0 && !listState.isScrollInProgress && listState.firstVisibleItemIndex != index) {
+            listState.scrollToItem(index)
+        }
+    }
+    
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.width(60.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .height(108.dp)
+                .fillMaxWidth()
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(itemHeight)
+                    .align(Alignment.Center)
+                    .background(AppColors.LightBlue.copy(alpha = 0.1f))
+            )
+            
+            LazyColumn(
+                state = listState,
+                contentPadding = PaddingValues(vertical = itemHeight),
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                itemsIndexed(items) { index, item ->
+                    Box(
+                        modifier = Modifier
+                            .height(itemHeight)
+                            .fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = String.format("%02d", item),
+                            fontSize = if (item == selectedValue) 18.sp else 14.sp,
+                            fontWeight = if (item == selectedValue) FontWeight.Bold else FontWeight.Normal,
+                            color = if (item == selectedValue) AppColors.LightBlue else AppColors.TextSecondary
+                        )
+                    }
+                }
+            }
+        }
+        Text(label, fontSize = 12.sp, color = AppColors.TextSecondary)
+    }
+}
+
+private fun mapComplexesToApartments(
+    complexes: List<com.wiseyoung.pro.data.model.HousingComplexResponse>
+): List<ApartmentItem> {
+    return complexes.mapIndexed { index, complex ->
+        val depositWon = complex.deposit ?: 0
+        val monthlyWon = complex.monthlyRent ?: 0
+        val complexName = complex.displayName()
+        val brtc = complex.brtcNm?.trim().orEmpty().ifBlank {
+            HousingRegionUtils.normalizeRegion(complex.region)
+                ?: complex.region?.trim().orEmpty()
+        }
+        ApartmentItem(
+            id = index + 1,
+            housingId = complex.complexId,
+            name = complexName,
+            distance = complex.distanceDisplay
+                ?: HousingDisplayUtils.formatDistanceMeters(complex.distanceFromUser)
+                ?: "거리 정보 없음",
+            deposit = depositWon / 10000,
+            depositDisplay = complex.depositDisplay
+                ?: HousingDisplayUtils.formatMoneyWon(depositWon),
+            monthlyRent = monthlyWon / 10000,
+            monthlyRentDisplay = complex.monthlyRentDisplay
+                ?: HousingDisplayUtils.formatMoneyWon(monthlyWon),
+            deadline = "",
+            address = complex.displayAddress(),
+            area = complex.supplyArea?.toInt() ?: 0,
+            completionDate = complex.displayCompletionDate(),
+            organization = complex.displayOrganization(),
+            count = 0,
+            region = brtc,
+            brtcNm = brtc,
+            housingType = complex.displayHousingType(),
+            heatingType = complex.displayHeatingType(),
+            hasElevator = complex.displayHasElevator(),
+            parkingSpaces = complex.parkingSpaces ?: 0,
+            convertibleDeposit = "",
+            totalUnits = complex.totalUnits ?: 0,
+            link = null,
+            latitude = complex.latitude,
+            longitude = complex.longitude,
+            rentSummary = HousingDisplayUtils.complexRentSummary(complex),
+            summaryLine = HousingDisplayUtils.complexSummaryLine(complex),
+            supplyAreaDisplay = complex.supplyAreaDisplay
+                ?: HousingDisplayUtils.formatSupplyArea(complex.supplyArea),
+            activeNoticeCount = 0,
+            hasCoordinates = complex.hasCoordinates == true
+                || (complex.latitude != null && complex.longitude != null)
+        )
+    }
+}
+
+private fun parseHousingAnnouncements(
+    notices: List<com.wiseyoung.pro.data.model.HousingNoticeResponse>
+): List<HousingAnnouncementItem> {
+    return notices.mapIndexedNotNull { index, notice ->
+        val applicationStart = notice.applicationStart?.take(10)?.replace("-", ".") ?: ""
+        val applicationEnd = notice.applicationEnd?.take(10)?.replace("-", ".") ?: ""
+        val now = Calendar.getInstance()
+        val deadlineDate = try {
+            if (applicationEnd.isNotEmpty()) {
+                SimpleDateFormat("yyyy.MM.dd", Locale.getDefault()).parse(applicationEnd)
+            } else null
+        } catch (e: Exception) {
+            null
+        }
+
+        val status = HousingDisplayUtils.noticeStatus(
+            notice,
+            when {
+                deadlineDate == null -> "예정"
+                deadlineDate.before(now.time) -> "마감"
+                else -> "접수중"
+            }
+        )
+
+        if (status != "접수중") return@mapIndexedNotNull null
+
+        val aisTp = notice.aisTpCdNm?.trim().orEmpty()
+        val uppAis = notice.uppAisTpNm?.trim().orEmpty()
+        val region = notice.cnpCdNm?.trim().orEmpty()
+
+        HousingAnnouncementItem(
+            id = index + 1,
+            noticeId = notice.noticeId ?: notice.panId,
+            title = HousingDisplayUtils.noticeTitle(notice),
+            organization = "",
+            region = region,
+            housingType = aisTp,
+            status = status,
+            deadline = applicationEnd,
+            recruitmentPeriod = notice.recruitmentPeriodDisplay?.takeIf { it.isNotBlank() }
+                ?: notice.displayApplicationPeriod(),
+            address = notice.address?.trim().orEmpty(),
+            totalUnits = 0,
+            area = notice.supplyAreaDisplay?.takeIf { it.isNotBlank() } ?: "면적 미정",
+            deposit = 0,
+            depositDisplay = notice.depositDisplay ?: "미정",
+            monthlyRent = 0,
+            monthlyRentDisplay = notice.monthlyRentDisplay ?: "미정",
+            announcementDate = applicationStart,
+            link = notice.dtlUrl,
+            rentSummary = notice.rentSummary?.takeIf { it.isNotBlank() }
+                ?: "보증금 · 월세는 상세 공고에서 확인",
+            supplyAreaDisplay = notice.supplyAreaDisplay ?: "면적 미정",
+            aisTpCdNm = aisTp,
+            uppAisTpNm = uppAis
+        )
+    }
+}
+
+
+private fun matchesHousingType(itemType: String, filterType: String): Boolean {
+    if (filterType == "전체") return true
+    if (itemType.isBlank()) return true
+    return itemType.contains(filterType) || filterType.contains(itemType)
+}
+
