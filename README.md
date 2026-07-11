@@ -16,10 +16,10 @@
 
 ## Overview
 <p align="center">
-  <img width="180" alt="446shots_so" src="https://github.com/user-attachments/assets/6b569cde-2ed8-44b3-a4bd-ba33a46afccd" style="margin: 0 10px;" />
-  <img width="180" alt="36shots_so" src="https://github.com/user-attachments/assets/4a11cbf2-889f-4051-b9ad-2c82d54c879a" style="margin: 0 10px;" />
-  <img width="180" alt="248shots_so" src="https://github.com/user-attachments/assets/e983d230-5745-4d78-bd6b-3cabb2cb1a3d" style="margin: 0 10px;" />
-  <img width="180" alt="480shots_so" src="https://github.com/user-attachments/assets/4db5a6ce-98c6-4eca-bf79-c45f04eb85f2" style="margin: 0 10px;" />
+  <img width="320" alt="446shots_so" src="https://github.com/user-attachments/assets/6b569cde-2ed8-44b3-a4bd-ba33a46afccd" style="margin: 0 10px;" />
+  <img width="320" alt="36shots_so" src="https://github.com/user-attachments/assets/4a11cbf2-889f-4051-b9ad-2c82d54c879a" style="margin: 0 10px;" />
+  <img width="320" alt="248shots_so" src="https://github.com/user-attachments/assets/e983d230-5745-4d78-bd6b-3cabb2cb1a3d" style="margin: 0 10px;" />
+  <img width="320" alt="480shots_so" src="https://github.com/user-attachments/assets/4db5a6ce-98c6-4eca-bf79-c45f04eb85f2" style="margin: 0 10px;" />
 </p>
 <br>
 
