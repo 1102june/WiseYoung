@@ -15,16 +15,21 @@
 <img width="4161" height="2402" alt="wiseyoung_출시구조도" src="https://github.com/user-attachments/assets/982e4347-1fa9-423b-bda2-6f33e0419576" />
 
 ## Overview
+
 <p align="center">
-  <!-- 첫 번째 줄 (3장) -->
+  <!-- 첫 번째 줄 (2장) -->
   <img width="280" alt="480shots_so" src="https://github.com/user-attachments/assets/4db5a6ce-98c6-4eca-bf79-c45f04eb85f2" style="margin: 0 5px;" />
   <img width="280" alt="36shots_so" src="https://github.com/user-attachments/assets/4a11cbf2-889f-4051-b9ad-2c82d54c879a" style="margin: 0 5px;" />
-  <img width="280" alt="248shots_so" src="https://github.com/user-attachments/assets/e983d230-5745-4d78-bd6b-3cabb2cb1a3d" style="margin: 0 5px;" />
 </p>
 
 <p align="center">
-  <!-- 두 번째 줄 (3장) -->
+  <!-- 두 번째 줄 (2장) -->
+  <img width="280" alt="248shots_so" src="https://github.com/user-attachments/assets/e983d230-5745-4d78-bd6b-3cabb2cb1a3d" style="margin: 0 5px;" />
   <img width="280" alt="917shots_so" src="https://github.com/user-attachments/assets/ed9dfa73-8155-490f-8ae3-37a9b5b05598" style="margin: 0 5px;" />
+</p>
+
+<p align="center">
+  <!-- 세 번째 줄 (2장) -->
   <img width="280" alt="446shots_so" src="https://github.com/user-attachments/assets/6b569cde-2ed8-44b3-a4bd-ba33a46afccd" style="margin: 0 5px;" />
   <img width="280" alt="69shots_so" src="https://github.com/user-attachments/assets/f68690e5-d703-4188-a1c7-3e447b7fad99" style="margin: 0 5px;" />
 </p>
